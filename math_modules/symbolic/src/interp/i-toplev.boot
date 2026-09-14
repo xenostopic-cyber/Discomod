@@ -98,7 +98,7 @@ reroot(dir) ==
 initroot() ==
     spadroot := getEnv('"FRICAS")
     if not(spadroot) then
-        bin_parent_dir := STRCONC(DIRECTORY_-NAMESTRING(first(getCLArgs())),
+        bin_parent_dir := STRCONC(file_directory(first(getCLArgs())),
                                   '"/../")
         if fricas_probe_file(STRCONC(bin_parent_dir, '"algebra/interp.daase"))
         then spadroot := bin_parent_dir
@@ -198,7 +198,9 @@ DEFPARAMETER($inRetract, nil)
 processInteractive(form, posnForm) ==
     $timedNameStack : local := NIL
     $statsInfo : local := NIL
-    initializeTimedStack()
+    -- no need to collect stats if we are not going to print them.
+    if $printStorageIfTrue or $printTimeIfTrue then
+        initializeTimedStack()
     finally(
         object := processInteractive0(form, posnForm),
           while $timedNameStack repeat stopTimingProcess peekTimedName())
@@ -292,7 +294,9 @@ printType(x, m) ==  -- m is the mode/type of the result
     $collectOutput =>
         $outputLines :=
             [justifyMyType msgText(type_msg, [type_string]), :$outputLines]
-    say_msg("S2GL0012", type_msg, [type_string])
+    ioHook("startType")
+    say_msg_local(type_msg, [type_string])
+    ioHook("endOfType")
 
 sameUnionBranch(uArg, m) ==
   uArg is [":", ., t] => t = m
@@ -313,15 +317,19 @@ typeTimePrin x ==
   maprinSpecial(x,0,79)
 
 printTime() ==
-  $collectOutput => nil
+  $collectOutput or null $statsInfo => nil
   s := makeLongTimeString($interpreterTimedNames, $interpreterTimedClasses)
-  say_msg("S2GL0013", '"%rjon Time: %1 %rjoff", [s])
+  ioHook("startTime")
+  say_msg_local('"%rjon Time: %1 %rjoff", [s])
+  ioHook("endOfTime")
 
 printStorage() ==
-  $collectOutput => nil
+  $collectOutput or null $statsInfo => nil
   storeString :=
     makeLongSpaceString($interpreterTimedNames, $interpreterTimedClasses)
-  say_msg("S2GL0016", '"%rjon Storage: %1 %rjoff", [storeString])
+  ioHook("startStorage")
+  say_msg_local('"%rjon Storage: %1 %rjoff", [storeString])
+  ioHook("endOfStorage")
 
 --%  Interpreter Middle-Level Driver + Utilities
 

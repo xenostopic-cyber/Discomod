@@ -89,7 +89,6 @@ x^4 + Mod(y, y^4 - 18*y^2 + 82)*x^3 + Mod(2*y^2 - 15, y^4 - 18*y^2 + 82)*x^2
  + Mod(y^3 - 9*y, y^4 - 18*y^2 + 82)*x + Mod(y^2 - 10, y^4 - 18*y^2 + 82)
 x^4 + Mod(y, y^4 - 18*y^2 + 82)*x^3 + Mod(2*y^2 - 15, y^4 - 18*y^2 + 82)*x^2
  + Mod(y^3 - 9*y, y^4 - 18*y^2 + 82)*x + Mod(y^2 - 10, y^4 - 18*y^2 + 82)
-  ***   at top-level: polredbest(x^6+30*x^5+133*x^4-2340*x^3-12284*x
-  ***                 ^----------------------------------------------
-  *** polredbest: not an irreducible polynomial in set_LLL_basis: x^6 + 30*x^5 + 133*x^4 - 2340*x^3 - 12284*x^2 + 29519*x - 3856.
-Total time spent: 4020
+x^6 - 5*x^4 - x^3 + 6*x^2 + 2*x - 1
+x^3 - 2*x - 1
+Total time spent: 3778

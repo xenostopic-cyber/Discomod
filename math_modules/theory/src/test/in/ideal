@@ -28,6 +28,7 @@ u=nfalgtobasis(K,x);v=nfalgtobasis(K,x^2);
 idealfromgens(K,Mat([u,v]))
 idealfromgens(K,[1/4,1/6])
 idealfromgens(K,[4,[6,0,0]~])
+idealfromgens(K,[4,[6,0,0]~, 2])
 idealfromgens(K,[2,1/6])
 idealfromgens(K,[1/3,u/2])
 idealfromgens(K,[u,v/2])

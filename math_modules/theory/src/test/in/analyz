@@ -1,4 +1,4 @@
-HEAP=[9, if(sizebyte(0)==16,114,122)];
+HEAP=[9, if(sizebyte(0)==16,114,123)];
 \e
 sum(x=0,50000,x);
 sum(x=1,1000,log(x));

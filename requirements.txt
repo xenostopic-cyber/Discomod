@@ -65,9 +65,6 @@ pydantic_core
 pyee
 PyGetWindow
 PyMsgBox
-pyobjc-core
-pyobjc-framework-Cocoa
-pyobjc-framework-Quartz
 pyparsing
 pyperclip
 PyRect

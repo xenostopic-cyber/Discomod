@@ -10,7 +10,16 @@ Doc:
  powerful enough to write any kind of program. Some of them are specific to
  GP, since they are made for number theorists. As usual, $X$ will denote any
  simple variable name, and \var{seq} will always denote a sequence of
- expressions, including the empty sequence.
+ expressions, including the empty sequence. Here are a few examples:
+ \bprog
+   while(test, seq)
+   for (i = a,b, seq)      \\ for i = a, a+1, ..., b
+   foreach (v, x, seq)     \\ for each x in v
+   forprime(p = a, b, seq) \\ primes p in [a, b]
+   forsquarefree(n = a, b, seq) \\ squarefree n in [a, b]
+   fordiv(n, d, seq)       \\ divisors d of n
+   forell(E, a,b, seq)     \\ E elliptic curve of conductor in [a, b]
+ @eprog
 
  \misctitle{Caveat} In constructs like
  \bprog
@@ -42,20 +51,27 @@ Doc:
  \section{Programming in GP: other specific functions}
  \label{se:gp_program}
 
-   In addition to the general PARI functions, it is necessary to have some
- functions which will be of use specifically for \kbd{gp}, though a few of these
- can be accessed under library mode. Before we start describing these, we recall
- the difference between \emph{strings} and \emph{keywords} (see
- \secref{se:strings}): the latter don't get expanded at all, and you can type
- them without any enclosing quotes. The former are dynamic objects, where
- everything outside quotes gets immediately expanded.
+ In addition to PARI mathematical functions and GP control statements, we
+ now describe general purpose routines built into the interpreter. They allow
+ input/output and manipulating data structures (character strings,
+ lists, maps) but also calling an exernal program, starting timers or getting
+ information about \kbd{gp}'s state. The powerful \kbd{install} function
+ allows to import any public PARI function in the GP language (as well as
+ functions provided by external libaries).
 
+ Many of these functions expect character strings as arguments.
+ We recall the difference between \emph{strings} and \emph{keywords} contexts
+ (see \secref{se:strings}). Keywords are taken verbtim and you can type
+ them without any enclosing quotes. Strings are dynamic objects, where
+ everything outside quotes gets expanded. For instance, in keyword context,
+ \kbd{1 + 1} is just \kbd{"1 + 1"}; whereas in string context it becomes
+ \kbd{"2"}.
 
 Function: _header_programming/parallel
 Class: header
 Section: programming/parallel
 Doc:
- \section{Parallel programming}
+ \section{Parallel programming in GP}
 
  These function are only available if PARI was configured using
  \kbd{Configure --mt=\dots}. Two multithread interfaces are supported:

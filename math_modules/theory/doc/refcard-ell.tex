@@ -10,8 +10,17 @@
 %
 % See refcard.tex for acknowledgements and thanks.
 
-\def\TITLE{Elliptic Curves}
+\def\TITLE{Curves}
 \input refmacro.tex
+
+\section{Conics}
+
+\li{find a rational point on a conic, $^t x G x = 0$}{qfsolve$(G)$}
+\li{$[H,U]$ such that $H = c{}^tU GU$ has minimat det}{qfminimize$(G)$}
+\li{quadratic Hilbert symbol (at $p$)}{hilbert$(x,y,\{p\})$}
+\li{all solutions in $\QQ^3$ of ternary form}{qfparam$(G,x)$}
+
+\section{Elliptic curves}
 
 An elliptic curve is initially given by 5-tuple
 $v=\kbd{[}a_1,a_2,a_3,a_4,a_6\kbd{]}$ attached to Weierstrass model
@@ -75,6 +84,7 @@ $\bullet$ All domains:
 \li{change point $P$ using $v$}{ellchangepoint$(P,v)$}
 \li{change point $P$ using inverse of $v$}{ellchangepointinv$(P,v)$}
 \li{is $E$ isomorphic to $F$?}{ellisisom$(E,F)$}
+\newcolumn
 
 \subsec{Twists and isogenies}
 \li{quadratic twist}{elltwist$(E,d)$}
@@ -90,10 +100,9 @@ $\bullet$ All domains:
 \li{$log_E(-x(P)/y(P))\in\QQ_p$; $P\in E(\QQ_p)$}{ellpadiclog$(E,p,n,P)$}
 \li{$P$ in the formal group}{ellformalpoint$(E,\{n\},\{x\})$}
 \li{$[\omega/dt,x\omega/dt]$}{ellformaldifferential$(E,\{n\},\{x\})$}
-\newcolumn
 \li{$w = -1/y$ in parameter $-x/y$}{ellformalw$(E,\{n\},\{x\})$}
 
-\section{Curves over finite fields, Pairings}
+\section{Elliptic curves over finite fields, Pairings}
 \li{random point on $E$}{random$(E)$}
 \li{$\#E(\FF_q)$}{ellcard$(E)$}
 \li{$\#E(\FF_q)$ with almost prime order}{ellsea$(E, \{\var{tors}\})$}
@@ -104,7 +113,7 @@ $\bullet$ All domains:
 \li{Tate pairing of $P,Q$; $P$ $m$-torsion}{elltatepairing$(E,P,Q, m)$}
 \li{Discrete log, find $n$ s.t. $P=[n]Q$}{elllog$(E,P,Q,\{ord\})$}
 
-\section{Curves over $\QQ$}
+\section{Elliptic curves over $\QQ$}
 \subsec{Reduction, minimal model}
 \li{minimal model of $E/\QQ$} {ellminimalmodel$(E,\{$\&$v\})$}
 \li{quadratic twist of minimal conductor}{ellminimaltwist$(E)$}
@@ -136,7 +145,6 @@ $\bullet$ All domains:
 \li{$L(E,s)$ (using less memory than \kbd{lfun})}{elllseries$(E,s)$}
 \li{$L^{(r)}(E,1)$ (using less memory than \kbd{lfun})}{ellL1$(E,r)$}
 %
-\li{a Heegner point on $E$ of rank $1$}{ellheegner$(E)$}
 \li{order of vanishing at $1$}{ellanalyticrank$(E,\{\var{eps}\})$}
 \li{root number for $L(E,.)$ at $p$}{ellrootno$(E,\{p\})$}
 \li{modular parametrization of $E$}{elltaniyama$(E)$}
@@ -152,6 +160,8 @@ $\bullet$ All domains:
    {ellpadiclambdamu$(E,p,D,i)$}
 
 \subsec{Rational points}
+\li{a Heegner point on $E$ of rank $1$}{ellheegner$(E)$}
+\li{\dots on the twist $E_D$ (of rank $1$)}{ellheegnertwist$(E,D)$}
 \li{attempt to compute $E(\Q)$}{ellrank$(E,\{\text{effort}\},
  \{\text{points}\})$}
 \li{initialize for later \kbd{ellrank} calls, }{ellrankinit$(E)$}
@@ -162,12 +172,11 @@ $\bullet$ All domains:
 \subsec{Elldata package, Cremona's database:}
 \li{db code \kbd{"11a1"} $\leftrightarrow$ $[\var{conductor}, \var{class}, \var{index}]$}{ellconvertname$(s)$}
 \li{generators of Mordell-Weil group}{ellgenerators$(E)$}
-\newcolumn
 \li{look up $E$ in database}{ellidentify$(E)$}
 \li{all curves matching criterion}{ellsearch$(N)$}
 \li{loop over curves with cond.~from $a$ to $b$}{forell$(E, a,b,\seq)$}
 
-\section{Curves over number field $K$}
+\section{Elliptic curves over number field $K$}
 \li{coeff $a_{\goth{p}}$ of $L$-function}{ellap$(E,\goth{p})$}
 \li{Kodaira type of $\goth{p}$-fiber of $E$}{elllocalred$(E,\goth{p})$}
 \li{integral model of $E/K$} {ellintegralmodel$(E,\{$\&$v\})$}
@@ -186,27 +195,45 @@ and $[h]$ encodes $D = [1/2,0,h]$ (critical line up to height $h$).\hfil\break
 \li{compute $L(E,s)$ ($n$-th derivative)}{lfun$(L, s, \{n=0\})$}
 \li{$L(E,1,r)/(r! \cdot R\cdot \#Sha)$ assuming BSD}{ellbsd$(E)$}
 
-\section{Other curves of small genus}
+\vfill
+\copyrightnotice
+\newcolumn
+
+\section{Hyperelliptic curves}
 A hyperelliptic curve $C$ is given by a pair $[P,Q]$ ($y^2+Qy = P$ with $Q^2+4P$
 squarefree) or a single squarefree polynomial $P$ ($y^2 = P$).\hfil\break
 \li{check if $[x,y]$ is on $C$}{hyperellisoncurve$(C, [x,y])$}
 \li{$y$-coordinates of point(s) for $x$}{hyperellordinate$(C,x)$}
-\li{discriminant of $C$}{hyperelldisc$(C)$}
+\li{Igusa invariants for $C$ of genus $2$}{genus2igusa$(C)$}
+\li{period matrix}{hyperellperiods$(C)$}
+\li{affine rational points of height $\leq h$}{hyperellratpoints$(C, h)$}
+
+\subsec{Change of Weierstrass models, using $m = [e, [a,b;c,d], H]$}
+\li{compose changes}{hyperellchangecompose$(C,m_1,m_2)$}
+\li{invert change}{hyperellchangeinvert$(C,m)$}
+\li{change curve $C$ using $m$}{hyperellchangecurve$(C,m)$}
+\li{change point $P$ using $m$}{hyperellchangepoint$(P,m)$}
+\li{change point $P$ using inverse of $m$}{hyperellchangepointinv$(P,v)$}
+\li{automorphisms of $C$}{hyperellauto$(C,\{nf\})$}
+\li{is $C_1$ isomorphic to $C_2$?}{hyperellisisom$(C_1,C_2)$}
 \li{Cremona-Stoll reduction}{hyperellred$(C)$}
-\li{apply $m = [e, [a,b;c,d], H]$ to model}{hyperellchangecurve$(C,m)$}
+
+\subsec{Reduction, minimal model}
+\li{discriminant of $C$}{hyperelldisc$(C)$}
 \li{minimal discriminant of integral $C$}{hyperellminimaldisc$(C)$}
 \li{minimal model of integral $C$}{hyperellminimalmodel$(C)$}
+\li{maximal chain of minimal models at $p$}{hyperellextremalmodels$(C,p)$}
 \li{reduction of $y^2+Qy = P$ (genus $2$)}{genus2red$(C,\{p\})$}
-\li{Igusa invariants for $C$ of genus $2$}{genus2igusa$(C)$}
+
+\subsec{Frobenius}
 \li{char. poly. of Frobenius}{genus2charpoly$(C,p)$}
-\li{affine rational points of height $\leq h$}{hyperellratpoints$(C, h)$}
-\li{find a rational point on a conic, $^t x G x = 0$}{qfsolve$(G)$}
-\li{$[H,U]$ such that $H = c{}^tU GU$ has minimat det}{qfminimize$(G)$}
-\li{quadratic Hilbert symbol (at $p$)}{hilbert$(x,y,\{p\})$}
-\li{all solutions in $\QQ^3$ of ternary form}{qfparam$(G,x)$}
-\li{$P,Q\in\FF_q[X]$; char. poly. of Frobenius}{hyperellcharpoly$(C)$}
 \li{matrix of Frobenius on $\QQ_p\otimes H^1_{dR}$}{hyperellpadicfrobenius}
-\medskip
+\li{$P,Q\in\FF_q[X]$; char. poly. of Frobenius}{hyperellcharpoly$(C)$}
+
+\newcolumn
+\title{\TITLE}
+\centerline{(PARI-GP version \PARIversion)}
+\smallskip
 
 \section{Elliptic \& Modular Functions}
 $w = [\omega_1,\omega_2]$ or \var{ell} struct (\kbd{E.omega}), $\tau=\omega_1/\omega_2$.\hfill\break
@@ -218,11 +245,6 @@ $w = [\omega_1,\omega_2]$ or \var{ell} struct (\kbd{E.omega}), $\tau=\omega_1/\o
 \li{periods/quasi-periods}{ellperiods$(E,\{\fl\})${\rm, }elleta$(w)$}
 \li{$(\omega_1,\omega_2), (g_2,g_3), (e_1,e_2,e_3), (\eta_1,\eta_2)$}{ellweierstrass$(w)$}
 \li{$(2i\pi/\omega_2)^k E_k(\tau)$}{elleisnum$(w,k)$}
-
-\vfill
-\copyrightnotice
-\newcolumn
-
 \li{modified Dedekind $\eta$ func. $\prod_n(1-q^n)$}{eta$(x)$}
 \li{\dots true $\eta$ function $q^{1/24}\prod_n(1-q^n)$}{eta$(x, 1)$}
 \li{Dedekind sum $s(h,k)$}{sumdedekind$(h,k)$}
@@ -237,11 +259,6 @@ $w = [\omega_1,\omega_2]$ or \var{ell} struct (\kbd{E.omega}), $\tau=\omega_1/\o
 \li{Hilbert class polynomial for $\QQ(\sqrt{D})$}
    {polclass$(D,\{\var{inv = j}\})$}
 %
-\newcolumn
-\title{\TITLE}
-\centerline{(PARI-GP version \PARIversion)}
-\smallskip
-
 \vfill
 \newcolumn
 

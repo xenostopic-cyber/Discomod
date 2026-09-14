@@ -181,6 +181,9 @@ param_points(GEN N, double Y, double tmax, long bprec, long *cprec, long *L,
 }
 
 static GEN
+_addrr(GEN x, GEN y) { return x? addrr(x, y): y; }
+
+static GEN
 vecF2_lk(GEN E, GEN K, GEN rbnd, GEN Q, GEN sleh, long prec)
 {
   pari_sp av;
@@ -204,14 +207,17 @@ vecF2_lk(GEN E, GEN K, GEN rbnd, GEN Q, GEN sleh, long prec)
     av2 = avma;
     for (aB = A*B; aB >= 0; aB -= B)
     {
-      GEN s = real_0(prec); /* could change also prec here */
+      GEN s = NULL;
       for (b = B; b > 0; --b)
       {
-        long k = aB+b;
-        if (k <= Kl && a[k]) s = addrr(s, mulsr(a[k], gel(z, b+1)));
-        if (gc_needed(av2, 1)) (void)gc_all(av2, 2, &s, &Sl);
+        long k = aB + b;
+        if (k <= Kl && a[k])
+        {
+          s = _addrr(s, mulsr(a[k], gel(z, b+1)));
+          if (gc_needed(av2, 1)) (void)gc_all(av2, 2, &s, &Sl);
+        }
       }
-      Sl = addrr(mulrr(Sl, zB), s);
+      Sl = mulrr(Sl, zB); if (s) Sl = addrr(Sl, s);
     }
     affrr(mulrr(Sl, gel(sleh,l)), gel(S, l)); /* to avoid copying all S */
     set_avma(av);
@@ -905,6 +911,17 @@ omega_N_D(GEN faN, ulong D)
   return w;
 }
 
+static long
+get_w(long D)
+{
+  switch(D)
+  {
+    case -3: return 3; break;
+    case -4: return 2; break;
+    default: return 1;
+  }
+}
+
 static GEN
 heegner_indexmultD(GEN faN, GEN a, long D, GEN sqrtD)
 {
@@ -1070,17 +1087,19 @@ fa_shift2(GEN fa)
  * HACK: restrict to small primes since large ones won't divide our C-long
  * discriminants */
 static GEN
-get_bad(GEN E, GEN P)
+get_bad(GEN E, GEN F)
 {
+  GEN P = gel(F,1), e = gel(F,2);
   long k, l = lg(P), ibad = 1;
   GEN B = cgetg(l, t_VECSMALL);
   for (k = 1; k < l; k++)
-  {
-    GEN p = gel(P,k);
-    long pp = itos_or_0(p);
-    if (!pp) break;
-    if (! equalim1(ellap(E,p))) B[ibad++] = pp;
-  }
+    if (is_pm1(gel(e,k)))
+    {
+      GEN p = gel(P,k);
+      long pp = itos_or_0(p);
+      if (!pp) break;
+      if (! equalim1(ellap(E,p))) B[ibad++] = pp;
+    }
   setlg(B, ibad); return ibad == 1? NULL: zv_prod_Z(B);
 }
 
@@ -1241,7 +1260,7 @@ heegner_find_disc(GEN *points, GEN *coefs, long *pind, GEN E,
   ellQ_get_Nfa(E, &N, &faN);
   faN4 = fa_shift2(faN);
   listQ = find_div(faN);
-  bad = get_bad(E, gel(faN, 1));
+  bad = get_bad(E, faN);
   listR = gel(obj_check(E, Q_ROOTNO), 2);
   for(;;)
   {
@@ -1306,8 +1325,11 @@ ellanal_globalred_all(GEN e, GEN *cb, GEN *N, GEN *tam)
 {
   GEN E = ellanal_globalred(e, cb), red = obj_check(E, Q_GLOBALRED);
   *N = gel(red, 1);
-  *tam = gel(red,2);
-  if (signe(ell_get_disc(E))>0) *tam = shifti(*tam,1);
+  if (tam)
+  {
+    *tam = gel(red,2);
+    if (signe(ell_get_disc(E))>0) *tam = shifti(*tam,1);
+  }
   return E;
 }
 
@@ -1366,7 +1388,7 @@ ellheegner_z_i(GEN E, double ht, long *pindx,
   l = lg(pts); z = mulsr(cfs[1], gel(s, 1));
   for (k = 2; k < l; k++) z = addrr(z, mulsr(cfs[k], gel(s, k)));
   z = subrr(z, mulri(w1, roundr(divrr(z, w1))));
-  if (DEBUGLEVEL) err_printf("z=%.*Pg\n", nbits2ndec(prec), z);
+  if (DEBUGLEVEL) err_printf("z=%.*Pg\n", prec2ndec(prec), z);
 
   lint = etor > 1 ? ugcd(ind, etor): 1;
   *pindx = 2*lint*ind; return gmulsg(2*lint, z);
@@ -1396,7 +1418,7 @@ ellheegner_z(GEN E, long prec)
 
   E = ellheegner_init(E, NULL, &N, &tam, &wtor, &etor);
   z = ellheegner_z_i(E, 0., &indx, N, tam, wtor, etor, prec);
-  return gerepilecopy(av, mkvec2(z, utoi(indx)));
+  return gc_GEN(av, mkvec2(z, utoi(indx)));
 }
 
 GEN
@@ -1404,7 +1426,7 @@ ellheegner(GEN E)
 {
   pari_sp av = avma;
   GEN N, tam, z, cb, P, ht, om, nfA, sel, etal, et, cbb, sbase, dAi, T, A, Ag;
-  long bitprec = 16, prec = nbits2prec(bitprec) + EXTRAPRECWORD;
+  long bitprec = 16, prec = nbits2prec(bitprec) + EXTRAPREC64;
   long indx, wtor, etor, selrank;
   pari_timer ti;
 
@@ -1431,7 +1453,7 @@ ellheegner(GEN E)
     if (DEBUGLEVEL) err_printf("precision = %ld\n", bitneeded);
     if (bitprec >= bitneeded) break;
     bitprec = bitneeded;
-    prec = nbits2prec(bitprec) + EXTRAPRECWORD;
+    prec = nbits2prec(bitprec) + EXTRAPREC64;
   }
   z = ellheegner_z_i(E, rtodbl(ht), &indx, N, tam, wtor, etor, prec);
 
@@ -1448,6 +1470,302 @@ ellheegner(GEN E)
   if (DEBUGLEVEL) timer_printf(&ti,"heegner_find_point");
   if (cb) P = ellchangepointinv(P, cb);
   return gc_GEN(av, P);
+}
+
+/* ellheegnertwist */
+
+static GEN
+listheegnertwist(GEN Q, GEN D, GEN P, GEN Dt, long *kmax)
+{
+  pari_sp av = avma;
+  hashtable H;
+  GEN beta = Zn_sqrt(D, shifti(Q, 2)), Q2 = shifti(Q, 1);
+  GEN P2 = sqri(P), DP2 = mulii(D, P2);
+  long h = itos(quadclassno(DP2));
+  long k, s = 0;
+  hash_init_GEN(&H, h, gequal, 1);
+  for (k = 1; s < h ; k++)
+  {
+    GEN LF = normformsbeta(D, mulis(Q, k), beta, Q2);
+    if (LF)
+    {
+      long i, l = lg(LF);
+      for (i = 1; i < l && s < h; i++)
+      {
+        GEN F = gel(LF, i), a = gel(F,1), b = gel(F,2), c = gel(F,3);
+        GEN bi = mulii(P,b), ci = mulii(P2, c);
+        if (is_pm1(gcdii(gcdii(a, bi), ci)))
+        {
+          GEN f = qfi_red(mkqfb(a,bi,ci,DP2)), k = hash_haskey_GEN(&H, f);
+          long e = kronecker(Dt,a);
+          if (!k)
+          {
+            hash_insert(&H, f, mkvec2(mkvec3(a,b,c),stoi(e)));
+            s += !!e;
+          } else if (e && signe(gel(k,2))==0)
+          {
+            gel(k,2) = stoi(e); s++;
+          }
+        }
+      }
+    }
+  }
+  *kmax = k-1;
+  return gc_GEN(av, hash_values_GEN(&H));
+}
+
+static GEN
+findtwist(GEN E, GEN *pt_D)
+{
+  GEN d = ellminimaltwistcond(E), N, F, P, Ex, D = *pt_D;
+  long i, l;
+  D = coredisc(mulii(D,d));
+  E = elltwist(E, d);
+  ellanal_globalred_all(E, NULL, &N, NULL);
+  F = Z_factor(gcdii(absi(D),N));
+  P = gel(F,1); Ex = gel(F,2); l = lg(P);
+  for (i = 1; i < l; i++)
+  {
+    GEN p = gel(P,i), e = gel(Ex,i), q = powii(p, e);
+    if (is_pm1(gcdii(q,diviiexact(N,q)))) continue;
+    d = cmpiu(p,2)>0 ? mod4(p)== 1 ? p : negi(p) : shifti( Mod8(D)==4 ? gen_m1: Mod32(D)==8 ? gen_1:gen_m1,vali(D));
+    E = elltwist(E, d); D = coredisc(mulii(D,d));
+  }
+  *pt_D = D;
+  return ellminimalmodel(E,NULL);
+}
+
+/* ellheegnertwist */
+
+static GEN
+finddivis(GEN E, GEN T, GEN z, long n, long prec)
+{
+  pari_sp av = avma;
+  long i, j, k, l = lg(T);
+  GEN om = ellR_omega(E, prec);
+  GEN om1 = gdivgs(gel(om,1),n), om2 = gmul2n(gel(om,2),-1);
+  z = gdivgs(z, n); T = gdivgs(T,n);
+  for (i = 0; i < n; i++)
+  {
+    for (j = 1; j < l; j++)
+    {
+      GEN w = gadd(z,gel(T,j));
+      for(k = 0; k < (odd(n)?1:2); k++)
+      {
+        GEN x2, y2, P = pointell(E,w,prec);
+        if (ell_is_inf(P)) return P;
+        x2 = bestappr(real_i(gel(P,1)), int2n((prec>>1)-1));
+        if (lg(x2)==1) continue;
+        y2 = ellordinate(E, x2, prec);
+        if (lg(y2)>1) return gc_GEN(av, mkvec2(x2, gel(y2,1)));
+        w = gadd(z, om2);
+      }
+    }
+    z = gadd(z, om1);
+  }
+  return gc_NULL(av);
+}
+
+static GEN
+listpointstwist(GEN D, GEN L, long prec)
+{
+  GEN vDi = gsqrt(D, prec);
+  long k, l;
+  GEN V = cgetg_copy(L, &l);
+  for (k = 1; k < l; k++)
+  {
+    GEN Lk = gel(L,k), v = gel(Lk, 1);
+    gel(V,k) = mkvec2(gdiv(gsub(vDi,gel(v,2)),shifti(gel(v,1),1)),gel(Lk,2));
+  }
+  return V;
+}
+
+static GEN
+_gen_cmul(void *E, GEN an, long i, GEN x)
+{
+  (void) E; return i ? gdivgs(gmulgs(x, an[i]), i): gen_0;
+}
+
+static GEN
+heegnersum(GEN an, long nb, GEN z, long r)
+{
+  GEN q = gen_bkeval(an, nb, z, 1, NULL, get_Rg_algebra(), _gen_cmul);
+  return r>0 ? real_i(q) : imag_i(q);
+}
+
+GEN
+heegnersum_worker(GEN l, GEN an, long r, long prec)
+{
+  pari_sp av = avma;
+  long nb = ceil(prec*M_LN2/(2*M_PI*rtodbl(imag_i(gel(l,1)))));
+  return gc_upto(av, gmul(gel(l,2), heegnersum(an, nb, expIPiC(gmul2n(gel(l,1),1), prec), r)));
+}
+
+static GEN
+sumheegner(GEN an, GEN L, long r, long prec)
+{
+  pari_sp av = avma;
+  GEN worker = snm_closure(is_entry("_heegnersum_worker"),mkvec3(an,stoi(r),stoi(prec)));
+  GEN V;
+  if (DEBUGLEVEL>1) err_printf("ellheegnertwist: Computing sum with prec %ld: ",prec);
+  V = gen_parapply_percent(worker, L, DEBUGLEVEL>1);
+  if (DEBUGLEVEL>1) err_printf(" done.\n");
+  return gc_upto(av, vecsum(V));
+}
+
+static GEN
+torstoz(GEN E, GEN ET, long prec)
+{
+  long n = itos(abgrp_get_no(ET));
+  GEN cyc, gen, g1, g2;
+  long o1, i;
+  GEN V = cgetg(n+1, t_VEC);
+  gel(V,1) = gen_0;
+  if (n == 1) return V;
+  cyc  = abgrp_get_cyc(ET);
+  gen  = abgrp_get_gen(ET);
+  g1 = zell(E, gel(gen,1), prec);
+  o1 = itos(gel(cyc,1));
+  for (i = 2; i <= o1; i++)
+    gel(V,i) = gmulgs(g1,i-1);
+  if (lg(cyc)==2) return V;
+  g2 = zell(E, gel(gen,2), prec);
+  for (i = o1+1; i <=n; i++)
+    gel(V,i) = gadd(g2, gel(V,i-o1));
+  return V;
+}
+
+static GEN
+findpoint(GEN E, GEN N, GEN D, GEN d, GEN f, long manin, GEN s, long prec)
+{
+  long kmax, m;
+  GEN AL, LH, Ed, ET, tam, faN, R;
+  double mR;
+  AL = diviiexact(N,f);
+  if (!Zn_issquare(D,shifti(AL,2))) pari_err_BUG("findpoint");
+  LH = listheegnertwist(AL, D, f, d, &kmax);
+  Ed = elltwist(E, d); ET= elltors(Ed);
+  m = ellmanintable_heuristic(Ed);
+  tam = elltamagawa(Ed); faN = Z_factor(mulii(N,sqri(d)));
+  R = imag_i(row(listpointstwist(D, LH, MEDDEFAULTPREC),1));
+  mR = M_LN2/(2*M_PI*rtodbl(vecmin(R)));
+  if (DEBUGLEVEL > 2)
+     err_printf("Heegnertwist: min imag: %.9g, h = %ld\n",mR, lg(LH)-1);
+  for (;;prec*=2)
+  {
+    long i, lD;
+    GEN T = torstoz(Ed, ET, prec), dv, M, z;
+    GEN L = listpointstwist(D, LH, prec+EXTRAPREC64);
+    long nb = ceil(prec*mR);
+    if (DEBUGLEVEL > 2) err_printf("Heegnertwist: nb = %ld, prec = %ld\n",nb, prec);
+    z = sumheegner(ellanQ_zv(E, nb), L, signe(d), prec);
+    z = gmulgs(gdiv(z, gsqrt(absi(d), prec)), 2*manin);
+    M = mulii(shifti(tam, omega_N_D(faN,-itos(D))), mulsi(m,s));
+    M = mulis(M, get_w(itos_or_0(d)));
+    dv = divisors(M); lD = lg(dv);
+    for (i = 1; i < lD; i++)
+    {
+      ulong di = itou_or_0(gel(dv,i));
+      if (di)
+      {
+        GEN P = finddivis(Ed, T, z, di, prec);
+        if (!P) continue;
+        if (!signe(ellorder(Ed, P, NULL)))
+          return P;
+        else if (i==1) return NULL;
+      }
+    }
+  }
+}
+
+static GEN
+heegnertwistdisc(GEN *ptD, GEN N, GEN d, GEN f, GEN g, GEN F, GEN bad, long n)
+{
+  GEN D = *ptD, p, f2  = sqri(f), AL = diviiexact(N,f);
+  GEN L = cgetg(n+1, t_VEC);
+  GEN h = cgetg(n+1, t_VEC);
+  GEN lh = cgetg(n+1, t_VEC);
+  long i, kmax;
+  for (i = 1; i <= n; i++)
+  {
+    for (;;)
+    {
+      D = subii(D, g);
+      if (Mod4(D)<=1 && Zn_issquare(D, F) && testDisc(bad, itos(D)))
+      {
+        GEN r, q = dvmdii(mulii(D, f2), d, &r);
+        if (signe(r)==0 && Mod4(q)<=1) break;
+      }
+    }
+    gel(L,i) = D;
+    gel(lh,i)= listheegnertwist(AL, D, f, d, &kmax);
+    gel(h,i) = gdiv(gdivgs(D,kmax),gsqr(quadclassno(D)));
+  }
+  *ptD = D;
+  p = indexsort(h);
+  return vecpermute(L, p);
+}
+
+/* Algorithm by BA inspired by
+Mock Heegner Points and Congruent Numbers
+Paul Monsky
+Mathematische Zeitschrift (1990) Volume: 204, Issue: 1, page 45-68
+ISSN: 0025-5874; 1432-1823
+https://gdz.sub.uni-goettingen.de/id/PPN266833020_0204
+https://link.springer.com/article/10.1007/BF02570859
+
+Regulators of rank one quadratic twists
+Christophe Delaunay, Xavier-Francois Roblot
+Journal de theorie des nombres de Bordeaux, Tome 20 (2008) no. 3, pp. 601-624
+https://jtnb.centre-mersenne.org/item/10.5802/jtnb.643.pdf
+*/
+
+GEN
+ellheegnertwist(GEN E, GEN d, GEN s)
+{
+  pari_sp av = avma;
+  GEN Et, Ed, iso, N, D1 = gen_0, P, f, f2, g, F, bad, F2;
+  long m, prec = DEFAULTPREC;
+  checkell(E);
+  if (!s) s = gen_1;
+  else if (typ(s)!=t_INT || signe(s)<=0)
+    pari_err_TYPE("ellheegnertwist",s);
+  if (d)
+  {
+    if (typ(d) != t_INT)
+      pari_err_TYPE("ellheegnertwist",d);
+    Et = elltwist(E,d);
+  }
+  else { d = gen_1; Et = E; }
+  if (ellrootno_global(Et) == 1)
+    pari_err_DOMAIN("ellheegnertwist", "(analytic rank)%2","=",gen_0,E);
+  E = findtwist(E, &d);
+  if (DEBUGLEVEL>1) err_printf("ellheegnertwist: using disc. %Ps\n",d);
+  m = ellmanintable_heuristic(E);
+  Ed = elltwist(E, d);
+  ellanal_globalred_all(E, NULL, &N, NULL);
+  iso = ellisisom(Et, Ed);
+  f = gcdii(N,d); f2 = sqri(f);
+  g = diviiexact(absi(d), gcdii(d, f2));
+  F = Z_factor(diviiexact(N, f));
+  F2 = famat_reduce(famat_mul(mkmat2(mkcol(gen_2), mkcol(gen_2)),F));
+  bad = equalii(N,f) ? NULL: get_bad(Ed, F);
+  for(;;)
+  {
+    const long n = 2;
+    GEN L =  heegnertwistdisc(&D1, N, d, f, g, F2, bad, n);
+    long i;
+    for(i = 1; i <= n; i++)
+    {
+      GEN Di = gel(L,i);
+      if (DEBUGLEVEL > 1)
+        err_printf("ellheegnertwist: using secondary disc. %Ps\n", Di);
+      P = findpoint(E, N, Di, d, f, m, s, prec);
+      if (P) return gc_GEN(av, ellchangepointinv(P, iso));
+      if (DEBUGLEVEL)
+        err_printf("ellheegnertwist: point is torsion for D=%Ps\n", Di);
+    }
+  }
 }
 
 /* Modular degree */

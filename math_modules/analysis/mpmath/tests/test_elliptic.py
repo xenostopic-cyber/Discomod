@@ -17,10 +17,11 @@ import pytest
 
 from mpmath import (cos, cosh, cot, coth, csc, csch, diff, ellipe, ellipfun,
                     ellipk, ellippi, elliprc, elliprd, elliprf, elliprg,
-                    elliprj, eps, exp, gamma, inf, isnan, j, jtheta, kleinj,
-                    ldexp, ln2, mp, mpc, mpf, nan, nsum, pi, polyroots, qfrom,
-                    sec, sech, sin, sinh, sqrt, tan, tanh, weierhalfperiods,
-                    weierinvariants, weierp, weierpinv, weierpprime,
+                    elliprj, eps, exp, g2g3from, gamma, inf, isnan, j,
+                    jtheta, kleinj, kleinjinv, kfrom, ldexp, ln2, mp, mpc,
+                    mpf, mfrom, nan, nsum, omega1omega2from, pi, polyroots,
+                    qbarfrom, qfrom, sec, sech, sin, sinh, sqrt, tan, tanh,
+                    taufrom, weierp, weierpinv, weierpprime,
                     weiersigma, weierzeta)
 
 
@@ -772,6 +773,31 @@ def test_elliptic_integrals():
 def test_issue_238():
     assert isnan(qfrom(m=nan))
 
+def test_argument_conversions_from_weierstrass_data():
+    mp.dps = 30
+
+    half_periods = [
+        (1, j/2),
+        (1, mpf(1)/2 + 3*j/4),
+        (mpf(3)/4 + j/4, -mpf(1)/5 + 9*j/10),
+    ]
+
+    for omega1, omega2 in half_periods:
+        tau = omega2 / omega1
+        g2, g3 = g2g3from(omega1=omega1, omega2=omega2)
+        tau_from_invariants = taufrom(g2=g2, g3=g3)
+
+        for func in [qfrom, qbarfrom, kfrom, mfrom]:
+            assert mpc_ae(func(omega1=omega1, omega2=omega2),
+                          func(tau=tau), eps=eps*1000)
+            assert mpc_ae(func(g2=g2, g3=g3),
+                          func(tau=tau_from_invariants), eps=eps*1000)
+
+    g2, g3 = g2g3from(omega1=1, omega2=j/2)
+    for func in [qfrom, qbarfrom, kfrom, mfrom]:
+        pytest.raises(ValueError, lambda func=func: func(g2=g2))
+        pytest.raises(ValueError, lambda func=func: func(omega1=1))
+
 def test_issue_604():
     assert ellipe(pi, 1).ae('2.0')
 
@@ -818,26 +844,81 @@ def test_weierstrass_g2g3_differential_equation():
         pp = weierpprime(z, g2=g2, g3=g3)
         assert mpc_ae(pp**2, 4*p**3 - g2*p - g3, eps=eps*1000)
 
+def test_weierstrass_pprime_sigma_duplication():
+    # https://dlmf.nist.gov/23.10#E10
+    mp.dps = 30
+
+    cases = [
+        (mpf('0.3'), mpf(60), mpf(140)),
+        (mpf('0.2') + j/10, mpc(1, 2), mpc(3, -4)),
+    ]
+    for z, g2, g3 in cases:
+        expected = -weiersigma(2*z, g2=g2, g3=g3)
+        expected /= weiersigma(z, g2=g2, g3=g3)**4
+        assert mpc_ae(weierpprime(z, g2=g2, g3=g3), expected,
+                      eps=eps*1000)
+
 def test_weierstrass_parameter_conversions():
     mp.dps = 30
 
     omega1 = 1
     omega2 = j/2
-    g2, g3 = weierinvariants(omega1, omega2)
+    g2, g3 = g2g3from(omega1=omega1, omega2=omega2)
 
-    omega1, omega2 = weierhalfperiods(g2, g3)
+    omega1, omega2 = omega1omega2from(g2=g2, g3=g3)
 
-    g2_roundtrip, g3_roundtrip = weierinvariants(omega1, omega2)
+    g2_roundtrip, g3_roundtrip = g2g3from(
+        omega1=omega1, omega2=omega2)
     assert mpc_ae(g2, g2_roundtrip, eps=eps*10000)
     assert mpc_ae(g3, g3_roundtrip, eps=eps*10000)
-    assert (omega2/omega1).imag > 0
+    tau = omega2/omega1
+    assert abs(tau.real) <= mpf('0.5')
+    assert abs(tau) >= 1
+
+def test_weierstrass_pair_argument_conversions():
+    mp.dps = 30
+
+    tau = mpf(1)/4 + 6*j/5
+    expected_omega1 = mpf(1)/2
+    expected_omega2 = tau/2
+    expected_g2, expected_g3 = g2g3from(tau=tau)
+    representations = [
+        {'q': qfrom(tau=tau)},
+        {'qbar': qbarfrom(tau=tau)},
+        {'m': mfrom(tau=tau)},
+        {'k': kfrom(tau=tau)},
+        {'tau': tau},
+    ]
+
+    for representation in representations:
+        omega1, omega2 = omega1omega2from(**representation)
+        assert mpc_ae(omega1, expected_omega1, eps=eps*1000)
+        assert mpc_ae(omega2, expected_omega2, eps=eps*1000)
+
+        g2, g3 = g2g3from(**representation)
+        assert mpc_ae(g2, expected_g2, eps=eps*1000)
+        assert mpc_ae(g3, expected_g3, eps=eps*1000)
+
+    assert g2g3from(g2=expected_g2, g3=expected_g3) == (
+        expected_g2, expected_g3)
+    assert omega1omega2from(
+        omega1=expected_omega1, omega2=expected_omega2) == (
+            expected_omega1, expected_omega2)
+
+    omega1, omega2 = omega1omega2from(
+        g2=expected_g2, g3=expected_g3)
+    assert mpc_ae(omega1, expected_omega1, eps=eps*1000)
+    assert mpc_ae(omega2, expected_omega2, eps=eps*1000)
+    g2, g3 = g2g3from(omega1=omega1, omega2=omega2)
+    assert mpc_ae(g2, expected_g2, eps=eps*1000)
+    assert mpc_ae(g3, expected_g3, eps=eps*1000)
 
 def test_weierstrass_special_half_periods():
     mp.dps = 30
 
     # Scaled version of http://dlmf.nist.gov/23.5.E5
     lemniscatic = gamma(1/4)**2/(4*sqrt(pi))
-    omega1, omega2 = weierhalfperiods(1, 0)
+    omega1, omega2 = omega1omega2from(g2=1, g3=0)
     lattice_points = [
         m*omega1 + n*omega2
         for m in [-1, 0, 1]
@@ -850,7 +931,7 @@ def test_weierstrass_special_half_periods():
     # Scaled version of http://dlmf.nist.gov/23.5.E9
     equianharmonic = gamma(mpf(1)/3)**3/(4*pi)
     tau = 0.5 + sqrt(3)*j/2
-    omega1, omega2 = weierhalfperiods(0, 1)
+    omega1, omega2 = omega1omega2from(g2=0, g3=1)
     assert mpc_ae(omega1, equianharmonic, eps=eps*1000)
     assert mpc_ae(omega2, equianharmonic*tau, eps=eps*1000)
 
@@ -859,30 +940,258 @@ def test_weierstrass_half_periods_high_precision():
 
     g2 = 60
     g3 = 140
-    omega1, omega2 = weierhalfperiods(g2, g3)
-    g2_roundtrip, g3_roundtrip = weierinvariants(omega1, omega2)
+    omega1, omega2 = omega1omega2from(g2=g2, g3=g3)
+    g2_roundtrip, g3_roundtrip = g2g3from(
+        omega1=omega1, omega2=omega2)
 
     assert mpc_ae(g2_roundtrip, g2, eps=eps*10000)
     assert mpc_ae(g3_roundtrip, g3, eps=eps*10000)
+
+def test_weierstrass_half_periods_reference_values():
+    mp.dps = 30
+
+    cases = [
+        # Wolfram Engine N[WeierstrassHalfPeriods[{12, 1}], 30]
+        ((12, 1),
+         (mpc('0.980738294394739292410226347661'),
+          mpc('1.01377388832044810173727513686j'))),
+        # Wolfram Engine N[WeierstrassHalfPeriods[{12, -1}], 30]
+        ((12, -1),
+         (mpc('-0.980738294394739292410226347661j'),
+          mpc('1.01377388832044810173727513686'))),
+        # Wolfram Engine
+        # N[WeierstrassHalfPeriods[{1 + 2 I, 3 - 4 I}], 30]
+        ((1+2j, 3-4j),
+         (mpc('0.384323637351610816269007338473',
+              '1.048679479243511496217225594331'),
+          mpc('-1.174237734840406867019569638285',
+              '-0.123713024549329486202780646669'))),
+    ]
+
+    for invariants, expected in cases:
+        periods = omega1omega2from(g2=invariants[0], g3=invariants[1])
+        assert mpc_ae(periods[0], expected[0], eps=eps*1000)
+        assert mpc_ae(periods[1], expected[1], eps=eps*1000)
+
+def test_weierstrass_half_periods_boundary_convention():
+    for dps in [15, 30, 50]:
+        with mp.workdps(dps):
+            omega1, omega2 = omega1omega2from(g2=60, g3=140)
+            tau = omega2/omega1
+            assert mp.almosteq(tau.real, mpf('0.5'))
+
+            omega1, omega2 = omega1omega2from(g2=-4, g3=1)
+            tau = omega2/omega1
+            assert mp.almosteq(abs(tau), 1)
+            assert tau.real >= 0
 
 def test_weierstrass_parameter_conversions_with_kleinj():
     mp.dps = 30
 
     tau = 0.625 + 0.75j
-    g2, g3 = weierinvariants(0.5, tau/2)
-    recovered_omega1, recovered_omega2 = weierhalfperiods(g2, g3)
+    g2, g3 = g2g3from(omega1=0.5, omega2=tau/2)
+    recovered_omega1, recovered_omega2 = omega1omega2from(g2=g2, g3=g3)
     recovered_tau = recovered_omega2/recovered_omega1
     j_from_invariants = g2**3/(g2**3 - 27*g3**2)
 
     assert mpc_ae(kleinj(tau), j_from_invariants, eps=eps*1000)
     assert mpc_ae(kleinj(recovered_tau), kleinj(tau), eps=eps*1000)
+    assert mpc_ae(kleinj(taufrom(g2=g2, g3=g3)), kleinj(tau),
+                  eps=eps*1000)
+
+def test_kleinj_from_weierstrass_invariants():
+    mp.dps = 30
+
+    tau = 0.625 + 0.75j
+    g2, g3 = g2g3from(omega1=0.5, omega2=tau/2)
+
+    assert mpc_ae(kleinj(g2=g2, g3=g3), kleinj(tau), eps=eps*1000)
+    assert kleinj(g2=0, g3=1).ae(0)
+    assert kleinj(g2=1, g3=0).ae(1)
+    pytest.raises(ValueError, lambda: kleinj(g2=g2))
+    pytest.raises(ValueError, lambda: kleinj(g3=g3))
+
+def test_kleinj_argument_conversions():
+    mp.dps = 30
+
+    tau = 0.625 + 0.75j
+    value = kleinj(tau)
+
+    assert mpc_ae(kleinj(q=qfrom(tau=tau)), value, eps=eps*1000)
+    assert mpc_ae(kleinj(qbar=qbarfrom(tau=tau)), value, eps=eps*1000)
+    assert mpc_ae(kleinj(k=kfrom(tau=tau)), value, eps=eps*1000)
+    assert mpc_ae(kleinj(m=mfrom(tau=tau)), value, eps=eps*1000)
+    assert mpc_ae(kleinj(omega1=1, omega2=tau), value, eps=eps*1000)
+    pytest.raises(ValueError, lambda: kleinj(omega1=1))
+
+def test_kleinjinv():
+    mp.dps = 30
+
+    tau = 0.625 + 0.75j
+    value = kleinj(tau)
+
+    assert mpc_ae(kleinj(kleinjinv(value)), value, eps=eps*1000)
+    assert mpc_ae(kleinjinv(0), 0.5 + sqrt(3)*j/2,
+                  eps=eps*1000)
+    assert mpc_ae(kleinjinv(1), j, eps=eps*1000)
+
+
+def test_kleinjinv_fundamental_domain():
+    mp.dps = 30
+
+    assert mpc_ae(kleinjinv(0), mpf('0.5') + sqrt(3)*j/2,
+                  eps=eps*1000)
+    circular_boundary_tau = kleinjinv(mpf('0.25'))
+    assert mp.almosteq(abs(circular_boundary_tau), 1)
+    assert circular_boundary_tau.real > 0
+    assert mp.almosteq(kleinj(circular_boundary_tau), mpf('0.25'),
+                       rel_eps=mp.eps*100000, abs_eps=mp.eps*100000)
+
+    for tau in [0.625 + 0.75*j, 2.3 + 0.4*j, -1.7 + 0.2*j,
+                0.1 + 2.5*j]:
+        value = kleinj(tau)
+        recovered = kleinjinv(value)
+        assert mp.almosteq(kleinj(recovered), value,
+                           rel_eps=mp.eps*100000, abs_eps=mp.eps*100000)
+        assert recovered.imag > 0
+        assert abs(recovered.real) <= mpf('0.5') + mp.eps*100
+        assert abs(recovered) >= 1 - mp.eps*100
+
+
+def test_kleinjinv_real_values():
+    mp.dps = 30
+
+    for value in [mpf('1.01'), mpf(2), mpf('1e6'), mpc(2, 0)]:
+        tau = kleinjinv(value)
+        assert tau.real == 0
+        assert tau.imag >= 1
+        assert mp.almosteq(kleinj(tau), value,
+                           rel_eps=mp.sqrt(mp.eps), abs_eps=mp.eps*10000)
+
+def test_taufrom_weierstrass_invariants():
+    mp.dps = 30
+
+    tau = 0.625 + 0.75j
+    g2, g3 = g2g3from(omega1=0.5, omega2=tau/2)
+    recovered_tau = taufrom(g2=g2, g3=g3)
+
+    assert mpc_ae(kleinj(recovered_tau), kleinj(tau), eps=eps*1000)
+    assert recovered_tau.imag > 0
+    assert abs(recovered_tau.real) <= mpf('0.5') + mp.eps*100
+    assert abs(recovered_tau) >= 1 - mp.eps*100
+
+    for real_g2, real_g3 in [
+            (60, 140), (12, 1), (12, -1), (1, -1),
+            (-4, 1), (-4, -1), (0, 1), (1, 0)]:
+        recovered_tau = taufrom(g2=real_g2, g3=real_g3)
+        omega1, omega2 = omega1omega2from(g2=real_g2, g3=real_g3)
+        assert mpc_ae(recovered_tau, omega2/omega1, eps=eps*1000)
+
+    pytest.raises(ValueError, lambda: taufrom(g2=g2))
+    pytest.raises(ValueError, lambda: taufrom(g3=g3))
+
+
+def test_weierstrass_half_periods_direct_agm_roundtrip():
+    base_cases = [
+        (60, 140), (12, 1), (12, -1), (4, 1), (4, -1),
+        (1, 1), (1, -1), (10, 5), (100, 1), (-4, 1), (-4, -1),
+        (1 + 2*j, 3 - 4*j),
+    ]
+
+    for dps in [15, 30, 80]:
+        with mp.workdps(dps):
+            # Recompute these phases at the active precision. They exercise
+            # the fallback's vertical and circular boundary normalization.
+            cases = base_cases + [
+                (mpf('0.01')*exp(j*pi/6), exp(j*pi/4)),
+                (exp(-j*pi/6), mpf('0.0001')*exp(-3*j*pi/4)),
+            ]
+            for g2, g3 in cases:
+                omega1, omega2 = omega1omega2from(g2=g2, g3=g3)
+                actual_g2, actual_g3 = g2g3from(
+                    omega1=omega1, omega2=omega2)
+                tol = mp.eps*10000
+                assert mp.almosteq(actual_g2, g2,
+                                   rel_eps=tol, abs_eps=tol)
+                assert mp.almosteq(actual_g3, g3,
+                                   rel_eps=tol, abs_eps=tol)
+
+                tau = omega2/omega1
+                assert tau.imag > 0
+                assert abs(tau.real) <= mpf('0.5') + tol
+                assert abs(tau) >= 1 - tol
+
+
+def test_weierstrass_parameter_conversion_normalization():
+    with mp.workprec(100):
+        high_precision = sqrt(2)
+
+    with mp.workprec(53):
+        invariant_results = [
+            g2g3from(g2=high_precision, g3=high_precision + 1),
+            g2g3from(tau=mpc('0.3', '1.2')),
+            g2g3from(omega1=high_precision,
+                     omega2=j*high_precision),
+        ]
+        period_results = [
+            omega1omega2from(omega1=high_precision,
+                             omega2=j*high_precision),
+            omega1omega2from(tau=mpc('0.3', '1.2')),
+            omega1omega2from(g2=12, g3=1),
+            omega1omega2from(g2=60, g3=140),
+            omega1omega2from(g2=1 + 2*j, g3=3 - 4*j),
+            omega1omega2from(g2=1, g3=0),
+            omega1omega2from(g2=0, g3=1),
+        ]
+
+        for result in invariant_results + period_results:
+            assert result == tuple(+value for value in result)
+
+
+def test_weierstrass_period_method_switch_is_continuous():
+    mp.dps = 50
+    threshold = ldexp(1, -20)
+
+    # The internal method switches when the ratio between |g2|**3 and
+    # 27*|g3|**2 crosses this threshold. Exercise both the J=0 and J=1
+    # sides and ensure the canonical period basis does not jump.
+    families = [
+        lambda ratio: ((27*ratio)**(mpf(1)/3), mpf(1)),
+        lambda ratio: (mpf(1), sqrt(ratio/27)),
+    ]
+    for make_invariants in families:
+        below = make_invariants(threshold*(1-mpf('1e-8')))
+        above = make_invariants(threshold*(1+mpf('1e-8')))
+        periods_below = omega1omega2from(g2=below[0], g3=below[1])
+        periods_above = omega1omega2from(g2=above[0], g3=above[1])
+
+        for value_below, value_above in zip(periods_below, periods_above):
+            assert mp.almosteq(value_below, value_above,
+                               rel_eps=mpf('1e-8'), abs_eps=mpf('1e-8'))
+
+        for invariants, periods in [(below, periods_below),
+                                    (above, periods_above)]:
+            actual = g2g3from(omega1=periods[0], omega2=periods[1])
+            assert mp.almosteq(actual[0], invariants[0],
+                               rel_eps=mp.eps*10000)
+            assert mp.almosteq(actual[1], invariants[1],
+                               rel_eps=mp.eps*10000)
+
+def test_taufrom_half_periods():
+    mp.dps = 30
+
+    assert mpc_ae(taufrom(omega1=1, omega2=0.5*j), 0.5*j,
+                  eps=eps*1000)
+    pytest.raises(ValueError, lambda: taufrom(omega1=1))
+    pytest.raises(ValueError, lambda: taufrom(omega2=j))
+    pytest.raises(ValueError, lambda: taufrom(omega1=1, omega2=-j))
 
 def test_weierstrass_half_period_values_are_cubic_roots():
     mp.dps = 30
 
     omega1 = 1
     omega2 = j/2
-    g2, g3 = weierinvariants(omega1, omega2)
+    g2, g3 = g2g3from(omega1=omega1, omega2=omega2)
 
     roots = polyroots([-g3, -g2, 0, 4], maxsteps=50)
     half_period_values = [
@@ -890,11 +1199,18 @@ def test_weierstrass_half_period_values_are_cubic_roots():
         weierp(omega2, omega1=omega1, omega2=omega2),
         weierp(omega1 + omega2, omega1=omega1, omega2=omega2),
     ]
+    half_period_derivatives = [
+        weierpprime(omega1, omega1=omega1, omega2=omega2),
+        weierpprime(omega2, omega1=omega1, omega2=omega2),
+        weierpprime(omega1 + omega2, omega1=omega1, omega2=omega2),
+    ]
 
     for value in half_period_values:
         assert mpc_ae(4*value**3 - g2*value - g3, 0,
                       eps=eps*1000)
         assert min(abs(value - root) for root in roots) < eps*1000
+    for value in half_period_derivatives:
+        assert mpc_ae(value, 0, eps=eps*1000)
     for root in roots:
         assert min(abs(value - root) for value in half_period_values) < eps*1000
 
@@ -903,7 +1219,7 @@ def test_weierstrass_conversions_with_weierp():
 
     z = mpf('0.3')
     g2, g3 = 60, 140
-    omega1, omega2 = weierhalfperiods(g2, g3)
+    omega1, omega2 = omega1omega2from(g2=g2, g3=g3)
     assert mpc_ae(weierp(z, g2=g2, g3=g3),
                   weierp(z, omega1=omega1, omega2=omega2), eps=eps*1000)
 
@@ -1155,6 +1471,15 @@ def test_weierstrass_invalid_parameterization():
     pytest.raises(ValueError, lambda: weierp(z, omega1=1))
     pytest.raises(ValueError, lambda: weierp(z, omega1=1, omega2=-j))
     pytest.raises(ValueError, lambda: weierp(z, g2=60, g3=140, tau=j/2))
-    pytest.raises(ValueError, lambda: weierinvariants(1, -j))
-    pytest.raises(TypeError, lambda: weierinvariants(1))
-    pytest.raises(TypeError, lambda: weierhalfperiods(1))
+    pytest.raises(ValueError,
+                  lambda: g2g3from(omega1=1, omega2=-j))
+    pytest.raises(ValueError, lambda: g2g3from(omega1=1))
+    pytest.raises(ValueError, lambda: omega1omega2from(g2=1))
+    pytest.raises(ValueError, lambda: g2g3from())
+    pytest.raises(ValueError, lambda: omega1omega2from())
+    pytest.raises(ValueError,
+                  lambda: g2g3from(g2=1, g3=0, tau=j))
+    pytest.raises(ValueError,
+                  lambda: omega1omega2from(g2=1, g3=0, tau=j))
+    pytest.raises(ValueError, lambda: g2g3from(tau=-j))
+    pytest.raises(ValueError, lambda: omega1omega2from(tau=-j))

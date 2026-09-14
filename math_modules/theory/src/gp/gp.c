@@ -118,7 +118,7 @@ gp_head(void)
   ulong p, f;
   pari_print_version();
   pari_putc('\n');
-  pari_center("Copyright (C) 2000-2025 The PARI Group");
+  pari_center("Copyright (C) 2000-2026 The PARI Group");
   pari_putc('\n');
   print_text("PARI/GP is free software, covered by the GNU General Public \
 License, and comes WITHOUT ANY WARRANTY WHATSOEVER.");

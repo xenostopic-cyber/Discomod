@@ -132,8 +132,12 @@ on yours: \kbd{??Pi}. In fact the \kbd{gp} header already gave you that
 information if it was the case, just before the copyright message. As well,
 if it says something like ``\kbd{readline enabled}'' then you should have a
 look at the \kbd{readline} introduction in the User's Manual before you go
-on: it will be much easier to type in examples and correct typos after you've
-done that.
+on (try \kbd{??readline}): it will be easier to type in examples and
+correct typos after you've done that.
+
+Please explore by typing \kbd{?*} (list of all help topics) then trying out
+\kbd{?}$n$ and \kbd{??}$n$ for various integers $n$ covering the various
+topics.
 
 Now try \kbd{exp(Pi * sqrt(163))}. Hmmm, we suspect that the last digit may
 be wrong, can this really be an integer? This is the time to change
@@ -617,8 +621,7 @@ Note that, as is the case with most ``prime''-producing functions, the
 primality of the factors. The latter command applies \kbd{isprime} to all
 entries in the first column of \kbd{fa}, i.e to all pseudoprimes, and returns
 the column vector of results: all equal to 1, so our pseudoprimes were
-true primes. All arithmetic functions can be applied in this way to the entries
-of a vector or matrix. In fact, it has been checked that the strong
+true primes. In fact, it has been checked that the strong
 pseudoprimes output by \kbd{factor} (Baillie-Pomerance-Selfridge-Wagstaff
 pseudoprimes, without small divisors) are true primes at least up to
 $2^{64}$, and no explicit counter-example is known.\smallskip
@@ -760,11 +763,10 @@ $\F_{5^6} = \F_5[t]/(\kbd{g.mod})$.
 \section{Elementary Arithmetic Functions}
 
 Since PARI is aimed at number theorists, it is not surprising that there
-exists a large number of arithmetic functions; see the list by typing
-\kbd{?5}. We have already seen several, such as \kbd{factor}. Note that
-\kbd{factor} handles not only integers, but also univariate polynomials.
-Type for example \kbd{factor(x\pow 200 - 1)}. You can also ask to factor a
-polynomial modulo a finite field or a number field !
+exists a large number of arithmetic functions. We have already seen several,
+such as \kbd{factor}. Note that \kbd{factor} handles not only integers, but
+also univariate polynomials. Type for example \kbd{factor(x\pow 200 - 1)}.
+You can also factor a polynomial over a finite field or a number field.
 
 Evidently, you have functions for computing GCD's (\kbd{gcd}), extended GCD's
 (\kbd{gcdext}), solving the Chinese remainder theorem (\kbd{chinese}) and so
@@ -830,8 +832,9 @@ The standard linear algebra routines are available: \kbd{matdet},
 \kbd{mateigen} (eigenvectors), \kbd{matker}, \kbd{matimage}, \kbd{matrank},
 \kbd{matsolve} (to solve a linear system), \kbd{charpoly} (characteristic
 polynomial), to name a few. Bilinear algebra over $\R$ is also there:
-\kbd{qfgaussred} (Gauss reduction), \kbd{qfsign} (signature). You may also
-type \kbd{?7}. Can you guess what each of these do?
+\kbd{qfgaussred} (Gauss reduction), \kbd{qfsign} (signature).
+Type \kbd{?*} then print the list of linear algebra functions (\kbd{?10}).
+Can you guess what each of these do?
 
 Let us see how this works. First, a vector space (or module) is given by a
 generating set of vectors (often a basis) which are represented as
@@ -1112,7 +1115,7 @@ when $p=2$, the congruence restriction is that \kbd{agm(a,b)} can be computed
 only when \kbd{a/b} is congruent to 1 modulo $16$, and not 8 as could be
 expected.\smallskip
 %
-Now type \kbd{?8}. This gives you the list of all transcendental functions.
+Now type \kbd{?*} then \kbd{?11}. This gives you the list of all transcendental functions.
 Instead of continuing with more examples, we suggest that you experiment
 yourself with this list. Try integer, real, complex and $p$-adic arguments.
 You will notice that some have not been implemented (or do not have a
@@ -1459,16 +1462,16 @@ So type
 \bprog
   e0 = ellinit([6,-3,9,-16,-14])
 @eprog
-This computes a number of things
-about the elliptic curve defined by the affine equation
+This computes a number of quantities related to the elliptic curve defined by
+the affine equation
 %
 $$ y^2+6xy+9y = x^3-3x^2-16x-14\enspace. $$
 %
 It is not that clear what all these funny numbers mean, except that we
 recognize the first few of them as the coefficients we just input. To
 retrieve meaningful information from such complicated objects (and number
-fields will be much worse), one uses so-called \emph{member
-functions}. Type \kbd{?.} to get a complete list. Whenever \kbd{ell} appears
+fields will be worse), one uses so-called \emph{member functions}.
+Type \kbd{?.} to get a complete list. Whenever \kbd{ell} appears
 in the right hand side, we can apply the corresponding function to an object
 output by \kbd{ellinit}. (I'm sure you know how the other \kbd{init} functions
 will be called now, don't you? Oh, by the way, neither \kbd{clgpinit} nor
@@ -1495,19 +1498,13 @@ Type
 \bprog
   q0 = [-2,2]
   ellisoncurve(e0, q0)
-  q = ellchangepoint(q0,gr[2])
+  q = ellchangepoint(e0, q0, gr[2])
   ellisoncurve(e, q)
 @eprog\noindent
 The point \kbd{q0} is on the curve, as checked by \kbd{ellisoncurve}, and we
 transferred it onto the minimal model \kbd{e}, using \kbd{ellchangepoint} and
-the change of variable computed above. Note that \kbd{ellchangepoint()} is
-unusual among the elliptic curve functions in that it does not take an
-\kbd{ell} structure as its first argument: in \kbd{gp}, points do not
-``know'' which curve they are on, but to move a point from one model to
-another we only need to know the coordinates of the point and the
-transformation data here stored in \kbd{gr[2]}.  Also, the point at infinity
-is represented as \kbd{[0]} on all elliptic curves; this is the identity for
-the group law.
+the change of variable computed above. The point at infinity is represented
+as \kbd{[0]} on all elliptic curves; this is the identity for the group law.
 
 Here, \kbd{q=[0,0]} obviously lies on \kbd{e}, which has equation
 $y^2+y = x^3-x$.  Let us now play a little with points on \kbd{e}.

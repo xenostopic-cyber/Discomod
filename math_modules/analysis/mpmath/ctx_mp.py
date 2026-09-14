@@ -52,6 +52,7 @@ class MPContext(BaseMPContext, StandardBaseContext):
                  rounding=round_nearest, trap_complex=False):
         BaseMPContext.__init__(ctx)
         ctx.pretty = False
+        ctx.shortest_str = False
         ctx.types = [ctx.mpf, ctx.mpc, ctx.constant]
         ctx.default()
         ctx._set_prec(prec)
@@ -240,10 +241,11 @@ class MPContext(BaseMPContext, StandardBaseContext):
         else:
             return ctx.make_mpc(libmp.gammazeta.mpc_psi(m, z._mpc_, *ctx._prec_rounding))
 
-    def cos_sin(ctx, x, **kwargs):
+    def cos_sin(ctx, x, *, prec=None, dps=None, rounding=round_nearest, exact=False):
         if type(x) not in ctx.types:
             x = ctx.convert(x)
-        prec, rounding = ctx._parse_prec(kwargs)
+        prec, rounding = ctx._parse_prec({'prec': prec, 'dps': dps,
+                                          'rounding': rounding, 'exact': exact})
         if hasattr(x, '_mpf_'):
             c, s = libmp.libelefun.mpf_cos_sin(x._mpf_, prec, rounding)
             return ctx.make_mpf(c), ctx.make_mpf(s)
@@ -253,10 +255,11 @@ class MPContext(BaseMPContext, StandardBaseContext):
         else:
             return ctx.cos(x, **kwargs), ctx.sin(x, **kwargs)
 
-    def cospi_sinpi(ctx, x, **kwargs):
+    def cospi_sinpi(ctx, x, prec=None, dps=None, rounding=round_nearest, exact=False):
         if type(x) not in ctx.types:
             x = ctx.convert(x)
-        prec, rounding = ctx._parse_prec(kwargs)
+        prec, rounding = ctx._parse_prec({'prec': prec, 'dps': dps,
+                                          'rounding': rounding, 'exact': exact})
         if hasattr(x, '_mpf_'):
             c, s = libmp.libelefun.mpf_cos_sin_pi(x._mpf_, prec, rounding)
             return ctx.make_mpf(c), ctx.make_mpf(s)
@@ -369,6 +372,8 @@ class MPContext(BaseMPContext, StandardBaseContext):
             ("  mp.dps = %s" % ctx.dps).ljust(30) + f"[default: {sys.float_info.dig}]",
             ("  mp.rounding = '%s'" % ctx.rounding).ljust(30) + f"[default: 'n']",
             ("  mp.trap_complex = %s" % ctx.trap_complex).ljust(30) + "[default: False]",
+            ("  mp.pretty_dps = '%s'" % ctx.pretty_dps).ljust(30) + "[default: 'str']",
+            ("  mp.shortest_str = %s" % ctx.shortest_str).ljust(30) + "[default: False]",
         ]
         return "\n".join(lines)
 
@@ -539,7 +544,9 @@ class MPContext(BaseMPContext, StandardBaseContext):
             return +v2
         return f_autoprec_wrapped
 
-    def nstr(ctx, x, n=6, **kwargs):
+    def nstr(ctx, x, n=6, *, strip_zeros=True, min_fixed=None, max_fixed=None,
+             show_zero_exponent=False, base=10, binary_exp=False,
+             rnd=round_nearest):
         """
         Convert an ``mpf`` or ``mpc`` to a decimal string literal with *n*
         significant digits. The small default value for *n* is chosen to
@@ -579,6 +586,11 @@ class MPContext(BaseMPContext, StandardBaseContext):
             '0.0e+0'
 
         """
+        kwargs = {'strip_zeros': strip_zeros, 'min_fixed': min_fixed,
+                  'max_fixed': max_fixed, 'show_zero_exponent': show_zero_exponent,
+                  'base': base, 'binary_exp': binary_exp,
+                  'rnd': rnd}
+
         if isinstance(x, list):
             return "[%s]" % (", ".join(ctx.nstr(c, n, **kwargs) for c in x))
         if isinstance(x, tuple):
@@ -631,13 +643,13 @@ class MPContext(BaseMPContext, StandardBaseContext):
             prec, rounding = ctx._prec_rounding
             if 'rounding' in kwargs:
                 rounding = ctx._MPFR_rounding_map[kwargs['rounding']]
-            if 'prec' in kwargs:
+            if kwargs.get('prec') is not None:
                 prec = kwargs['prec']
                 if prec == ctx.inf:
                     return 0, 'f'
                 else:
                     prec = int(prec)
-            elif 'dps' in kwargs:
+            elif kwargs.get('dps') is not None:
                 dps = kwargs['dps']
                 if dps == ctx.inf:
                     return 0, 'f'
@@ -783,7 +795,20 @@ maxterms, or set zeroprec."""
         y, n = libmp.libmpf.mpf_frexp(x._mpf_)
         return ctx.make_mpf(y), n
 
-    def fneg(ctx, x, **kwargs):
+    def ulp(ctx, x):
+        """
+        Return the value of the least significant bit of the `x`.
+
+            >>> from mpmath import ulp
+            >>> ulp(1)
+            mpf('2.2204460492503131e-16')
+
+        """
+        x = ctx.convert(x)
+        *_, e, bc = x._mpf_
+        return ctx.make_mpf((0, MPZ_ONE, e + bc - ctx.prec, 1))
+
+    def fneg(ctx, x, prec=None, dps=None, rounding=round_nearest, exact=False):
         """
         Negates the number *x*, giving a floating-point result, optionally
         using a custom precision and rounding mode.
@@ -828,7 +853,8 @@ maxterms, or set zeroprec."""
             -200000000000000000000001
 
         """
-        prec, rounding = ctx._parse_prec(kwargs)
+        prec, rounding = ctx._parse_prec({'prec': prec, 'dps': dps,
+                                          'rounding': rounding, 'exact': exact})
         x = ctx.convert(x)
         if hasattr(x, '_mpf_'):
             return ctx.make_mpf(mpf_neg(x._mpf_, prec, rounding))
@@ -836,7 +862,7 @@ maxterms, or set zeroprec."""
             return ctx.make_mpc(mpc_neg(x._mpc_, prec, rounding))
         raise ValueError("Arguments need to be mpf or mpc compatible numbers")
 
-    def fadd(ctx, x, y, **kwargs):
+    def fadd(ctx, x, y, prec=None, dps=None, rounding=round_nearest, exact=False):
         """
         Adds the numbers *x* and *y*, giving a floating-point result,
         optionally using a custom precision and rounding mode.
@@ -895,7 +921,8 @@ maxterms, or set zeroprec."""
             OverflowError: the exact result does not fit in memory
 
         """
-        prec, rounding = ctx._parse_prec(kwargs)
+        prec, rounding = ctx._parse_prec({'prec': prec, 'dps': dps,
+                                          'rounding': rounding, 'exact': exact})
         x = ctx.convert(x)
         y = ctx.convert(y)
         try:
@@ -913,7 +940,7 @@ maxterms, or set zeroprec."""
             raise OverflowError(ctx._exact_overflow_msg)
         raise ValueError("Arguments need to be mpf or mpc compatible numbers")
 
-    def fsub(ctx, x, y, **kwargs):
+    def fsub(ctx, x, y, prec=None, dps=None, rounding=round_nearest, exact=False):
         """
         Subtracts the numbers *x* and *y*, giving a floating-point result,
         optionally using a custom precision and rounding mode.
@@ -960,7 +987,8 @@ maxterms, or set zeroprec."""
             OverflowError: the exact result does not fit in memory
 
         """
-        prec, rounding = ctx._parse_prec(kwargs)
+        prec, rounding = ctx._parse_prec({'prec': prec, 'dps': dps,
+                                          'rounding': rounding, 'exact': exact})
         x = ctx.convert(x)
         y = ctx.convert(y)
         try:
@@ -978,7 +1006,7 @@ maxterms, or set zeroprec."""
             raise OverflowError(ctx._exact_overflow_msg)
         raise ValueError("Arguments need to be mpf or mpc compatible numbers")
 
-    def fmul(ctx, x, y, **kwargs):
+    def fmul(ctx, x, y, prec=None, dps=None, rounding=round_nearest, exact=False):
         """
         Multiplies the numbers *x* and *y*, giving a floating-point result,
         optionally using a custom precision and rounding mode.
@@ -1028,7 +1056,9 @@ maxterms, or set zeroprec."""
             OverflowError: the exact result does not fit in memory
 
         """
-        prec, rounding = ctx._parse_prec(kwargs)
+        prec, rounding = ctx._parse_prec({'prec': prec, 'dps': dps,
+                                          'rounding': rounding, 'exact': exact})
+
         x = ctx.convert(x)
         y = ctx.convert(y)
         try:
@@ -1046,7 +1076,7 @@ maxterms, or set zeroprec."""
             raise OverflowError(ctx._exact_overflow_msg)
         raise ValueError("Arguments need to be mpf or mpc compatible numbers")
 
-    def fdiv(ctx, x, y, **kwargs):
+    def fdiv(ctx, x, y, prec=None, dps=None, rounding=round_nearest, exact=False):
         """
         Divides the numbers *x* and *y*, giving a floating-point result,
         optionally using a custom precision and rounding mode.
@@ -1094,7 +1124,8 @@ maxterms, or set zeroprec."""
             ValueError: division is not an exact operation
 
         """
-        prec, rounding = ctx._parse_prec(kwargs)
+        prec, rounding = ctx._parse_prec({'prec': prec, 'dps': dps,
+                                          'rounding': rounding, 'exact': exact})
         if not prec:
             raise ValueError("division is not an exact operation")
         x = ctx.convert(x)

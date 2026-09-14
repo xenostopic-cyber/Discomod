@@ -14,6 +14,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
 /* For compatibility with older PARI versions */
 
+#define real_0_bit real_0_expo
+#define real_1_bit real_1
 #define RgX_translate RgX_Rg_translate
 #define RgXQX_translate RgXQX_RgXQ_translate
 #define ZX_translate ZX_Z_translate
@@ -59,8 +61,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 #define padic_lindep lindep_padic
 #define ZM_ker_ratlift ZM_ker
 #define keri ZM_ker
-/* Following obsoleted in 2.16.* (2024) */
+/* Following obsoleted in 2.17.* (2024) */
 #define ZX_compositum_disjoint ZX_composedsum
+
+#ifdef PARI_OLD_NAMES /* Deprecated > 10 years ago */
 /* Following obsoleted in 2.9.* (2016) */
 #define absi_factor absZ_factor
 #define absi_factor_limit absZ_factor_limit
@@ -164,8 +168,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 #define pariputs pari_puts
 #define pariflush pari_flush
 
-/* Following deprecated for a long time now, obsoleted in 2.3.* (2007) */
-#ifdef PARI_OLD_NAMES
+/* Following obsoleted in 2.3.* (2007) */
 #define apell ellap
 #define gscalsmat scalarmat_s
 #define sqred qfgaussred
@@ -213,7 +216,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 #define gun   gen_1
 #define gdeux gen_2
 #define realzero real_0
-#define realzero_bit real_0_bit
+#define realzero_bit real_0_expo
 #define realun real_1
 #define realmun real_m1
 #define gen2str GENtostr

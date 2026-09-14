@@ -120,12 +120,11 @@ FIND:
 /**                                                                **/
 /********************************************************************/
 static void
-insertep(entree *ep, entree **table, ulong hash)
+insertep(entree *ep, entree **table, ulong mask, ulong hash)
 {
   ep->hash = hash;
-  hash %= functions_tblsz;
-  ep->next = table[hash];
-  table[hash] = ep;
+  ep->next = table[hash & mask];
+  table[hash & mask] = ep;
 }
 
 static entree *
@@ -146,31 +145,32 @@ initep(const char *name, long len)
   return ep;
 }
 
-/* Look for s of length len in T; if 'insert', insert if missing */
+/* Look for s of length len in hash table T of length mask+1;
+ * if 'insert' is set, insert if missing */
 static entree *
-findentry(const char *s, long len, entree **T, int insert)
+findentry(const char *s, long len, entree **T, ulong mask, int insert)
 {
   ulong hash = hash_str_len(s, len);
   entree *ep;
-  for (ep = T[hash % functions_tblsz]; ep; ep = ep->next)
+  for (ep = T[hash & mask]; ep; ep = ep->next)
     if (ep->hash == hash)
     {
       const char *t = ep->name;
       if (!strncmp(t, s, len) && !t[len]) return ep;
     }
   /* not found */
-  if (insert) { ep = initep(s,len); insertep(ep, T, hash); }
+  if (insert) { ep = initep(s,len); insertep(ep, T, mask, hash); }
   return ep;
 }
 entree *
 pari_is_default(const char *s)
-{ return findentry(s, strlen(s), defaults_hash, 0); }
+{ return findentry(s, strlen(s), defaults_hash, defaults_hash_MASK, 0); }
 entree *
 is_entry(const char *s)
-{ return findentry(s, strlen(s), functions_hash, 0); }
+{ return findentry(s, strlen(s), functions_hash, functions_hash_MASK, 0); }
 entree *
 fetch_entry_raw(const char *s, long len)
-{ return findentry(s, len, functions_hash, 1); }
+{ return findentry(s, len, functions_hash, functions_hash_MASK, 1); }
 entree *
 fetch_entry(const char *s) { return fetch_entry_raw(s, strlen(s)); }
 
@@ -556,7 +556,7 @@ exponent(const char **pts)
 static GEN
 real_0_digits(long n) {
   long b = (n > 0)? (long)(n/LOG10_2): (long)-((-n)/LOG10_2 + 1);
-  return real_0_bit(b);
+  return real_0_expo(b);
 }
 
 static GEN
@@ -591,7 +591,7 @@ real_read(pari_sp av, const char **s, GEN y, long prec)
       n += exponent(s);
       if (!signe(y)) { set_avma(av); return real_0_digits(n); }
   }
-  l = nbits2prec(bit_accuracy(lgefint(y)));
+  l = bit_accuracy(lgefint(y));
   if (l < prec) l = prec; else prec = l;
   if (!n) return itor(y, prec);
   incrprec(l);
@@ -1119,24 +1119,24 @@ gpolvar(GEN x)
 }
 
 static void
-fill_hashtable_single(entree **table, entree *ep)
+fill_hashtable_single(entree **table, ulong mask, entree *ep)
 {
   EpSETSTATIC(ep);
-  insertep(ep, table, hash_str(ep->name));
+  insertep(ep, table, mask, hash_str(ep->name));
   if (ep->code) ep->arity = check_proto(ep->code);
   ep->pvalue = NULL;
 }
 
 void
-pari_fill_hashtable(entree **table, entree *ep)
+pari_fill_hashtable(entree **table, ulong mask, entree *ep)
 {
-  for ( ; ep->name; ep++) fill_hashtable_single(table, ep);
+  for ( ; ep->name; ep++) fill_hashtable_single(table, mask, ep);
 }
 
 void
 pari_add_function(entree *ep)
 {
-  fill_hashtable_single(functions_hash, ep);
+  fill_hashtable_single(functions_hash, functions_hash_MASK, ep);
 }
 
 /********************************************************************/

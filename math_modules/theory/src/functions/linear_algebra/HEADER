@@ -2,20 +2,40 @@ Function: _header_linear_algebra
 Class: header
 Section: linear_algebra
 Doc:
- \section{Vectors, matrices, linear algebra and sets}
+ \section{Linear algebra. Vectors, matrices and sets}
  \label{se:linear_algebra}
 
- Note that most linear algebra functions operating on subspaces defined by
- generating sets (such as \tet{mathnf}, \tet{qflll}, etc.) take matrices as
- arguments. As usual, the generating vectors are taken to be the
- \emph{columns} of the given matrix.
+ Linear algebra functions handle vectors or matrices. PARI distinguishes
+ between
+
+ \item \emph{row} vectors, typically for arrays or sets or general
+ collections of objects;
+
+ \item and \emph{column} vectors, typically representing an element in some
+ vector space or free module in terms of a fixed basis, for instance the
+ canonical basis.
+
+ Matrices represent linear maps in the usual way, just as symmetric matrices
+ may represent quadratic forms. A vector space or a module is also described
+ by a matrix, whose \emph{columns} are understood as a set of generating
+ vectors for the space or module. How to interpret input or ouput data is
+ explained in each function's documentation: no internal property of a PARI
+ matrix can tell whether it represents a subspace, a linear map or a
+ quadratic form.
 
  Since PARI does not have a strong typing system, scalars live in
- unspecified commutative base rings. It is very difficult to write
- robust linear algebra routines in such a general setting. We thus
- assume that the base ring is a domain and work over its field of
- fractions. If the base ring is \emph{not} a domain, one gets an error as soon
- as a nonzero pivot turns out to be noninvertible. Some functions,
- e.g.~\kbd{mathnf} or \kbd{mathnfmod}, specifically assume that the base ring is
- $\Z$.
+ unspecified commutative base rings, informally the smallest ring where all
+ coefficients can be mapped with minimal loss of information. One cannot write
+ robust linear algebra routines in such a general setting. Thus, unless
+ mentioned otherwise, routines assume that the base ring is a \emph{domain}
+ and will attempt to work over its field of fractions. If the base ring is
+ \emph{not} a domain, an exception will be raised if a nonzero pivot turns out
+ to be noninvertible.
 
+ An important exception are the functions \kbd{matdetmod}, \kbd{matimagemod},
+ \kbd{matkermod}, \kbd{matsolvemod}, etc. All of them perform linear algebra
+ over $\Z / N\Z$ and handle modules over $\Z / N\Z$, where $N$ needs not be
+ prime.
+
+ Some functions, e.g.~\kbd{mathnf} or \kbd{mathnfmod}, specifically assume
+ that the base ring is $\Z$.

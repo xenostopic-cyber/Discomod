@@ -220,7 +220,7 @@ inithue(GEN P, GEN bnf, long flag, long prec)
 
   nf_get_sign(bnf_get_nf(bnf), &s, &t);
   fu = bnf_get_fu(bnf);
-  prec_roots = prec + nbits2extraprec(gexpo(Q_primpart(fu)));
+  prec_roots = nbits2prec(prec + gexpo(Q_primpart(fu)));
   for(;;)
   {
     ro = tnf_get_roots(P, prec_roots, s, t);

@@ -206,11 +206,12 @@ make_input_file_from_page(HyperDocPage *page)
           else
             print_graph_paste(pfile, com, buf, page->name, node->type);
         }
+        free(com);
       }
     if (!starting_file && make_patch_files) {
       ret_val = fclose(pfile);
       if (ret_val == -1) {
-        fprintf(stderr, "couldn't close file %s\n", b);
+        fprintf(stderr, "couldn't close file %s\n", c);
         exit(-1);
       }
     }
@@ -370,28 +371,17 @@ get_graph_output(char *command,char *pagename,int com_type)
 static void
 send_command(char *command,int com_type)
 {
-    char buf[1024];
-
+    int len = strlen(command) + 64;
+    char* buf = malloc(len);
+    escape_string(command);
     if (com_type != Spadsrc) {
-        escape_string(command);
-        sprintf(buf, "(|parseAndEvalToHypertex| '\"%s\")", command);
-        send_lisp_command(buf);
+        snprintf(buf, len, "(|parseAndEvalToHypertex| '\"%s\")", command);
     }
     else {
-        FILE *f;
-        char name[512], str[512]/*, *c*/;
-
-        sprintf(name, "/tmp/hyper%s.input", getenv("SPADNUM"));
-        f = fopen(name, "w");
-        if (f == NULL) {
-            fprintf(stderr, "Can't open temporary input file %s\n", name);
-            return;
-        }
-        fprintf(f, "%s", command);
-        fclose(f);
-        sprintf(str, "(|parseAndEvalToHypertex| '\")read %s\")", name);
-        send_lisp_command(str);
+        snprintf(buf, len, "(|parseAndEvalBlockToHypertex| '\"%s\")", command);
     }
+    send_lisp_command(buf);
+    free(buf);
 }
 
 static void

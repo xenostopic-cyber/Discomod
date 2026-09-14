@@ -4,19 +4,16 @@ Section: transcendental
 Doc:
  \section{Transcendental functions}\label{se:trans}
 
- Since the values of transcendental functions cannot be exactly represented,
- these functions will always return an inexact object: a real number,
+ These functions will always return an inexact object: a real number,
  a complex number, a $p$-adic number or a power series.  All these objects
- have a certain finite precision.
+ have a certain finite precision. As a general rule, transcendental functions
+ operate in the following way:
 
- As a general rule, which of course in some cases may have exceptions,
- transcendental functions operate in the following way:
-
- \item If the argument is either a real number or an inexact complex number
+ \item If the argument involves a floating point component
  (like \kbd{1.0 + I} or \kbd{Pi*I} but not \kbd{2 - 3*I}), then the
  computation is done with the precision of the argument.
- In the example below, we see that changing the precision to $50$ digits does
- not matter, because $x$ only had a precision of $19$ digits.
+ In the example below, changing the precision to $50$ digits does
+ not matter, because $x$ only had a precision of $19$ digits to start with.
  \bprog
  ? \p 15
     realprecision = 19 significant digits (15 digits displayed)
@@ -28,41 +25,42 @@ Doc:
  %2 = 0.7071067811865475244
  @eprog
 
- Note that even if the argument is real, the result may be complex
- (e.g.~$\text{acos}(2.0)$ or $\text{acosh}(0.0)$). See each individual
+ Note that even if the argument is real, the result may be complex,
+ e.g.,~$\text{acos}(2.0)$ or $\text{acosh}(0.0)$. See each individual
  function help for the definition of the branch cuts and choice of principal
  value.
 
  \item If the argument is either an integer, a rational, an exact complex
  number or a quadratic number, it is first converted to a real
  or complex number using the current \idx{precision}, which can be
- view and manipulated using the defaults \tet{realprecision} (in decimal
+ viewed and changed using the defaults \tet{realprecision} (in decimal
  digits) or \tet{realbitprecision} (in bits). This precision can be changed
- indifferently
+ globally
 
  \item in decimal digits: use \b{p} or \kbd{default(realprecision,...)}.
 
  \item in bits: use \b{pb} or \kbd{default(realbitprecision,...)}.
 
  After this conversion, the computation proceeds as above for real or complex
- arguments.
+ arguments. The precision may also changed locally inside a given dynamic
+ scope using \kbd{localprec} (decimal digits) or \kbd{localbitprec} (bits).
 
  In library mode, the \kbd{realprecision} does not matter; instead the
- precision is taken from the \kbd{prec} parameter which every transcendental
- function has. As in \kbd{gp}, this \kbd{prec} is not used when the argument
- to a function is already inexact. Note that the argument \var{prec} stands
- for the length in words of a real number, including codewords. Hence we must
- have $\var{prec} \geq 3$. (Some functions allow a \kbd{bitprec} argument
- instead which allow finer granularity.)
+ precision is taken from the \emph{positive} \kbd{prec} parameter, which
+ every transcendental function has, and stands for the bit precision of a real
+ number, i.e., the bit length of its mantissa. As in \kbd{gp}, this
+ \kbd{prec} is not used when the argument to a function is already inexact.
 
- Some accuracies attainable on 32-bit machines cannot be attained
- on 64-bit machines for parity reasons. For example, an accuracy
- of 28 decimal digits on 32-bit machines corresponds to \var{prec} having
- the value 5, for a mantissa of $3 \times 32 = 96$ bits. But this cannot be
- attained on 64-bit machines: we can attain either 64 or 128 bits, but values
- in between.
+ A few functions are actually bit-precise, and their argument is usually
+ called \kbd{bitprec} in the documentation to emphasize this. But, for
+ historical reasons, most functions operate on mantissas at the \emph{word}
+ level and round \kbd{prec} to the next multiple of
+ \kbd{BITS\_IN\_LONG}. In this model, some accuracies attainable on 32-bit
+ machines cannot be attained on 64-bit machines. For example, an accuracy of
+ $\var{prec} = 32$ bits will stay as is on a 32-bit machine, but be converted
+ to $64$ on a 64-bit machine.
 
- \item If the argument is a polmod (representing an algebraic number),
+ \item If the argument is a polmod, representing an algebraic number,
  then the function is evaluated for every possible complex embedding of that
  algebraic number.  A column vector of results is returned, with one component
  for each complex embedding.  Therefore, the number of components equals
@@ -88,14 +86,14 @@ Doc:
  the other hand, $p$-adics are not exact objects, hence are treated
  differently.
 
- \item If the argument is a polynomial, a power series or a rational function,
+ \item If the argument is a polynomial, a power series or a rational function
+ in main variable $X$,
  it is, if necessary, first converted to a power series using the current
  series precision, held in the default \tet{seriesprecision}. This precision
  (the number of significant terms) can be changed using \b{ps} or
  \kbd{default(seriesprecision,...)}. Then the Taylor series expansion of the
- function around $X=0$ (where $X$ is the main variable) is computed to a
- number of terms depending on the number of terms of the argument and the
- function being computed.
+ function around $X=0$ is computed to a number of terms depending on the
+ number of terms of the argument and the function being computed.
 
  Under \kbd{gp} this again is transparent to the user. When programming in
  library mode, however, it is \emph{strongly} advised to perform an explicit
@@ -103,7 +101,7 @@ Doc:
  \bprog
    x = gtoser(x, gvar(x), seriesprec)
  @eprog\noindent
- where the number of significant terms \kbd{seriesprec} can be specified
+ where the number of significant terms \kbd{seriesprec} is specified
  explicitly. If you do not do this, a global variable \kbd{precdl} is used
  instead, to convert polynomials and rational functions to a power series with
  a reasonable number of terms; tampering with the value of this global
@@ -120,6 +118,8 @@ Doc:
    H * matdiagonal(f(L)) * H^(-1);
  }
  ? A = [13,2;10,14];
+ ? \pb 192
+   realbitprecision = 192 significant bits (50 decimal digits displayed)
  ? a = mateval(sqrt, A) /*@Ccom approximates $\sqrt{A}$ */
  %2 =
  [3.5522847498307933... 0.27614237491539669...]
@@ -127,11 +127,11 @@ Doc:
  [1.3807118745769834... 3.69035593728849174...]
 
  ? exponent(a^2 - A)
- %3 = -123 \\ OK
+ %3 = -186 \\ OK
 
  ? b = mateval(exp, A);
  ? exponent(mateval(log, b) - A)
- %5 = -115 \\ tolerable
+ %5 = -180 \\ tolerable
 
  @eprog The absolute error depends on the condition number of the base
  change matrix $H$ and on the largest $|f(\lambda)|$, where $\lambda$ runs

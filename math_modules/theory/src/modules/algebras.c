@@ -6651,8 +6651,8 @@ algeichlerbasis(GEN al, GEN N)
       /* count the pr|p in faN */
       while (k2<=n && equalii(p,pr_get_p(gcoeff(faN,k2,1)))) { lh++; k2++; }
       LH = cgetg(lh, t_VEC);
-      Cpr = cgetg(lh, t_VEC);
-      Cm = cgetg(lh, t_VEC);
+      Cpr = cgetg(lh, t_COL);
+      Cm = cgetg(lh, t_COL);
       ih = 1;
     }
     prm = idealpow(nf, pr, mZ);

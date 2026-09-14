@@ -2292,12 +2292,17 @@ lfunqf(GEN M, long prec)
   long n;
   GEN k, D, d, Mi, Ldata, poles, eno, dual;
 
-  if (typ(M) != t_MAT) pari_err_TYPE("lfunqf", M);
+  if (typ(M) != t_MAT)
+  {
+    if (typ(M) != t_VEC) pari_err_TYPE("lfunqf", M);
+    M = diagonal_shallow(M);
+  }
   if (!RgM_is_ZM(M))   pari_err_TYPE("lfunqf [not integral]", M);
   n = lg(M)-1;
   k = uutoQ(n,2);
   M = Q_primpart(M);
   Mi = ZM_inv(M, &d); /* d M^(-1) */
+  if (!Mi || (d && !signe(d))) pari_err_INV("lfunqf",M);
   if (!qfiseven(M)) { M = gmul2n(M, 1); d = shifti(d,1); }
   if (!qfiseven(Mi)){ Mi= gmul2n(Mi,1); d = shifti(d,1); }
   /* det(Mi) = d^n/det(M), D^2 = det(Mi)/det(M) */

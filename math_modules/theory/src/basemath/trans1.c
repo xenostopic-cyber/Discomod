@@ -148,13 +148,13 @@ static GEN
 pi_ramanujan(long prec)
 {
   const ulong B = 545140134, A = 13591409, C = 640320;
-  const double alpha2 = 47.11041314; /* 3log(C/12) / log(2) */
+  const double alpha2 = 0.02122672958; /* log(2) / (3log(C/12)) */
   long n, nmax, prec2;
   struct abpq_res R;
   struct abpq S;
   GEN D, u;
 
-  nmax = (long)(1 + prec2nbits(prec)/alpha2);
+  nmax = (long)(1 + prec * alpha2);
 #ifdef LONG_IS_64BIT
   D = utoipos(10939058860032000UL); /* C^3/24 */
 #else
@@ -182,11 +182,9 @@ pi_brent_salamin(long prec)
 {
   GEN A, B, C;
   pari_sp av2;
-  long i, G;
+  long i, G = - prec;
 
-  G = - prec2nbits(prec);
   incrprec(prec);
-
   A = real2n(-1, prec);
   B = sqrtr_abs(A); /* = 1/sqrt(2) */
   setexpo(A, 0);
@@ -250,19 +248,17 @@ GEN
 consteuler(long prec)
 {
   GEN u,v,a,b,tmpeuler;
-  long l, n1, n, k, x;
+  long n1, n, k, x;
   pari_sp av1, av2;
 
   if (geuler && realprec(geuler) >= prec) return geuler;
 
   av1 = avma; tmpeuler = cgetr_block(prec);
-
   incrprec(prec);
-
-  l = prec+EXTRAPREC64; x = (long) (1 + prec2nbits_mul(l, M_LN2/4));
-  a = utor(x,l); u=logr_abs(a); setsigne(u,-1); affrr(u,a);
-  b = real_1(l);
-  v = real_1(l);
+  x = (long) (1 + prec * (M_LN2 / 4));
+  a = utor(x,prec); u=logr_abs(a); setsigne(u,-1); affrr(u,a);
+  b = real_1(prec);
+  v = real_1(prec);
   n = (long)(1+3.591*x); /* z=3.591: z*[ ln(z)-1 ]=1 */
   n1 = minss(n, SQRTVERYBIGINT);
   if (x < SQRTVERYBIGINT)
@@ -322,7 +318,7 @@ mpeuler(long prec) { return rtor(consteuler(prec), prec); }
 static GEN
 catalan(long prec)
 {
-  long i, nmax = 1 + prec2nbits(prec) / 7.509; /* / log2(729/4) */
+  long i, nmax = 1 + prec * 0.1331598; /* * 1 / log2(729/4) */
   struct abpq_res R;
   struct abpq A;
   GEN u;
@@ -370,7 +366,6 @@ GEN
 trans_eval(const char *fun, GEN (*f)(GEN,long), GEN x, long prec)
 {
   pari_sp av = avma;
-  if (prec < LOWDEFAULTPREC) pari_err_BUG("trans_eval [prec < 3]");
   switch(typ(x))
   {
     case t_INT:    x = f(itor(x,prec),prec); break;
@@ -391,7 +386,6 @@ trans_evalgen(const char *fun, void *E, GEN (*f)(void*,GEN,long),
               GEN x, long prec)
 {
   pari_sp av = avma;
-  if (prec < LOWDEFAULTPREC) pari_err_BUG("trans_eval [prec < 3]");
   switch(typ(x))
   {
     case t_INT:    x = f(E, itor(x,prec),prec); break;
@@ -417,7 +411,7 @@ static GEN
 mpexp0(GEN x)
 {
   long e = expo(x);
-  return e >= 0? real_0_bit(e): real_1_bit(-e);
+  return e >= 0? real_0_expo(e): real_1(-e);
 }
 static GEN
 powr0(GEN x)
@@ -696,13 +690,13 @@ upowers(ulong x, long n)
   GEN p = cgetg(n + 2, t_VECSMALL);
   uel(p,1) = 1; if (n == 0) return p;
   uel(p,2) = x;
-  for (i = 3; i <= n; i++)
+  for (i = 3; i <= n+1; i++)
     uel(p,i) = uel(p,i-1)*x;
   return p;
 }
 
 typedef struct {
-  long prec, a;
+  long lg, a;
   GEN (*sqr)(GEN);
   GEN (*mulug)(ulong,GEN);
 } sr_muldata;
@@ -711,10 +705,10 @@ static GEN
 _rpowuu_sqr(void *data, GEN x)
 {
   sr_muldata *D = (sr_muldata *)data;
-  if (typ(x) == t_INT && lg2prec(lgefint(x)) >= D->prec)
+  if (typ(x) == t_INT && lgefint(x) >= D->lg)
   { /* switch to t_REAL */
     D->sqr   = &sqrr;
-    D->mulug = &mulur; x = itor(x, D->prec);
+    D->mulug = &mulur; x = itor_lg(x, D->lg);
   }
   return D->sqr(x);
 }
@@ -738,12 +732,11 @@ rpowuu(ulong a, ulong n, long prec)
   if (a == 1) return real_1(prec);
   if (a == 2) return real2n(n, prec);
   if (n == 1) return utor(a, prec);
-  z = cgetr(prec);
-  av = avma;
   D.sqr   = &sqri;
   D.mulug = &mului;
-  D.prec = prec;
+  D.lg = nbits2lg(prec);
   D.a = (long)a;
+  z = cgetg(D.lg, t_REAL); av = avma;
   y = gen_powu_fold_i(utoipos(a), n, (void*)&D, &_rpowuu_sqr, &_rpowuu_msqr);
   affgr(y, z); return gc_const(av,z);
 }
@@ -1112,7 +1105,7 @@ gpow0(GEN z, GEN x, long prec)
   z = ground(gmulsg(gexpo(z),x));
   if (is_bigint(z) || uel(z,2) >= HIGHEXPOBIT)
     pari_err_OVERFLOW("gpow");
-  set_avma(av); return real_0_bit(itos(z));
+  set_avma(av); return real_0_expo(itos(z));
 }
 
 /* centermod(x, log(2)), set *sh to the quotient */
@@ -1125,8 +1118,8 @@ modlog2(GEN x, long *sh)
   q = d < 0 ? - (long) qd: (long) qd;
   *sh = q;
   if (q) {
-    long l = realprec(x) + EXTRAPRECWORD;
-    x = subrr(rtor(x,l), mulsr(q, mplog2(l)));
+    long prec = realprec(x) + EXTRAPREC64;
+    x = subrr(rtor(x,prec), mulsr(q, mplog2(prec)));
     if (!signe(x)) return NULL;
   }
   return x;
@@ -1156,7 +1149,7 @@ powfrac(GEN x, GEN n, long prec)
     else
     {
       GEN X = x;
-      x = gtofp(x, prec + nbits2extraprec(expi(r)));
+      x = gtofp(x, nbits2prec(prec + expi(r)));
       z = sqrtnr(x, D);
       if (!equali1(r)) z = powgi(z, r);
       if (signe(q))
@@ -1178,7 +1171,7 @@ powcx_prec(long ex, GEN n, long prec)
   GEN a = gel(n,1), b = gel(n,2);
   long e = (ex < 2)? 0: expu(ex);
   e += gexpo_safe(is_rational_t(typ(a))? b: n);
-  return e > 2? prec + nbits2extraprec(e): prec;
+  return e > 2? nbits2prec(prec + e): prec;
 }
 GEN
 powcx(GEN x, GEN logx, GEN n, long prec)
@@ -1302,7 +1295,7 @@ gpow(GEN x, GEN n, long prec)
   if (!gprecision(x))
   {
     long e = gexpo_safe(n); /* avoided if n = 0 or gexpo not defined */
-    if (e > 2) prec += nbits2extraprec(e);
+    if (e > 2) prec = nbits2prec(prec + e);
   }
   y = gmul(n, glog(x,prec));
   y = gexp(y,prec);
@@ -1847,7 +1840,7 @@ sqrtnr_abs(GEN a, long n)
 {
   pari_sp av;
   GEN x, b;
-  long eextra, eold, n1, n2, prec, B, v;
+  long eextra, eold, n1, n2, prec, v;
   ulong mask;
   double K = n, X;
 
@@ -1868,8 +1861,7 @@ sqrtnr_abs(GEN a, long n)
   eextra = dblexpo(K);
   n1 = n+1;
   n2 = 2*n;
-  B = prec2nbits(prec);
-  mask = cubic_prec_mask(B + 63);
+  mask = cubic_prec_mask(prec + EXTRAPREC64 - 1);
   eold = 1;
   for(;;)
   { /* reach 64 */
@@ -1912,18 +1904,14 @@ shiftc_inplace(GEN z, long d)
 static GEN
 sqrtnof1(ulong n, long prec)
 {
-  pari_sp av;
+  pari_sp av = avma;
   GEN x;
-  long eold, n1, n2, B;
+  long eold, n1 = n + 1, n2 = 2*n;
   ulong mask;
-
-  B = prec2nbits(prec);
-  n1 = n+1;
-  n2 = 2*n; av = avma;
 
   x = expIr(divru(Pi2n(1, LOWDEFAULTPREC), n));
   if (prec == LOWDEFAULTPREC) return gc_upto(av, x);
-  mask = cubic_prec_mask(B + BITS_IN_LONG-1);
+  mask = cubic_prec_mask(prec + BITS_IN_LONG-1);
   eold = 1;
   for(;;)
   { /* reach BITS_IN_LONG */
@@ -2074,17 +2062,14 @@ gsqrtn(GEN x, GEN n, GEN *zetan, long prec)
     {
       long b;
       if (signe(n) < 0) pari_err_INV("gsqrtn",x);
-      if (isinexactreal(x))
-        b = sdivsi(gexpo(x), n);
-      else
-        b = -prec2nbits(prec);
+      b = isinexactreal(x)? sdivsi(gexpo(x), n): -prec;
       if (typ(x) == t_COMPLEX)
       {
         y = cgetg(3,t_COMPLEX);
-        gel(y,1) = gel(y,2) = real_0_bit(b);
+        gel(y,1) = gel(y,2) = real_0_expo(b);
       }
       else
-        y = real_0_bit(b);
+        y = real_0_expo(b);
     }
     else
     {
@@ -2120,18 +2105,17 @@ gsqrtn(GEN x, GEN n, GEN *zetan, long prec)
 GEN
 exp1r_abs(GEN x)
 {
-  long l = realprec(x), a = expo(x), b = prec2nbits(l), L, i, n, m, B;
-  GEN y, p2, X;
+  long a = expo(x), b = realprec(x), b2, i, n, m, B;
+  GEN y, S, X;
   pari_sp av;
   double d;
 
   if (b + a <= 0) return mpabs(x);
-
-  y = cgetr(l); av = avma;
+  y = cgetr(b); av = avma;
   B = b/3 + BITS_IN_LONG + (BITS_IN_LONG*BITS_IN_LONG)/ b;
   d = a/2.; m = (long)(d + sqrt(d*d + B)); /* >= 0 */
   if (m < (-a) * 0.1) m = 0; /* not worth it */
- /* Multiplication is quadratic in this range (l is small, otherwise we
+ /* Multiplication is quadratic in this range (b is small, otherwise we
   * use logAGM + Newton). Set Y = 2^(-e-a) x, compute truncated series
   * sum_{k <= n} Y^k/k!: this costs roughly
   *    m b^2 + sum_{k <= n} (k e + BITS_IN_LONG)^2
@@ -2150,67 +2134,64 @@ exp1r_abs(GEN x)
   * n (-1/log(2) -log_2 |Y| + log_2(n+1)) >= b  */
   d = m-dbllog2(x)-1/M_LN2; /* ~ -log_2 Y - 1/log(2) */
   while (d <= 0) { d++; m++; } /* d < 0 can occur from expm1 */
-  L = l + nbits2extraprec(m);
-  b += m;
+  b += m; b2 = nbits2prec(b);
   n = (long)(b / d); /* > 0 */
   if (n == 1)
     n = (long)(b / (d + log2((double)n+1))); /* log ~ const in small ranges */
   while (n*(d+log2((double)n+1)) < b) n++; /* expect few corrections */
 
-  X = rtor(x,L); shiftr_inplace(X, -m); setsigne(X, 1);
-  if (n == 1) p2 = X;
+  X = rtor(x,b2); shiftr_inplace(X, -m); setsigne(X, 1);
+  if (n == 1) S = X;
   else
   {
-    long s = 0, l1 = nbits2prec((long)(d + n + 16));
-    GEN unr = real_1(L);
+    long r = (long)(d + n + 16), b1 = nbits2prec(r);
+    GEN one = real_1(b2);
     pari_sp av2;
 
-    p2 = cgetr(L); av2 = avma;
-    for (i=n; i>=2; i--, set_avma(av2))
+    S = cgetr(b2); av2 = avma;
+    for (i = n; i >= 2; i--, set_avma(av2))
     { /* compute X^(n-1)/n! + ... + X/2 + 1 */
-      GEN p1, p3;
-      setprec(X,l1); p3 = divru(X,i);
-      l1 += nbits2extraprec(dvmdsBIL(s - expo(p3), &s)<<TWOPOTBITS_IN_LONG);
-      if (l1>L) l1=L;
-      setprec(unr,l1); p1 = addrr_sign(unr,1, i == n? p3: mulrr(p3,p2),1);
-      setprec(p2,l1); affrr(p1,p2); /* p2 <- 1 + (X/i)*p2 */
+      GEN t;
+      setprec(X, b1); t = divru(X, i);
+      r -= expo(t); b1 = nbits2prec(r); if (b1 > b2) b1 = b2;
+      if (i != n) t = mulrr(t,S);
+      setprec(one, b1); setprec(S, b1);
+      affrr(addrr(one, t), S); /* S <- 1 + (X/i)*S */
     }
-    setprec(X,L); p2 = mulrr(X,p2);
+    setprec(X,b2); S = mulrr(X, S);
   }
-
-  B = prec2nbits(L);
+  /* S = X^n/n! + ... + X^2/2 + X */
   for (i = 1; i <= m; i++)
   {
-    if (realprec(p2) > L) setprec(p2,L);
-    if (expo(p2) < -B)
-      shiftr_inplace(p2, 1); /* 2 + p2 ~ 2 and may blow up accuracy */
+    if (realprec(S) > b2) setprec(S,b2);
+    if (expo(S) < -b2)
+      shiftr_inplace(S, 1); /* 2 + S ~ 2 and may blow up accuracy */
     else
-      p2 = mulrr(p2, addsr(2,p2));
+      S = mulrr(S, addsr(2,S));
   }
-  affrr_fixlg(p2,y); return gc_const(av,y);
+  affrr_fixlg(S,y); return gc_const(av,y);
 }
 
 GEN
 mpexpm1(GEN x)
 {
   const long s = 6;
-  long B, l, sx = signe(x);
+  long b, sx = signe(x);
   GEN y, z;
   pari_sp av;
-  if (!sx) return real_0_bit(expo(x));
-  l = realprec(x);
-  if (l > maxss(EXPNEWTON_LIMIT, BITS_IN_LONG<<s))
+  if (!sx) return real_0_expo(expo(x));
+  b = realprec(x);
+  if (b > maxss(EXPNEWTON_LIMIT, BITS_IN_LONG<<s))
   {
     long e = expo(x);
-    if (e < 0) x = rtor(x, l + nbits2extraprec(-e));
+    if (e < 0) x = rtor_lg(x, nbits2lg(b - e));
     return subrs(mpexp(x), 1);
   }
   if (sx > 0) return exp1r_abs(x);
-  B = prec2nbits(l);
-  if (cmpsr(-B, x) > 0) return real_m1(l);
+  if (cmpsr(-b, x) > 0) return real_m1(b);
   /* compute exp(x) * (1 - exp(-x)) */
   av = avma; y = exp1r_abs(x); /* > 0 */
-  if (expo(y) >= -B) { z = addsr(1, y); y = divrr(y, z); }
+  if (expo(y) >= -b) { z = addsr(1, y); y = divrr(y, z); }
   setsigne(y, -1);
   return gc_leaf(av, y);
 }
@@ -2255,21 +2236,21 @@ static GEN
 mpexp_basecase(GEN x)
 {
   pari_sp av = avma;
-  long sh, l = realprec(x);
+  long sh, b = realprec(x);
   GEN y, z;
 
   y = modlog2(x, &sh);
-  if (!y) { set_avma(av); return real2n(sh, l); }
+  if (!y) { set_avma(av); return real2n(sh, b); }
   z = addsr(1, exp1r_abs(y));
   if (signe(y) < 0) z = invr(z);
   if (sh) {
     shiftr_inplace(z, sh);
-    if (realprec(z) > l) z = rtor(z, l); /* spurious precision increase */
+    if (realprec(z) > b) z = rtor(z, b); /* spurious precision increase */
   }
 #ifdef DEBUG
 {
   GEN t = mplog(z), u = divrr(subrr(x, t),x);
-  if (signe(u) && expo(u) > 5-prec2nbits(minss(l,realprec(t))))
+  if (signe(u) && expo(u) > 5 - minss(b,realprec(t)))
     pari_err_BUG("exp");
 }
 #endif
@@ -2280,32 +2261,32 @@ GEN
 mpexp(GEN x)
 {
   const long s = 6; /*Initial steps using basecase*/
-  long i, p, l = realprec(x), sh;
+  long i, p, b = realprec(x), sh;
   GEN a, t, z;
   ulong mask;
 
-  if (l <= maxss(EXPNEWTON_LIMIT, (BITS_IN_LONG<<s) + 2))
+  if (b <= maxss(EXPNEWTON_LIMIT, (BITS_IN_LONG<<s) + 2))
   {
     if (!signe(x)) return mpexp0(x);
     return mpexp_basecase(x);
   }
-  z = cgetr(l); /* room for result */
+  z = cgetr(b); /* room for result */
   x = modlog2(x, &sh);
-  if (!x) { set_avma((pari_sp)(z+lg(z))); return real2n(sh, l); }
-  constpi(l); /* precompute for later logr_abs() */
-  mask = quadratic_prec_mask(prec2nbits(l)+BITS_IN_LONG);
+  if (!x) { set_avma((pari_sp)(z+lg(z))); return real2n(sh, b); }
+  constpi(b); /* precompute for later logr_abs() */
+  mask = quadratic_prec_mask(b+BITS_IN_LONG);
   for(i=0, p=1; i<s+TWOPOTBITS_IN_LONG; i++) { p <<= 1; if (mask & 1) p-=1; mask >>= 1; }
-  a = mpexp_basecase(rtor(x, nbits2prec(p)));
+  a = mpexp_basecase(rtor_lg(x, nbits2lg(p)));
   x = addrs(x,1);
-  if (realprec(x) < l+EXTRAPREC64) x = rtor(x, l+EXTRAPREC64);
-  a = rtor(a, l+EXTRAPREC64); /*append 0s */
+  if (realprec(x) < b+EXTRAPREC64) x = rtor(x, b+EXTRAPREC64);
+  a = rtor(a, b+EXTRAPREC64); /*append 0s */
   t = NULL;
   for(;;)
   {
     p <<= 1; if (mask & 1) p--;
     mask >>= 1;
-    setprec(x, nbits2prec(p));
-    setprec(a, nbits2prec(p));
+    setlg(x, nbits2lg(p));
+    setlg(a, nbits2lg(p));
     t = mulrr(a, subrr(x, logr_abs(a))); /* a (x - log(a)) */
     if (mask == 1) break;
     affrr(t, a); set_avma((pari_sp)a);
@@ -2402,8 +2383,8 @@ cxexp(GEN x, long prec)
 {
   GEN r, p1, p2, y = cgetg(3,t_COMPLEX);
   pari_sp av = avma, tetpil;
-  long l;
-  l = precision(x); if (l > prec) prec = l;
+  long b;
+  b = precision(x); if (b > prec) prec = b;
   if (gequal0(gel(x,1)))
   {
     gsincos(gel(x,2),&gel(y,2),&gel(y,1),prec);
@@ -2498,7 +2479,7 @@ expQ(GEN x, long prec)
 {
   GEN p, q, z, z0 = NULL;
   pari_sp av;
-  long n, nmax, s, e, b = prec2nbits(prec);
+  long n, nmax, sx, e, lz, bit = prec;
   double ex;
   struct abpq_res R;
   struct abpq S;
@@ -2508,29 +2489,29 @@ expQ(GEN x, long prec)
     if (!signe(x)) return real_1(prec);
     p = x; q = gen_1;
     e = expi(p);
-    if (e > b) return mpexp(itor(x, prec));
+    if (e > bit) return mpexp(itor(x, prec));
   }
   else
   {
-    long ep, eq, B = usqrt(b) / 2;
+    long ep, eq, B = usqrt(bit) / 2;
     p = gel(x,1); ep = expi(p);
     q = gel(x,2); eq = expi(q);
     if (ep > B || eq > B) return mpexp(fractor(x, prec));
     e = ep - eq;
-    if (e < -3) prec += nbits2extraprec(-e); /* see addrr 'extend' rule */
+    if (e < -3) prec = nbits2prec(prec - e); /* see addrr 'extend' rule */
   }
-  if (e > 2) { z0 = cgetr(prec); prec += EXTRAPREC64; b += BITS_IN_LONG; }
-  z = cgetr(prec); av = avma;
+  lz = nbits2lg(bit);
+  if (e > 2) { z0 = cgetg(lz, t_REAL); incrprec(bit); lz = nbits2lg(bit); }
+  z = cgetg(lz, t_REAL); av = avma;
   if (e > 0)
   { /* simplify x/2^e = p / (q * 2^e) */
     long v = minss(e, vali(p));
     if (v) p = shifti(p, -v);
     if (e - v) q = shifti(q, e - v);
   }
-  s = signe(p);
-  if (s < 0) p = negi(p);
+  sx = signe(p); if (sx < 0) p = negi(p);
   ex = exp2(dbllog2(x) - e) * 2.718281828; /* exp(1) * x / 2^e,  x / 2^e < 2 */
-  nmax = (long)(1 + exp(dbllambertW0(M_LN2 * b / ex)) * ex);
+  nmax = (long)(1 + exp(dbllambertW0(M_LN2 * bit / ex)) * ex);
   abpq_init(&S, nmax);
   S.a[0] = S.b[0] = S.p[0] = S.q[0] = gen_1;
   for (n = 1; n <= nmax; n++)
@@ -2541,7 +2522,7 @@ expQ(GEN x, long prec)
     S.q[n] = muliu(q, n);
   }
   abpq_sum(&R, 0, nmax, &S);
-  if (s > 0) rdiviiz(R.T, R.Q, z); else rdiviiz(R.Q, R.T, z);
+  if (sx > 0) rdiviiz(R.T, R.Q, z); else rdiviiz(R.Q, R.T, z);
   if (e > 0)
   {
     q = z; while (e--) q = sqrr(q);
@@ -2585,11 +2566,11 @@ agmr_gap(GEN a, GEN b, long L)
 static GEN
 agm1r_abs(GEN x)
 {
-  long l = realprec(x), L = 5-prec2nbits(l);
-  GEN a1, b1, y = cgetr(l);
+  long px = realprec(x), L = 5 - px;
+  GEN a1, b1, y = cgetr(px);
   pari_sp av = avma;
 
-  a1 = addrr(real_1(l), x); shiftr_inplace(a1, -1);
+  a1 = addrr(real_1(px), x); shiftr_inplace(a1, -1);
   b1 = sqrtr_abs(x);
   while (agmr_gap(a1,b1,L))
   {
@@ -2605,9 +2586,9 @@ struct agmcx_gap_t { long L, ex, cnt; };
 static void
 agmcx_init(GEN x, long *prec, struct agmcx_gap_t *S)
 {
-  long l = precision(x);
-  if (l) *prec = l;
-  S->L = 1-prec2nbits(*prec);
+  long b = precision(x);
+  if (b) *prec = b;
+  S->L = 1 - *prec;
   S->cnt = 0;
   S->ex = LONG_MAX;
 }
@@ -2710,7 +2691,7 @@ static GEN
 ser_agm1(GEN y, long prec)
 {
   GEN a1 = y, b1 = gen_1;
-  long l = lg(y)-2, l2 = 6-prec2nbits(prec), eold = LONG_MAX;
+  long l = lg(y)-2, l2 = 6 - prec, eold = LONG_MAX;
   for(;;)
   {
     GEN a = a1, p1;
@@ -2813,7 +2794,7 @@ magm_gap(GEN a, GEN b, long L)
 static GEN
 magm(GEN a, GEN b, long prec)
 {
-  long L = -prec2nbits(prec) + 16;
+  long L = 16 - prec;
   GEN c = gen_0;
   while (magm_gap(a, b, L))
   {
@@ -2877,7 +2858,7 @@ logagmr_abs(GEN q)
   pari_sp av = avma;
 
   incrprec(prec);
-  lim = prec2nbits(prec) >> 1;
+  lim = prec >> 1;
   Q = rtor(q,prec);
   shiftr_inplace(Q,lim-e); setsigne(Q,1);
 
@@ -2892,32 +2873,31 @@ logagmr_abs(GEN q)
 static GEN
 logr_aux(GEN y)
 {
-  long k, L = realprec(y); /* should be ~ l+1 - (k-2) */
+  long k, B = realprec(y); /* should be ~ l+1 - (k-2) */
   /* log(x) = log(1+y) - log(1-y) = 2 sum_{k odd} y^k / k
    * Truncate the sum at k = 2n+1, the remainder is
    *   2 sum_{k >= 2n+3} y^k / k < 2y^(2n+3) / (2n+3)(1-y) < y^(2n+3)
-   * We want y^(2n+3) < y 2^(-prec2nbits(L)), hence
-   *   n+1 > -prec2nbits(L) /-log_2(y^2) */
-  double d = -2*dbllog2r(y); /* ~ -log_2(y^2) */
-  k = (long)(2*(prec2nbits(L) / d));
+   * We want y^(2n+3) < y 2^(-B), hence
+   *   n+1 > -B /-log_2(y^2) */
+  double d = -2*dbllog2r(y); /* ~ -log_2(y^2) > 0 */
+  k = (long)(2*B / d);
   k |= 1;
   if (k >= 3)
   {
-    GEN T, S = cgetr(L), y2 = sqrr(y), unr = real_1(L);
+    GEN T, S = cgetr(B), y2 = sqrr(y), one = real_1(B);
     pari_sp av = avma;
-    long s = 0, incs = (long)d, l1 = nbits2prec((long)d);
-    setprec(S,  l1);
-    setprec(unr,l1); affrr(divru(unr,k), S);
-    for (k -= 2;; k -= 2) /* k = 2n+1, ..., 1 */
+    double r = d;
+    long b1 = nbits2prec((long)r);
+    setprec(S,  b1);
+    setprec(one,b1); affrr(divru(one,k), S);
+    for (k -= 2;; k -= 2, set_avma(av)) /* k = 2n+1, ..., 1 */
     { /* S = y^(2n+1-k)/(2n+1) + ... + 1 / k */
-      setprec(y2, l1); T = mulrr(S,y2);
+      setprec(y2, b1); T = mulrr(S,y2);
       if (k == 1) break;
 
-      l1 += nbits2extraprec(dvmdsBIL(s + incs, &s)<<TWOPOTBITS_IN_LONG);
-      if (l1>L) l1=L;
-      setprec(S, l1);
-      setprec(unr,l1);
-      affrr(addrr(divru(unr, k), T), S); set_avma(av);
+      r += d; b1 = nbits2prec((long)r); if (b1 > B) b1 = B;
+      setprec(one,b1); setprec(S, b1);
+      affrr(addrr(divru(one, k), T), S);
     }
     /* k = 1 special-cased for eficiency */
     y = mulrr(y, addsr(1,T)); /* = log(X)/2 */
@@ -2928,13 +2908,13 @@ logr_aux(GEN y)
 GEN
 logr_abs(GEN X)
 {
-  long EX, L, m, k, a, b, l = lg(X), p = realprec(X);
+  long EX, P, m, k, a, b, l = lg(X), p = realprec(X);
   GEN z, x, y;
   ulong u;
   double d;
 
  /* Assuming 1 < x < 2, we want delta = x-1, 1-x/2, 1-1/x, or 2/x-1 small.
-  * We have 2/x-1 > 1-x/2, 1-1/x < x-1. So one should be choosing between
+  * Since 2/x-1 > 1-x/2 and 1-1/x < x-1 we should be choosing between
   * 1-1/x and 1-x/2 ( crossover sqrt(2), worse ~ 0.29 ). To avoid an inverse,
   * we choose between x-1 and 1-x/2 ( crossover 4/3, worse ~ 0.33 ) */
   EX = expo(X);
@@ -2947,33 +2927,32 @@ logr_abs(GEN X)
     u &= ~HIGHBIT; /* u - HIGHBIT, assuming HIGHBIT set */
     while (!u && ++k < l) u = uel(X,k);
   }
-  if (k == l) return EX? mulsr(EX, mplog2(p)): real_0(p);
+  if (k == l) return EX? mulsr(EX, mplog2(p)): real_0(p); /* x ~ 2^EX */
   a = bit_accuracy(k) + bfffo(u); /* ~ -log2 |1-x| */
-  L = p+EXTRAPRECWORD;
-  b = prec2nbits(L - (bit_accuracy(k))); /* take loss of accuracy into account */
-  if (b > 24*a*log2(prec2lg(L)) && p > LOGAGM_LIMIT) return logagmr_abs(X);
+  P = p + EXTRAPREC64;
+  b = P - bit_accuracy(k); /* take loss of accuracy into account */
+  if (b > 24*a*log2(prec2lg(P)) && p > LOGAGM_LIMIT) return logagmr_abs(X);
 
   z = cgetr(EX? p: p - bit_accuracy(k));
 
- /* Multiplication is quadratic in this range (l is small, otherwise we
-  * use AGM). Set Y = x^(1/2^m), y = (Y - 1) / (Y + 1) and compute truncated
-  * series sum y^(2k+1)/(2k+1): the costs is less than
-  *    m b^2 + sum_{k <= n} ((2k+1) e + BITS_IN_LONG)^2
+ /* Multiplication is quadratic in this range: l is small, otherwise we
+  * use AGM. Let B = BITS_IN_LONG, set Y = x^(1/2^m), y = (Y - 1) / (Y + 1)
+  * and compute truncated series sum y^(2k+1)/(2k+1): cost is less than
+  *    m b^2 + sum_{k <= n} ((2k+1) e + B)^2
   * bit operations with |x-1| <  2^(1-a), |Y| < 2^(1-e), m = e-a and b bits of
-  * accuracy needed (+ BITS_IN_LONG since bit accuracies increase by
-  * increments of BITS_IN_LONG), so
-  * 4n^3/3 e^2 + n^2 2e BITS_IN_LONG+ n BITS_IN_LONG ~ m b^2, with n ~ b/2e
-  * or b/6e + BITS_IN_LONG/2e + BITS_IN_LONG/2be ~ m
-  *    B := (b / 6 + BITS_IN_LONG/2 + BITS_IN_LONG^2 / 2b) ~ m(m+a)
-  *     m = min( -a/2 + sqrt(a^2/4 + B),  b - a )
+  * accuracy needed (+ B since bit accuracies increase by increments of B), so
+  * 4n^3/3 e^2 + n^2 2e B+ n B ~ m b^2, with n ~ b/2e
+  * or b/6e + B/2e + B/2be ~ m
+  *    C := (b / 6 + B/2 + B^2 / 2b) ~ m(m+a)
+  *     m = min(-a/2 + sqrt(a^2/4 + C),  b - a)
   * NB: e ~ (b/6)^(1/2) as b -> oo
   * Instead of the above pessimistic estimate for the cost of the sum, use
-  * optimistic estimate (BITS_IN_LONG -> 0) */
+  * optimistic estimate (B -> 0) */
   d = -a/2.; m = (long)(d + sqrt(d*d + b/6)); /* >= 0 */
 
   if (m > b-a) m = b-a;
-  if (m < 0.2*a) m = 0; else L += nbits2extraprec(m);
-  x = rtor(X,L);
+  if (m < 0.2*a) m = 0; else P = nbits2prec(P + m);
+  x = rtor(X,P);
   setsigne(x,1); shiftr_inplace(x,-EX);
   /* 2/3 < x < 4/3 */
   for (k=1; k<=m; k++) x = sqrtr_abs(x);
@@ -2981,7 +2960,7 @@ logr_abs(GEN X)
   y = divrr(subrs(x,1), addrs(x,1)); /* = (x-1) / (x+1), close to 0 */
   y = logr_aux(y); /* log(1+y) - log(1-y) = log(x) */
   shiftr_inplace(y, m + 1);
-  if (EX) y = addrr(y, mulsr(EX, mplog2(p+EXTRAPRECWORD)));
+  if (EX) y = addrr(y, mulsr(EX, mplog2(p+EXTRAPREC64)));
   affrr_fixlg(y, z); return gc_const((pari_sp)z, z);
 }
 
@@ -2997,7 +2976,7 @@ logagmcx(GEN q, long prec)
 
   incrprec(prec);
   if (gsigne(gel(q,1)) < 0) { q = gneg(q); neg = 1; }
-  lim = prec2nbits(prec) >> 1;
+  lim = prec >> 1;
   Q = gtofp(q, prec);
   a = gel(Q,1);
   b = gel(Q,2);
@@ -3018,7 +2997,7 @@ logagmcx(GEN q, long prec)
   a = gel(y,1);
   b = gel(y,2);
   a = addrr(a, mulsr(-e, mplog2(prec)));
-  if (realprec(a) <= LOWDEFAULTPREC) a = real_0_bit(expo(a));
+  if (realprec(a) <= LOWDEFAULTPREC) a = real_0_expo(expo(a));
   if (neg) b = gsigne(b) <= 0? gadd(b, mppi(prec))
                              : gsub(b, mppi(prec));
   affrr_fixlg(a, gel(z,1));
@@ -3169,7 +3148,7 @@ glog(GEN x, long prec)
       a = gel(x,1);
       b = gel(x,2);
       e1 = expi(subii(a,b)); e2 = expi(b);
-      if (e2 > e1) prec += nbits2extraprec(e2 - e1);
+      if (e2 > e1) prec = nbits2prec(prec + e2 - e1);
       x = fractor(x, prec);
       return gc_upto(av, glog(x, prec));
     }
@@ -3204,20 +3183,20 @@ glog(GEN x, long prec)
 GEN
 mplog1p(GEN x)
 {
-  long ex, a, b, l, L;
+  long ex, a, b, B;
   if (!signe(x)) return rcopy(x);
   ex = expo(x); if (ex >= -3) return glog(addrs(x,1), 0);
   a = -ex;
-  b = realprec(x); L = b+1;
-  if (b > a*log2(L) && b > LOGAGM_LIMIT)
+  b = realprec(x); B = b + EXTRAPREC64;
+  if (b > a*log2(B) && b > LOGAGM_LIMIT)
   {
-    x = addrs(x,1); l = b + nbits2extraprec(a);
-    if (realprec(x) < l) x = rtor(x,l);
+    x = addrs(x,1); B = nbits2prec(b + a);
+    if (realprec(x) < B) x = rtor(x, B);;
     return logagmr_abs(x);
   }
-  x = rtor(x, L);
+  x = rtor(x, B);
   x = logr_aux(divrr(x, addrs(x,2)));
-  if (realprec(x) > b) fixlg(x, b);
+  if (realprec(x) > b) fixlg(x, prec2lg(b));
   shiftr_inplace(x,1); return x;
 }
 
@@ -3282,8 +3261,8 @@ glog1p(GEN x, long prec)
 static GEN
 mpcosm1(GEN x, long *ptmod8)
 {
-  long a = expo(x), l = realprec(x), b, L, i, n, m, B;
-  GEN y, u, x2;
+  long a = expo(x), b = realprec(x), b2, i, n, m, B;
+  GEN y, S, x2;
   double d;
 
   n = 0;
@@ -3295,53 +3274,50 @@ mpcosm1(GEN x, long *ptmod8)
     {
       GEN z, P = Pi2n(-2, nbits2prec(a + 32));
       z = addrr(x,P); /* = x + Pi/4 */
-      if (expo(z) >= bit_prec(z) + 3) pari_err_PREC("mpcosm1");
+      if (expo(z) >= realprec(z) + 3) pari_err_PREC("mpcosm1");
       shiftr_inplace(P, 1);
       q = floorr(divrr(z, P)); /* round ( x / (Pi/2) ) */
-      p = l+EXTRAPREC64; x = rtor(x,p);
+      p = b + EXTRAPREC64; x = rtor(x,p);
     } else {
       q = stoi((long)floor(rtodbl(x) / (M_PI/2) + 0.5));
-      p = l;
+      p = b;
     }
     if (signe(q))
     {
       GEN y = subrr(x, mulir(q, Pi2n(-1,p))); /* x mod Pi/2  */
-      long b = expo(y);
-      if (a - b < 7) x = y;
+      long e = expo(y);
+      if (a - e < 7) x = y;
       else
       {
-        p += nbits2extraprec(a-b); x = rtor(x, p);
+        p = nbits2prec(p + a - e); x = rtor(x, p);
         x = subrr(x, mulir(q, Pi2n(-1,p)));
       }
-      a = b;
+      a = e;
       if (!signe(x) && a >= 0) pari_err_PREC("mpcosm1");
       n = Mod4(q);
     }
   }
   /* a < 0 */
-  b = signe(x); *ptmod8 = (b < 0)? 4 + n: n;
-  if (!b) return real_0_bit(expo(x)*2 - 1);
+  i = signe(x); *ptmod8 = (i < 0)? 4 + n: n;
+  if (!i) return real_0_expo(expo(x)*2 - 1);
 
-  b = prec2nbits(l);
   if (b + 2*a <= 0) {
     y = sqrr(x); shiftr_inplace(y, -1); setsigne(y, -1);
     return y;
   }
 
-  y = cgetr(l);
+  y = cgetr(b);
   B = b/6 + BITS_IN_LONG/2 + (BITS_IN_LONG*BITS_IN_LONG/2)/ b;
   d = a/2.; m = (long)(d + sqrt(d*d + B)); /* >= 0 */
   if (m < (-a) * 0.1) m = 0; /* not worth it */
-  L = l + nbits2extraprec(m);
-
-  b += m;
+  b += m; b2 = nbits2prec(b);
   d = 2.0 * (m-dbllog2r(x)-1/M_LN2); /* ~ 2( - log_2 Y - 1/log(2) ) */
   n = (long)(b / d);
   if (n > 1)
     n = (long)(b / (d + log2((double)n+1))); /* log~constant in small ranges */
   while (n*(d+log2((double)n+1)) < b) n++; /* expect few corrections */
 
- /* Multiplication is quadratic in this range (l is small, otherwise we
+ /* Multiplication is quadratic in this range (b is small, otherwise we
   * use logAGM + Newton). Set Y = 2^(-e-a) x, compute truncated series
   * sum Y^2k/(2k)!: this costs roughly
   *   m b^2 + sum_{k <= n} (2k e + BITS_IN_LONG)^2
@@ -3359,38 +3335,37 @@ mpcosm1(GEN x, long *ptmod8)
   *   log n! ~ (n + 1/2) log(n+1) - (n+1) + log(2Pi)/2,
   * error bounded by 1/6(n+1) <= 1/12. Finally, we want
   * 2n (-1/log(2) - log_2 |Y| + log_2(2n+2)) >= b  */
-  x = rtor(x, L); shiftr_inplace(x, -m); setsigne(x, 1);
+  x = rtor(x, b2); shiftr_inplace(x, -m); setsigne(x, 1);
   x2 = sqrr(x);
-  if (n == 1) { u = x2; shiftr_inplace(u, -1); setsigne(u, -1); } /*-Y^2/2*/
+  if (n == 1) { S = x2; shiftr_inplace(S, -1); setsigne(S, -1); } /*-Y^2/2*/
   else
   {
-    GEN un = real_1(L);
+    GEN one = real_1(b2);
     pari_sp av;
-    long s = 0, l1 = nbits2prec((long)(d + n + 16));
+    long r = (long)(d + n + 16), b1 = nbits2prec(r);
 
-    u = cgetr(L); av = avma;
-    for (i = n; i >= 2; i--)
+    S = cgetr(b2); av = avma;
+    for (i = n; i >= 2; i--, set_avma(av))
     {
       GEN t;
-      setprec(x2,l1); t = divrunextu(x2, 2*i-1);
-      l1 += nbits2extraprec(dvmdsBIL(s - expo(t), &s)<<TWOPOTBITS_IN_LONG);
-      if (l1 > L) l1 = L;
-      if (i != n) t = mulrr(t,u);
-      setprec(un,l1); t = addrr_sign(un,1, t,-signe(t));
-      setprec(u,l1); affrr(t,u); set_avma(av);
+      setprec(x2,b1); t = divrunextu(x2, 2*i-1);
+      r -= expo(t); b1 = nbits2prec(r); if (b1 > b2) b1 = b2;
+      if (i != n) t = mulrr(t,S);
+      setprec(one, b1); setprec(S, b1);
+      affrr(subrr(one,t), S);
     }
-    shiftr_inplace(u, -1); togglesign(u); /* u := -u/2 */
-    setprec(x2,L); u = mulrr(x2,u);
+    shiftr_inplace(S, -1); togglesign(S); /* S := -S/2 */
+    setprec(x2,b2); S = mulrr(x2,S);
   }
-  /* Now u = sum {1<= i <=n} (-1)^i x^(2i) / (2i)! ~ cos(x) - 1 */
+  /* Now S = sum {1<= i <=n} (-1)^i x^(2i) / (2i)! ~ cos(x) - 1 */
   for (i = 1; i <= m; i++)
-  { /* u = cos(x)-1 <- cos(2x)-1 = 2cos(x)^2 - 2 = 4u + 2u^2*/
-    GEN q = sqrr(u);
-    shiftr_inplace(u, 1); u = addrr(u, q);
-    shiftr_inplace(u, 1);
-    if ((i & 31) == 0) u = gc_leaf((pari_sp)y, u);
+  { /* S = cos(x)-1 <- cos(2x)-1 = 2cos(x)^2 - 2 = 4S + 2S^2*/
+    GEN q = sqrr(S);
+    shiftr_inplace(S, 1); S = addrr(S, q);
+    shiftr_inplace(S, 1);
+    if ((i & 31) == 0) S = gc_leaf((pari_sp)y, S);
   }
-  affrr_fixlg(u, y); return y;
+  affrr_fixlg(S, y); return y;
 }
 
 /* sqrt (|1 - (1+x)^2|) = sqrt(|x*(x+2)|). Sends cos(x)-1 to |sin(x)| */
@@ -3398,7 +3373,7 @@ static GEN
 mpaut(GEN x)
 {
   GEN t = mulrr(x, addsr(2,x)); /* != 0 */
-  if (!signe(t)) return real_0_bit(expo(t) >> 1);
+  if (!signe(t)) return real_0_expo(expo(t) >> 1);
   return sqrtr_abs(t);
 }
 
@@ -3413,11 +3388,7 @@ mpcos(GEN x)
   pari_sp av;
   GEN y, z;
 
-  if (!signe(x)) {
-    long l = nbits2prec(-expo(x));
-    if (l < LOWDEFAULTPREC) l = LOWDEFAULTPREC;
-    return real_1(l);
-  }
+  if (!signe(x)) return real_1( nbits2prec(maxss(-expo(x), 1)) );
   av = avma; z = mpcosm1(x,&mod8);
   switch(mod8)
   {
@@ -3490,7 +3461,7 @@ mpsin(GEN x)
   pari_sp av;
   GEN y, z;
 
-  if (!signe(x)) return real_0_bit(expo(x));
+  if (!signe(x)) return real_0_expo(expo(x));
   av = avma; z = mpcosm1(x,&mod8);
   switch(mod8)
   {
@@ -3557,8 +3528,8 @@ mpsincos(GEN x, GEN *s, GEN *c)
   if (!signe(x))
   {
     long e = expo(x);
-    *s = real_0_bit(e);
-    *c = e >= 0? real_0_bit(e): real_1_bit(-e);
+    *s = real_0_expo(e);
+    *c = e >= 0? real_0_expo(e): real_1(-e);
     return;
   }
 
@@ -3588,8 +3559,8 @@ mpsincosm1(GEN x, GEN *s, GEN *c)
   if (!signe(x))
   {
     long e = expo(x);
-    *s = real_0_bit(e);
-    *c = real_0_bit(2*e-1);
+    *s = real_0_expo(e);
+    *c = real_0_expo(2*e-1);
     return;
   }
   av = avma; z = mpcosm1(x,&mod8); tetpil = avma;
@@ -3750,11 +3721,7 @@ mpsinc(GEN x)
   pari_sp av = avma;
   GEN s, c;
 
-  if (!signe(x)) {
-    long l = nbits2prec(-expo(x));
-    if (l < LOWDEFAULTPREC) l = LOWDEFAULTPREC;
-    return real_1(l);
-  }
+  if (!signe(x)) return real_1( nbits2prec(maxss(-expo(x), 1)) );
   mpsincos(x,&s,&c);
   return gc_leaf(av, divrr(s,x));
 }
@@ -3848,10 +3815,9 @@ mptan(GEN x)
 static int
 tan_huge_im(GEN ix, long prec)
 {
-  long b, p = precision(ix);
+  long p = precision(ix);
   if (!p) p = prec;
-  b = prec2nbits(p);
-  return (gexpo(ix) > b || fabs(gtodouble(ix)) > (M_LN2 / 2) * b);
+  return (gexpo(ix) > p || fabs(gtodouble(ix)) > (M_LN2 / 2) * p);
 }
 /* \pm I */
 static GEN

@@ -570,6 +570,21 @@ get_arith_ZZM(GEN o)
       break;
     case t_VEC:
       if (lg(o) == 3 && signe(gel(o,1)) > 0 && is_Z_factorpos(gel(o,2))) return o;
+      if (checkznstar_i(o))
+      {
+        GEN bid = o, L = gel(bid,4), fao = gel(L,2);
+        GEN faN = znstar_get_faN(bid), P = gel(faN,1), E = gel(faN,2);
+        long i, l = lg(fao);
+        if (l == 1) return mkvec2(trivial_fact(), gen_1);
+        o = gmael(fao,1,2);
+        o = famat_mulpows_shallow(o, gel(P,1), E[1]-1);
+        for (i = 2; i < l; i++)
+        {
+          o = ZM_merge_factor(o, gmael(fao,i,2));
+          if (E[i] > 1) o = famat_mulpows_shallow(o, gel(P,i), E[i]-1);
+        }
+        return mkvec2(znstar_get_no(bid), o);
+      }
       break;
   }
   pari_err_TYPE("generic discrete logarithm (order factorization)",o);
@@ -1000,7 +1015,7 @@ gen_ellgroup(GEN N, GEN D, GEN *pm, void *E, const struct bb_group *grp,
   E0 = gel(fa0, 2);
   N0 = factorback2(L0, E0); /* d2 | N0 */
   N1 = diviiexact(N, N0); /* N1 | d1 */
-  F = mkvec2(N0, mkmat2(L0, zv_to_ZV(E0)));
+  F = mkvec2(N0, mkmat2(L0, zc_to_ZC(E0)));
   while (1)
   { /* g1 | (d1/N1), g2 | d2 */
     pari_sp av2 = avma;

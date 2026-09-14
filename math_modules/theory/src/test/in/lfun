@@ -509,3 +509,4 @@ lfun([[],[""]],1) \\ #2251
 lfuneuler(x^2+1,Pi)
 lfunthetacost(polcyclo(43))
 lfuncheckfeq(1,I)
+lfunqf([0])

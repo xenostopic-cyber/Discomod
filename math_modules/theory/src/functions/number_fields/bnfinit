@@ -12,16 +12,20 @@ Description:
  (gen, 0):bnf:prec        Buchall($1, 0, $prec)
  (gen, 1):bnf:prec        Buchall($1, nf_FORCE, $prec)
  (gen, ?small, ?gen):bnf:prec        bnfinit0($1, $2, $3, $prec)
-Doc: initializes a
- \kbd{bnf} structure. Used in programs such as \kbd{bnfisprincipal},
- \kbd{bnfisunit} or \kbd{bnfnarrow}. By default, the results are conditional
- on the GRH, see \ref{se:GRHbnf}. The result is a
- 10-component vector \var{bnf}.
+Doc: initializes a \kbd{bnf} structure used in programs such as
+ \kbd{bnfisprincipal}, \kbd{bnfisunit}. The result is
+ conditional on the GRH, hence any output from functions requiring a
+ \var{bnf} may be wrong. The output \var{bnf} may be certified using
+ \kbd{bnfcertify}, thereby certifying all later uses of the resulting
+ \var{bnf}. Unconditionally, the only guarantee is that the computed units
+ generate a subgroup of finite index in the full unit group.
 
  This implements \idx{Buchmann}'s sub-exponential algorithm for computing the
  class group, the regulator and a system of \idx{fundamental units} of the
- general algebraic number field $K$ defined by the irreducible polynomial $P$
- with integer coefficients. The meaning of $\fl$ is as follows:
+ general algebraic number field $K$ defined by the monic irreducible
+ polynomial $P$ with integer coefficients.
+
+ The meaning of $\fl$ is as follows:
 
  \item $\fl = 0$ (default). This is the historical behavior, kept for
  compatibility reasons and speed. It has severe drawbacks but is likely to be
@@ -52,9 +56,83 @@ Doc: initializes a
  you do not care about units or the effect large units would have on your
  computation.
 
- $\var{tech}$ is a technical vector (empty by default, see \ref{se:GRHbnf}).
- Careful use of this parameter may speed up your computations,
- but it is mostly obsolete and you should leave it alone.
+ \misctitle{The \var{tech} argument (technical)}
+
+ This argument is better left omitted unless default tuning turns out to be
+ inadequate and it looks like the algorithm made little progress over
+ a few hours (or days). This can be diagnosed interactively using
+ \kbd{setdebug(bnf,1)} or higher debugging levels. Careful use of this
+ parameter may then speed up your computations. Assuming GRH, the correction
+ of \kbd{bnfinit} output does not depend on the chosen parameters.
+
+ Its format is
+ $$[c_{1}, c_{2}, \var{nrpid}, \var{max\_fact}, \var{idex}, \var{usethr}],$$
+ You do not need to supply all values. However,
+ should you choose to modify a subset, they \emph{must} be given in the
+ given order, where a $0$ encodes ``the default value''. For example,
+ to specify $\var{nrpid} = 20$ without affecting $c_{1}$ and $c_{2}$, you can
+ provide $[0,0,20]$. Their meaning is as follows
+
+ \item $0 \leq c_{1} \leq c_{2}$ are real numbers. For $i =
+ 1,2$, let $B_{i} = c_{i}(\log |d_{K}|)^{2}$, and denote by $S(B)$ the set of
+ maximal ideals of $K$ whose norm is less than $B$. We want $S(B_{1})$ to
+ generate $\Cl(K)$ and hope that $S(B_{2})$ can be \emph{proven} to generate
+ $\Cl(K)$.
+
+ More precisely, $S(B_{1})$ is a factorbase used to compute a tentative
+ $\Cl(K)$ by generators and relations. We then check, using essentially
+ \kbd{bnfisprincipal}, that the elements of $S(B_{2})$ belong to the
+ span of $S(B_{1})$. Under the assumption that $S(B_{2})$ generates $\Cl(K)$,
+ we are done.
+
+ When $c_{1}$ is unspecified (equal to $0$) the algorithm takes it equal to
+ $c_{2}$. User-supplied $c_{i}$ are only used to compute initial guesses for
+ the bounds $B_{i}$, and the algorithm increases them until one can
+ \emph{prove} under GRH that $S(B_{2})$ generates $\Cl(K)$. A uniform result
+ of Greni\'e and Molteni says
+ that $c_{2} = 4$ is always suitable, but this bound is pessimistic and a
+ direct algorithm due to Belabas-Diaz-Friedman, improved by Greni\'e and
+ Molteni, is used to check the condition, assuming GRH.
+
+ If the algorithm does not find enough relations, you may
+ want to increase $c_{1}$ and $c_{2}$ to be larger than the so-called
+ \emph{Bach constant} displayed by \kbd{setdebug("bnf",1)}, at the cost of
+ increased memory usage and linear algebra time. It is quite possible to
+ take $c_{2} > 4$ but using an unconditional bound and dividing it by
+ $(\log |d_{K}|)^2$ is not a great idea: the complexity becomes exponential
+ while the result remains conditional (we only know for sure that the true
+ class group is a quotient of the computed one).
+
+ \item $\var{nrpid}$ is the maximal number of small norm relations attached
+ to each ideal in the factor base. Set it to $-1$ to disable the search for
+ small norm relations. Reasonable values are between 4 and 20. The default is
+ 4 (which is also used if \var{nrpid} is zero). Increasing this value has
+ seldom much effect, but setting it to $-1$ can have a large positive or
+ negative effect on the running time.
+
+ \item $\var{max\_fact}$ is the maximal number of trial factorizations to
+ perform per ideal. There is an inherent trade-off between testing more
+ ideals or testing more elements per ideals. The default is 500 (which is also
+ used if \var{max\_fact} is zero).  If the algorithm does not find enough
+ small norm relations, increase this value. Reasonable values are between 100
+ and 10000. When using parallelism (see below) it can be reasonable to
+ increase it up to about $10^{6}$.
+
+ \item $\var{idex}$ is the power of the ideal to use. Reasonable values are
+ between 1 and 12. The default is 0, which lets the algorithm picks a small
+ power of the ideal depending on its norm.
+
+ \item $\var{usethr}$ decides whether to use parallelism when searching for
+ relations. The possible values are 0: no parallelism (default), 1: use
+ \kbd{default(nbthreads)} threads, and $n > 1$: use $n$ threads. Parallelism
+ requires to omit early-abort strategies when looking for relations which
+ slows down the algorithm in easy cases. This setting does not affect the
+ linear algebra part of the algorithm (which may use parallelism on its own).
+
+ A good strategy is to first try to change $\var{idex}$,
+ then increase $\var{max\_fact}$. If this is not sufficient, try to
+ increase $c_{1}$ and $c_{2}$. If this causes the search to be too slow, try
+ parallelism.
 
  \smallskip
 

@@ -8,7 +8,7 @@
 ++   that the indexing polynomial can be factored into quadratics.
 ++ Keywords: integration, expansion, function.
 IntegrationResultToFunction(R, F) : Exports == Implementation where
-  R : Join(GcdDomain, RetractableTo Integer, Comparable,
+  R : Join(GcdDomain, RetractableTo(Integer), ComparableRepresentation,
           LinearlyExplicitOver Integer)
   F : Join(AlgebraicallyClosedFunctionSpace R,
           TranscendentalFunctionCategory)
@@ -120,7 +120,7 @@ IntegrationResultToFunction(R, F) : Exports == Implementation where
     -- arc-tangents using Rioboo's algorithm
     -- We only apply transform if we hope for improvement
     ilog(a, b, x) ==
-      b = 0 => 0
+      a = 0 or b = 0 => 0
       not(empty?(var_kers(denom a, x))) or
         not(empty?(var_kers(denom b, x))) => tantrick(a, b)
       l := setUnion(var_kers(numer a, x), var_kers(numer b, x))
@@ -268,7 +268,7 @@ IntegrationResultToFunction(R, F) : Exports == Implementation where
 ++   that the indexing polynomial can be factored into quadratics.
 ++ Date Created: 21 August 1988
 IntegrationResultRFToFunction(R) : Exports == Implementation where
-  R : Join(GcdDomain, RetractableTo Integer, Comparable,
+  R : Join(GcdDomain, RetractableTo(Integer), ComparableRepresentation,
            LinearlyExplicitOver Integer)
 
   RF  ==> Fraction Polynomial R

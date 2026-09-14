@@ -31,8 +31,6 @@
 
 )package "BOOT"
 
-$bootstrapDomains := false
-
 -----------------------------NEW buildFunctor CODE-----------------------------
 NRTaddDeltaCode(kvec) ==
 --NOTES: This function is called from buildFunctor to initially
@@ -110,7 +108,9 @@ NRTencode(x,y) == encode(x,y,true, true) where
           ['NRTEVAL, [($QuickCode => 'QREFELT; 'ELT), "%", v]]
       x = '% => x
       x = "$$" => x
-      ['QUOTE, x]
+      domain => ['QUOTE, x]
+      ['NRTEVAL, NRTreplaceAllLocalReferences(
+                             COPY_-TREE(lispize(compForm)))]
 
 --------------FUNCTIONS CALLED DURING CAPSULE FUNCTION COMPILATION-------------
 listOfBoundVars(form, e) ==
@@ -128,8 +128,6 @@ listOfBoundVars(form, e) ==
 
 optDeltaEntry(op, sig, dc, eltOrConst, e) ==
   $killOptimizeIfTrue = true => nil
-  $bootstrapDomains = true =>
-    nil
   ndc :=
     dc = '% => $functorForm
     atom dc and (dcval := get(dc, 'value, e)) => dcval.expr
@@ -615,6 +613,27 @@ reverseCondlist cl ==
       RPLACD(u, [x, :rest u])
   alist
 
+sub_in_cond(pairlis, cond) ==
+    null(cond) => cond
+    cond = "T" => cond
+    cond is [op, :argl] =>
+        member(op, ["AND", "and", "OR", "or", "NOT", "not"]) =>
+            [op, :[sub_in_cond(pairlis, c1) for c1 in argl]]
+        op = "has" or op = "HasCategory" or op = "HasSignature" =>
+            [op, :SUBLIS(pairlis, argl)]
+        SAY(["sub_in_cond ", cond])
+        BREAK()
+    SAY(["sub_in_cond ", cond])
+    BREAK()
+
+sub_in_oplist(pairlis, oplist) ==
+    res := []
+    for [op_sig, cond, imp] in oplist repeat
+        op_sig2 := SUBLIS(pairlis, op_sig)
+        cond2 := sub_in_cond(pairlis, cond)
+        res := cons([op_sig2, cond2, imp], res)
+    nreverse(res)
+
 NRTmakeSlot1Info(form, base_shell) ==
 -- 4 cases:
 -- a:T == b add c  --- slot1 directory has #s for entries defined in c
@@ -625,7 +644,8 @@ NRTmakeSlot1Info(form, base_shell) ==
       [:argl, dollarName] := rest(form)
       [[dollarName, :'%], :mkSlot1sublis(argl)]
     mkSlot1sublis(rest(form))
-  lisplibOpAlist := transformOperationAlist(SUBLIS(pairlis, base_shell.1))
+  opl1 := sub_in_oplist(pairlis, base_shell.1)
+  lisplibOpAlist := transformOperationAlist(opl1)
   opList :=
     $insideCategoryPackageIfTrue = true => slot1Filter lisplibOpAlist
     lisplibOpAlist

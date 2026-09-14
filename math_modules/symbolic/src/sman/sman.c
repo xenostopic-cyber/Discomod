@@ -43,7 +43,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <errno.h>
 #include <sys/time.h>
 #include <sys/wait.h>
+#include <sys/types.h>
 #include <signal.h>
+#include <dirent.h>
 
 #include "fricas_c_macros.h"
 
@@ -109,7 +111,6 @@ unsigned char  _INTR, _QUIT, _ERASE, _KILL, _EOF, _EOL, _RES1, _RES2;
 int ptsNum, ptcNum;
 char ptsPath[20], ptcPath[20];
 
-char **new_envp;                /* new environment for FriCAS */
 int child_pid;                  /* child's process id */
 struct termios oldbuf;           /* the original settings */
 struct termios childbuf;         /* terminal structure for user i/o */
@@ -319,18 +320,13 @@ sman_catch_signals(void)
 }
 
 static void
-fix_env(char **envp, int spadnum)
+fix_env(int spadnum)
 {
-  int len, i;
-  char *sn;
-  for(len = 0; envp[len] != NULL; len++);
-  new_envp = (char **) malloc((len + 3) * sizeof(char *));
-  new_envp[0] = "SPADSERVER=TRUE";
-  sn = (char *) malloc(20 * sizeof(char));
-  sprintf(sn, "SPADNUM=%d", spadnum);
-  new_envp[1] = sn;
-  for(i=0; i<=len; i++)
-    new_envp[i+2] = envp[i];
+  char sn[32];
+
+  setenv("SPADSERVER", "TRUE", 1);
+  snprintf(sn, sizeof(sn), "%d", spadnum);
+  setenv("SPADNUM", sn, 1);
 }
 
 static void
@@ -353,59 +349,41 @@ init_term_io(void)
   _EOL = oldbuf.c_cc[VEOL];
 }
 
-static char *
-strPrefix(char *prefix,char * s)
-{
-  while (*prefix != '\0' && *prefix == *s) {
-    prefix++;
-    s++;
-  }
-  if (*prefix == '\0') return s;
-  return NULL;
-}
-
 static void
-check_spad_proc(char *file, char *prefix)
+check_spad_proc(char *file)
 {
-  char *num;
-  int pid;
-  if ((num = strPrefix(prefix, file))) {
-    pid = atoi(num);
-    if (pid > 2) {
-      kill(pid, 0);
-      if (kill(pid, 0) == -1 && errno == ESRCH) {
-        unlink(file);
-      }
+    if (file[2] > '9' || file[2] < '0') return;
+    char *check = 0;
+    errno = 0;
+    long res = strtol(file + 2, &check, 10);
+    if (errno || (*check != '\0')) return;
+    pid_t pid = res; /* check for overflow */
+    if ((res > 2) && (res == pid)) {
+        int ret = kill(pid, 0);
+        if (ret == -1 && errno == ESRCH) {
+            char full_path[128];
+            snprintf(full_path, sizeof(full_path), "/tmp/%s", file);
+            unlink(full_path);
+        }
     }
-  }
 }
 
 static void
 clean_up_old_sockets(void)
 {
-  char com[512], tmp_file[128];
-  FILE *file;
-  int len;
-  sprintf(tmp_file, "/tmp/socks.%d", server_num);
-  sprintf(com, "ls /tmp/.d* /tmp/.s* /tmp/.i* /tmp/.h* 2> %s > %s",
-          tmp_file, tmp_file);
-  system(com);
-  file = fopen(tmp_file, "r");
-  if (file == NULL) {
-    fprintf(stderr, "Can't open socket listing file\n");
-    return;
-  }
-  while(fgets(com, 512, file) != NULL) {
-    len = strlen(com);
-    if (len) com[len-1] = '\0';
-    else break;
-    check_spad_proc(com, "/tmp/.d");
-    check_spad_proc(com, "/tmp/.s");
-    check_spad_proc(com, "/tmp/.i");
-    check_spad_proc(com, "/tmp/.h");
-  }
-  fclose(file);
-  unlink(tmp_file);
+    DIR *dir = opendir("/tmp");
+    if (dir == NULL) return;
+    struct dirent *entry;
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') {
+            char c = entry->d_name[1];
+            if (c == 'd' || c == 's' || c == 'i' || c == 'h') {
+                check_spad_proc(entry->d_name);
+            }
+        }
+    }
+    closedir(dir);
 }
 
 static SpadProcess *
@@ -426,11 +404,15 @@ fork_you(int death_action)
 }
 
 static void
-exec_command_env(char *command,char ** env)
+exec_command(char *command)
 {
-  char new_command[512];
-  sprintf(new_command, "exec %s", command);
-  execle("/bin/sh","/bin/sh", "-c", new_command, NULL, env);
+  char new_command[1024];
+  int ret = snprintf(new_command, sizeof(new_command), "exec %s", command);
+  if (ret >= sizeof(new_command)) {
+    fprintf(stderr, "argument to exec is too long\n");
+    exit(-1);
+  }
+  execl("/bin/sh", "/bin/sh", "-c", new_command, (char *) NULL);
 }
 
 static SpadProcess *
@@ -441,7 +423,7 @@ spawn_of_hell(char *command, int death_action)
     proc->command = command;
     return proc;
   }
-  exec_command_env(command, new_envp);
+  exec_command(command);
   return NULL;
 }
 
@@ -580,7 +562,7 @@ fork_FriCAS(void)
     tmp_pointer = (char *)
       strrchr(augmented_ws_path,'/');      /*pointer to last /  */
     *(++tmp_pointer) = '\0';
-    exec_command_env(augmented_ws_path, new_envp);
+    exec_command(augmented_ws_path);
 
     /*    fprintf(stderr, "Cannot execute the %s system.\n", ws_path); */
 
@@ -590,7 +572,7 @@ fork_FriCAS(void)
 }
 
 static void
-start_the_FriCAS(char **envp)
+start_the_FriCAS()
 {
   server_num = make_server_number();
   clean_up_old_sockets();
@@ -602,7 +584,7 @@ start_the_FriCAS(char **envp)
     perror("start_the_FriCAS: ptyopen failed");
     exit(-1);
   }
-  fix_env(envp, server_num);
+  fix_env(server_num);
   fork_FriCAS();
   close(ptsNum);
 }
@@ -793,7 +775,7 @@ monitor_children(void)
 }
 
 int
-main(int argc, char *argv[],char *envp[])
+main(int argc, char *argv[])
 {
   if (tpd == 1) fprintf(stderr,"sman:main entered\n");
   bsdSignal(SIGINT,  SIG_IGN,RestartSystemCalls);
@@ -802,7 +784,7 @@ main(int argc, char *argv[],char *envp[])
 
   init_term_io();
   init_spad_process_list();
-  start_the_FriCAS(envp);
+  start_the_FriCAS();
   if (open_server(SessionIOName) == -2) {
     fprintf(stderr, "Fatal error opening I/O socket\n");
     clean_up_sockets();

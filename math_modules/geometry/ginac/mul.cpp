@@ -266,8 +266,9 @@ void mul::do_print_csrc(const print_csrc & c, unsigned level) const
 				c.s << "1.0/";
 		}
 
-		// If the exponent is 1 or -1, it is left out
-		if (it->coeff.is_equal(_ex1) || it->coeff.is_equal(_ex_1))
+		// If the exponent is 1, 1.0, or integer -1, it is left out
+		if (it->coeff.is_equal(_ex1) ||
+		    (it->coeff.is_equal(_ex_1) && it->coeff.info(info_flags::integer)))
 			it->rest.print(c, precedence());
 		else if (it->coeff.info(info_flags::negint))
 			ex(power(it->rest, -ex_to<numeric>(it->coeff))).print(c, level);
@@ -832,7 +833,7 @@ retry1:
 
 			for (size_t j=0; j<this->nops(); j++) {
 				int nummatches = std::numeric_limits<int>::max();
-				exmap repls;
+				exmap repls{it};
 				if (!subsed[j] && tryfactsubs(op(j), it.first, nummatches, repls)){
 					subsed[j] = true;
 					ex subsed_pattern

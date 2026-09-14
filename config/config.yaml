@@ -14,7 +14,7 @@ bot:
   claude_model: claude-haiku-4-5-20251001
   help_command_enabled: true
   hold_conversation: true
-  owner_id: "67"
+  owner_id: "dih"
   prefix: '!'
   realistic_typing: false
   reply_ping: true

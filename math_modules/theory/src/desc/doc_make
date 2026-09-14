@@ -29,22 +29,27 @@ PARI::822::read(\%funcs, "pari.desc");
   programming/specific
   programming/parallel
   default
+  graphic
   operators
   conversions
   combinatorics
   number_theoretical
+  znstar
   polynomials
   linear_algebra
   transcendental
   sums
+  quadratic
   number_fields
+  number_fields_galois
+  number_fields_relative
   algebras
   elliptic_curves
+  hyperelliptic_curves
   hypergeometric_motives
   l_functions
   modular_forms
   modular_symbols
-  graphic
 );
 
 # Write the prototypes to proto.c for comparing with pari.h
@@ -214,6 +219,7 @@ sub library_syntax { my ($fun, $args) = @_;
     my ($vl)=join(", ",@vars);
     $post = " where $vl are variable numbers";
   }
+  $args = 'void' if ($args eq '');
   my ($proto) = "$type $Cname($args);\n";
   $proto =~ s/ = (?:NULL|-1)//g;
   print PROTO $proto;

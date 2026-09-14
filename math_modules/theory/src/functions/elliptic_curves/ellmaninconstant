@@ -25,6 +25,7 @@ Doc: let $E$ be an elliptic curve over $Q$ given by \kbd{ellinit}, this function
  \item If $\fl=1$, the algorithm is conditional but fast but requires $N \leq
  500000$ and  returns the value in Cremona's table, which is believed to be
  correct and was checked to be correct at least for $N \leq 400000$.
+ See \url{https://johncremona.github.io/ecdata/manin.txt} for details.
 
  The input can also be a rational isogeny class given by \kbd{ellisomat}
  and in this case the function returns the list of Manin constants for all the

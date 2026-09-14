@@ -2275,7 +2275,7 @@ rect2ps_i(GEN w, GEN x, GEN y, PARI_plot *T, int plotps)
   /* Definitions taken from post terminal of Gnuplot. */
   str_printf(&S, "%%!\n\
 50 50 translate\n\
-1 %d div 1 %d div scale\n\
+1 %ld div 1 %ld div scale\n\
 1 setlinejoin\n\
 /p {moveto 0 2 rlineto 2 0 rlineto 0 -2 rlineto closepath fill} def\n\
 /c0 {0 0 0 setrgbcolor} def\n\

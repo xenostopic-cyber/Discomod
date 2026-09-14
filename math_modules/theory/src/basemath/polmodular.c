@@ -2116,22 +2116,22 @@ static GEN
 phi5_ZV(void)
 {
   GEN phi5 = cgetg(22, t_VEC);
-  gel(phi5, 1) = mkintn(5, 0x18c2cc9cUL, 0x484382b2UL, 0xdc000000UL, 0x0UL, 0x0UL);
-  gel(phi5, 2) = mkintn(5, 0x2638fUL, 0x2ff02690UL, 0x68026000UL, 0x0UL, 0x0UL);
-  gel(phi5, 3) = mkintn(5, 0x308UL, 0xac9d9a4UL, 0xe0fdab12UL, 0xc0000000UL, 0x0UL);
+  gel(phi5, 1) = mkintn(5, 0x18c2cc9cU, 0x484382b2U, 0xdc000000U, 0x0U, 0x0U);
+  gel(phi5, 2) = mkintn(5, 0x2638fU, 0x2ff02690U, 0x68026000U, 0x0U, 0x0U);
+  gel(phi5, 3) = mkintn(5, 0x308U, 0xac9d9a4U, 0xe0fdab12U, 0xc0000000U, 0x0U);
   setsigne(gel(phi5, 3), -1);
-  gel(phi5, 4) = mkintn(5, 0x13UL, 0xaae09f9dUL, 0x1b5ef872UL, 0x30000000UL, 0x0UL);
-  gel(phi5, 5) = mkintn(4, 0x1b802fa9UL, 0x77ba0653UL, 0xd2f78000UL, 0x0UL);
-  gel(phi5, 6) = mkintn(4, 0xfbfdUL, 0x278e4756UL, 0xdf08a7c4UL, 0x40000000UL);
-  gel(phi5, 7) = mkintn(4, 0x35f922UL, 0x62ccea6fUL, 0x153d0000UL, 0x0UL);
-  gel(phi5, 8) = mkintn(4, 0x97dUL, 0x29203fafUL, 0xc3036909UL, 0x80000000UL);
+  gel(phi5, 4) = mkintn(5, 0x13U, 0xaae09f9dU, 0x1b5ef872U, 0x30000000U, 0x0U);
+  gel(phi5, 5) = mkintn(4, 0x1b802fa9U, 0x77ba0653U, 0xd2f78000U, 0x0U);
+  gel(phi5, 6) = mkintn(4, 0xfbfdU, 0x278e4756U, 0xdf08a7c4U, 0x40000000U);
+  gel(phi5, 7) = mkintn(4, 0x35f922U, 0x62ccea6fU, 0x153d0000U, 0x0U);
+  gel(phi5, 8) = mkintn(4, 0x97dU, 0x29203fafU, 0xc3036909U, 0x80000000U);
   setsigne(gel(phi5, 8), -1);
-  gel(phi5, 9) = mkintn(3, 0x56e9e892UL, 0xd7781867UL, 0xf2ea0000UL);
-  gel(phi5, 10) = mkintn(3, 0x5d6dUL, 0xe0a58f4eUL, 0x9ee68c14UL);
+  gel(phi5, 9) = mkintn(3, 0x56e9e892U, 0xd7781867U, 0xf2ea0000U);
+  gel(phi5, 10) = mkintn(3, 0x5d6dU, 0xe0a58f4eU, 0x9ee68c14U);
   setsigne(gel(phi5, 10), -1);
-  gel(phi5, 11) = mkintn(3, 0x1100dUL, 0x85cea769UL, 0x40000000UL);
-  gel(phi5, 12) = mkintn(3, 0x1b38UL, 0x43cf461fUL, 0x3a900000UL);
-  gel(phi5, 13) = mkintn(3, 0x14UL, 0xc45a616eUL, 0x4801680fUL);
+  gel(phi5, 11) = mkintn(3, 0x1100dU, 0x85cea769U, 0x40000000U);
+  gel(phi5, 12) = mkintn(3, 0x1b38U, 0x43cf461fU, 0x3a900000U);
+  gel(phi5, 13) = mkintn(3, 0x14U, 0xc45a616eU, 0x4801680fU);
   gel(phi5, 14) = uu32toi(0x17f4350UL, 0x493ca3e0UL);
   gel(phi5, 15) = uu32toi(0x183UL, 0xe54ce1f8UL);
   gel(phi5, 16) = uu32toi(0x1c9UL, 0x18860000UL);

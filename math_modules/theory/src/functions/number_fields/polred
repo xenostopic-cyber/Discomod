@@ -7,10 +7,12 @@ Help: polred(T,{flag=0}): deprecated, use polredbest. Reduction of the
  polynomial T (gives minimal polynomials only). The following binary digits of
  (optional) flag are significant 1: partial reduction, 2: gives also elements.
 Doc: This function is \emph{deprecated}, use \tet{polredbest} instead.
- Finds polynomials with reasonably small coefficients defining subfields of
- the number field defined by $T$. One of the polynomials always defines $\Q$
- (hence has degree $1$), and another always defines the same number field
- as $T$ if $T$ is irreducible.
+ Let $T$ be a separable polynomial with rational coefficients and consider
+ the \'{e}tale algebra $A = \Q[x]/(T)$.
+ Finds polynomials with reasonably small coefficients defining subalgebras
+ of $A$. One of the polynomials always defines $\Q$,
+ hence has degree $1$. If $T$ is irreducible then another always defines
+ the same number field as $T$.
 
  All $T$ accepted by \tet{nfinit} are also allowed here;
  in particular, the format \kbd{[T, listP]} is recommended, e.g. with
@@ -26,7 +28,7 @@ Doc: This function is \emph{deprecated}, use \tet{polredbest} instead.
  and more flexible.
 
  2: gives also elements. The result is a two-column matrix, the first column
- giving primitive elements defining these subfields, the second giving the
+ giving primitive elements defining these subalgebras, the second giving the
  corresponding minimal polynomials.
  \bprog
  ? M = polred(x^4 + 8, 2)

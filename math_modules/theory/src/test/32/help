@@ -29,36 +29,39 @@ test2
 
 does_not_exist: unknown identifier
 
-Help topics: for a list of relevant subtopics, type ?n for n in
-   0: user-defined functions (aliases, installed and user functions)
-   1: PROGRAMMING under GP
-   2: Standard monadic or dyadic OPERATORS
-   3: CONVERSIONS and similar elementary functions
-   4: functions related to COMBINATORICS
-   5: basic NUMBER THEORY
-   6: POLYNOMIALS and power series
-   7: Vectors, matrices, LINEAR ALGEBRA and sets
-   8: TRANSCENDENTAL functions
-   9: SUMS, products, integrals and similar functions
-  10: General NUMBER FIELDS
-  11: Associative and central simple ALGEBRAS
-  12: ELLIPTIC and HYPERELLIPTIC curves
-  13: L-FUNCTIONS
-  14: HYPERGEOMETRIC MOTIVES
-  15: MODULAR FORMS
-  16: MODULAR SYMBOLS
-  17: GRAPHIC functions
-  18: The PARI community
-Also:
-  ? functionname (short on-line help)
-  ?\             (keyboard shortcuts)
-  ?.             (member functions)
-Extended help (if available):
-  ??             (opens the full user's manual in a dvi previewer)
-  ??  tutorial / refcard / libpari (tutorial/reference card/libpari manual)
-  ??  refcard-ell (or -lfun/-mf/-nf: specialized reference card)
-  ??  keyword    (long help text about "keyword" from the user's manual)
-  ??? keyword    (a propos: list of related functions).
+PARI/GP functions sorted by topic: type ?n for n in
+
+   0: User-defined functions (aliases, installed and user functions)
+   1: Programming in GP: control statements
+   2: Programming in GP: other specific functions
+   3: Parallel programming in GP
+   4: GRAPHIC functions
+   5: Extra OPERATORS
+   6: CONVERSIONS, extracting information
+   7: COMBINATORICS
+   8: basic NUMBER THEORY
+   9: (Z/NZ)^* and abelian CHARACTERS
+  10: POLYNOMIALS and power series
+  11: LINEAR ALGEBRA, vectors and sets
+  12: TRANSCENDENTAL functions
+  13: SUMS, products, integrals
+  14: QUADRATIC fields and binary quadratic forms
+  15: General NUMBER FIELDS
+  16: GALOIS theory and class field theory
+  17: RELATIVE number field extensions and Z_K-modules
+  18: Associative and central simple ALGEBRAS
+  19: ELLIPTIC curves
+  20: HYPERELLIPTIC curves
+  21: L-FUNCTIONS
+  22: HYPERGEOMETRIC MOTIVES
+  23: MODULAR FORMS
+  24: MODULAR SYMBOLS
+
+A double question question mark ??n prints a short introduction.
+
+You may also be interested in
+  25: The PARI community
+
 Member functions, followed by relevant objects
 
 a1-a6, b2-b8, c4-c6 : coeff. of the curve.         ell
@@ -98,13 +101,13 @@ zkst : structure of (Z_K/m)*         bid,                     bnr
 \\      : comment up to end of line
 \a {n}  : print result in raw format (readable by PARI)
 \B {n}  : print result in beautified format
-\c      : list all commands (same effect as ?*)
+\c      : list all builtin functions
 \d      : print all defaults
 \e {n}  : enable/disable echo (set echo=n)
 \g {n}  : set debugging level
 \gf{n}  : set file debugging level
 \gm{n}  : set memory debugging level
-\h {m-n}: hashtable information
+\h {m-n}: information on parser hashtables
 \l {f}  : enable/disable logfile (set logfile=f)
 \m {n}  : print result in prettymatrix format
 \o {n}  : set output method (0=raw, 1=prettymatrix, 2=prettyprint, 3=2-dim)
@@ -128,8 +131,12 @@ zkst : structure of (Z_K/m)*         bid,                     bnr
 {f}=optional filename. {n}=optional integer
 
 
-cmp      divrem   lex      max      min      shift    shiftmul sign
-vecmax   vecmin   
+break          breakpoint     dbg_down       dbg_err        dbg_up
+dbg_x          for            forcomposite   fordiv         fordivfactored
+foreach        forell         forfactored    forpart        forperm
+forprime       forprimestep   forsquarefree  forstep        forsubgroup
+forsubset      forvec         if             iferr          next
+return         setdebug       until          while          
 
 test6
 

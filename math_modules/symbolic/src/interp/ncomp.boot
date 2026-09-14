@@ -154,6 +154,8 @@ walkForm(tree) ==
 
 --------------------------------------------------------------------
 
+$killOptimizeIfTrue := false
+
 isNiladic(head1) ==
     SYMBOLP head1 => true
     head1 is [., ["@Tuple"]]
@@ -176,6 +178,31 @@ processGlobals1() ==
         else
             SETDATABASE(con, 'CONSTRUCTORKIND, "domain")
         SETDATABASE(con, 'NILADIC, isNiladic head1)
+
+boo_comp2(def, cat?) ==
+    $LISPLIB : local := cat?
+    $file_apply : local := (cat? => FUNCTION print_defun; nil)
+    $lisplibAbbreviation : local := nil
+    $lisplibAncestors : local := []
+    $lisplibCategory : local := nil
+    $lisplibForm : local := nil
+    $lisplibKind : local := nil
+    $lisplibModemap : local := []
+    $lisplibOperationAlist : local := []
+    do_comp1(def)
+    if not(cat?) then
+        merge_constructor_info()
+
+$bootstrap_db := false
+
+process_globals3() ==
+    $bootStrapMode : local := true
+    $bootstrap_db : local := true
+    $killOptimizeIfTrue : local := true
+    for def0 in $globalDefs repeat
+        def := COPY_-TREE(def0)
+        ["DEF", form, sig, body] := def
+        boo_comp2(def, sig is [["Category"], :.])
 
 processGlobals () ==
     $InteractiveMode : local := nil
@@ -200,6 +227,7 @@ processGlobals () ==
         else
             SAY(['"unhandled target", form])
     boo_comp_cats()
+    process_globals3()
 
 
 handleKind(df is ['DEF, form, sig, body]) ==
@@ -230,23 +258,21 @@ handleKind(df is ['DEF, form, sig, body]) ==
 boo_comp_cats() ==
     $compiler_output_stream := MAKE_-BROADCAST_-STREAM()
     $bootStrapMode : local := true
+    $previousTime : local := get_run_time()
     SAY(["boo_comp_cats"])
     hcats := []
-    for def in $globalDefs repeat
+    for def0 in $globalDefs repeat
+        def := COPY_-TREE(def0)
         ["DEF", form, sig, body] := def
         if sig is [["Category"], :.] then
             SAY(["doing", form, sig])
             not("and"/[categoryForm? ty for ty in rest(sig)]) =>
                 hcats := cons(def, hcats)
-            boo_comp1(def)
-    for def in hcats repeat boo_comp1(def)
+            do_comp1(def)
+    for def in hcats repeat do_comp1(def)
 
-boo_comp1(x) ==
-    $Index : local := 0
-    $MACROASSOC : local := []
+do_comp1(x) ==
     $compUniquelyIfTrue : local := nil
-    $postStack : local := nil
-    $topOp : local := nil
     $semanticErrorStack : local := []
     $warningStack : local := []
     $exitModeStack : local := []
@@ -259,9 +285,8 @@ boo_comp1(x) ==
     $insideWhereIfTrue : local := false
     $insideCategoryIfTrue : local := false
     $insideCapsuleFunctionIfTrue : local := false
-    $e : local := $EmptyEnvironment
     $genSDVar : local :=  0
-    $previousTime : local := get_run_time()
+    $s : local := nil
     compTopLevel(x, $EmptyMode,  [[[]]])
     if $semanticErrorStack then displaySemanticErrors()
 
@@ -318,35 +343,15 @@ DEFVAR($PrintOnly, false)
 DEFVAR($RawParseOnly, false)
 DEFVAR($PostTranOnly, false)
 DEFVAR($FlatParseOnly, false)
-DEFVAR($TranslateOnly, false)
 DEFVAR($noEarlyMacroexpand, false)
 DEFVAR($SaveParseOnly, false)
 DEFVAR($globalDefs, nil)
 DEFVAR($MacroTable)
 
 S_process(x) ==
-    $Index : local := 0
-    $MACROASSOC : local := nil
-    $compUniquelyIfTrue : local := false
     $postStack : local := nil
     $topOp : local := nil
-    $semanticErrorStack : local := nil
-    $warningStack : local := nil
-    $exitModeStack : local := []
-    $returnMode : local := $EmptyMode
-    $leaveLevelStack : local := []
-    $iterate_tag : local := []
-    $iterate_count : local := 0
-    $CategoryFrame : local := [[[]]]
-    $insideFunctorIfTrue : local := false
-    $insideWhereIfTrue : local := false
-    $insideCategoryIfTrue : local := false
-    $insideCapsuleFunctionIfTrue : local := false
-    $e : local := $EmptyEnvironment
-    $genSDVar : local := 0
     $previousTime : local := get_run_time()
-    $s : local := nil
-    $x : local := nil
     null(x) => nil
     $SaveParseOnly =>
         x := walkForm(x)
@@ -359,14 +364,11 @@ S_process(x) ==
         walkForm x
     null(nform) => nil
     x := parseTransform(postTransform(nform))
-    $TranslateOnly => $Translation := x
     $postStack =>
         displayPreCompilationErrors()
         userError '"precompilation failed"
     $PrintOnly =>
         FORMAT(true, '"~S   =====>~%", $currentLine)
         PRETTYPRINT(x)
-    u := compTopLevel(x, $EmptyMode, $InteractiveFrame)
-    if u then $InteractiveFrame := THIRD(u)
-    if $semanticErrorStack then displaySemanticErrors()
+    do_comp1(x)
     TERPRI()

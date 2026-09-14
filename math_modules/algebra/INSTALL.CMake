@@ -52,11 +52,11 @@ difference is using git to get the code.
 
 1) Download the code:
 
-   $ git clone git://ginac.de/cln.git cln
+   $ git clone https://codeberg.org/ginac/cln.git
 
    or, if you have already cloned the repository,
 
-   $ git pull
+   $ git pull && ./autopull.sh
 
 Subsequent steps are the same as compiling from a source distribution.
 

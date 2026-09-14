@@ -29,7 +29,6 @@ trans_fix_arg(long *prec, GEN *s0, GEN *sig, GEN *tau, pari_sp *av, GEN *res)
   GEN p1, s = *s0 = cxtoreal(*s0);
   long l;
   l = precision(s); if (!l) l = *prec;
-  if (l < LOWDEFAULTPREC) l = LOWDEFAULTPREC;
   *res = cgetc(l); *av = avma;
   if (typ(s) == t_COMPLEX)
   { /* s = sig + i t */
@@ -59,33 +58,35 @@ atan2_agm(GEN a, GEN b, long prec)
 GEN
 mpatan(GEN x)
 {
-  long l, l1, l2, n, m, i, lp, e, s, sx = signe(x);
+  long prec, precy, b1, b2, n, m, i, e, r, sx = signe(x);
   pari_sp av0, av;
   double alpha, beta, delta;
-  GEN y, p1, p2, p3, p4, p5, unr;
+  GEN y, x2, S, one;
   int inv;
 
-  if (!sx) return real_0_bit(expo(x));
-  l = lp = realprec(x);
+  if (!sx) return real_0_expo(expo(x));
+  prec = realprec(x);
   if (absrnz_equal1(x)) { /* |x| = 1 */
-    y = Pi2n(-2, l+EXTRAPREC64); if (sx < 0) setsigne(y,-1);
+    y = Pi2n(-2, prec+EXTRAPREC64); if (sx < 0) setsigne(y,-1);
     return y;
   }
-  if (l > AGM_ATAN_LIMIT)
-  { av = avma; return gc_leaf(av, atan2_agm(gen_1, x, l)); }
+  if (prec > AGM_ATAN_LIMIT)
+  { av = avma; return gc_leaf(av, atan2_agm(gen_1, x, prec)); }
 
   e = expo(x); inv = (e >= 0); /* = (|x| > 1 ) */
-  if (e > 0) lp += nbits2extraprec(e);
+  /* if x > 2^e then atan(1/x) << 2^(-e) is known to relative accuracy prec
+   * and atan(x) = Pi/2 - atan(1/x) is known to prec + e */
+  precy = e > 0? nbits2prec(prec + e): prec;
 
-  y = cgetr(lp); av0 = avma;
-  p1 = rtor(x, l+EXTRAPREC64); setabssign(p1); /* p1 = |x| */
-  if (inv) p1 = invr(p1);
-  e = expo(p1);
+  y = cgetr(precy); av0 = avma;
+  x = rtor(x, prec+EXTRAPREC64); setabssign(x); /* |x| + 64 guard bits */
+  if (inv) x = invr(x); /* x > 1: atan(1/x) = Pi/2 - atan(x) */
+  e = expo(x); /* x < 1, e < 0 */
   if (e < -100)
-    alpha = 1.65149612947 - e; /* log_2(Pi) - e */
+    alpha = 1.65149612947 - e; /* ~ log_2(Pi / atan x), |x| < 2^-100*/
   else
-    alpha = log2(M_PI / atan(rtodbl(p1)));
-  beta = (double)(prec2nbits(l)>>1);
+    alpha = log2(M_PI / atan(rtodbl(x)));
+  beta = (double)(prec >> 1);
   delta = 1 + beta - alpha/2;
   if (delta <= 0) { n = 1; m = 0; }
   else
@@ -103,34 +104,38 @@ mpatan(GEN x)
       m = 0;
     }
   }
-  l2 = l + nbits2extraprec(m);
-  p2 = rtor(p1, l2); av = avma;
-  for (i=1; i<=m; i++)
-  {
-    p5 = addsr(1, sqrr(p2)); setprec(p5,l2);
-    p5 = addsr(1, sqrtr_abs(p5)); setprec(p5,l2);
-    affrr(divrr(p2,p5), p2); set_avma(av);
+  b2 = nbits2prec(prec + m);
+  x = rtor(x, b2); av = avma;
+  for (i=1; i <= m; i++, set_avma(av))
+  { /* x /= 1 + sqrt(1 + x^2), m times; sends tan(t) to tan(t/2^m) */
+    GEN z = addsr(1, sqrr(x));
+    setprec(z,b2); z = addsr(1, sqrtr_abs(z));
+    setprec(z,b2); affrr(divrr(x,z), x);
   }
-  p3 = sqrr(p2); l1 = minss(LOWDEFAULTPREC+EXTRAPREC64, l2); /* l1 increases to l2 */;
-  unr = real_1(l2); setprec(unr,l1);
-  p4 = cgetr(l2); setprec(p4,l1);
-  affrr(divru(unr,2*n+1), p4);
-  s = 0; e = expo(p3); av = avma;
-  for (i = n; i > 1; i--) /* n >= 1. i = 1 done outside for efficiency */
+  /* 0 < x < 2^(-m) */
+  x2 = sqrr(x);
+  b1 = minss(MEDDEFAULTPREC, b2); /* b1 increases to b2 */
+  one = real_1(b2); setprec(one,b1);
+  S = cgetr(b2); setprec(S,b1);
+  affrr(divru(one,2*n+1), S); av = avma;
+  r = b1; e = expo(x2); /* < 0 */
+  for (i = n; i > 1; i--, set_avma(av))
   {
-    setprec(p3,l1); p5 = mulrr(p4,p3);
-    l1 += nbits2extraprec(dvmdsBIL(s - e, &s)<<TWOPOTBITS_IN_LONG);
-    if (l1 > l2) l1 = l2;
-    setprec(unr,l1); p5 = subrr(divru(unr,2*i-1), p5);
-    setprec(p4,l1); affrr(p5,p4); set_avma(av);
+    GEN z;
+    setprec(x2,b1); z = mulrr(S, x2);
+    r -= e; b1 = nbits2prec(r);
+    if (b1 > b2) b1 = b2;
+    setprec(one,b1); setprec(S,b1);
+    affrr(subrr(divru(one,2*i-1), z), S);
   }
-  setprec(p3, l2); p5 = mulrr(p4,p3); /* i = 1 */
-  setprec(unr,l2); p4 = subrr(unr, p5);
+  setprec(x2, b2); setprec(one,b2);
+  S = subrr(one, mulrr(S,x2)); /* i = 1 */
+  /* S = sum_{i=1}^{n+1} (-1)^i x^(2i)/(2i-1) */
 
-  p4 = mulrr(p2,p4); shiftr_inplace(p4, m);
-  if (inv) p4 = subrr(Pi2n(-1, lp), p4);
-  if (sx < 0) togglesign(p4);
-  affrr_fixlg(p4,y); set_avma(av0); return y;
+  S = mulrr(x, S); shiftr_inplace(S, m);
+  if (inv) S = subrr(Pi2n(-1, precy), S);
+  if (sx < 0) togglesign(S);
+  affrr_fixlg(S, y); set_avma(av0); return y;
 }
 
 GEN
@@ -245,7 +250,7 @@ mpacos(GEN x)
 
   if (!sx) return acos0(expo(x));
   if (absrnz_equal1(x)) /* |x| = 1 */
-    return sx > 0? real_0_bit( -(bit_prec(x)>>1) ) : mppi(realprec(x));
+    return sx > 0? real_0_expo( -(realprec(x)>>1) ) : mppi(realprec(x));
   a = sqrtr(subsr(1, sqrr(x)));
   if (realprec(x) > AGM_ATAN_LIMIT)
     z = atan2_agm(x, a, realprec(x));
@@ -269,7 +274,7 @@ gacos(GEN x, long prec)
     case t_REAL: sx = signe(x);
       if (!sx) return acos0(expo(x));
       if (absrnz_equal1(x)) /* |x| = 1 */
-        return sx > 0? real_0_bit( -(bit_prec(x)>>1) ) : mppi(realprec(x));
+        return sx > 0? real_0_expo( -(realprec(x)>>1) ) : mppi(realprec(x));
       if (expo(x) < 0) return mpacos(x);
 
       y = cgetg(3,t_COMPLEX); p1 = mpacosh(x);
@@ -315,7 +320,7 @@ mparg(GEN x, GEN y)
 
   if (!sy)
   {
-    if (sx > 0) return real_0_bit(expo(y) - expo(x));
+    if (sx > 0) return real_0_expo(expo(y) - expo(x));
     return mppi(realprec(x));
   }
   prec = realprec(y); if (prec < realprec(x)) prec = realprec(x);
@@ -378,7 +383,7 @@ garg(GEN x, long prec)
 /********************************************************************/
 /* 1 + x */
 static GEN
-mpcosh0(long e) { return e >= 0? real_0_bit(e): real_1_bit(-e); }
+mpcosh0(long e) { return e >= 0? real_0_expo(e): real_1(-e); }
 GEN
 mpcosh(GEN x)
 {
@@ -423,21 +428,21 @@ gcosh(GEN x, long prec)
 /**                                                                **/
 /********************************************************************/
 static GEN
-mpsinh0(long e) { return real_0_bit(e); }
+mpsinh0(long e) { return real_0_expo(e); }
 GEN
 mpsinh(GEN x)
 {
   pari_sp av;
-  long lx;
+  long prec;
   GEN z, res;
 
   if (!signe(x)) return mpsinh0(expo(x));
-  lx = realprec(x); res = cgetr(lx); av = avma;
+  prec = realprec(x); res = cgetr(prec); av = avma;
   if (expo(x) + BITS_IN_LONG < 1)
   { /* y = e^x-1; e^x - e^(-x) = y(1 + 1/(y+1)) */
     GEN y = mpexpm1(x);
-    lx += EXTRAPRECWORD;
-    z = addrs(y, 1); if (realprec(z) > lx) z = rtor(z,lx); /* e^x */
+    incrprec(prec);
+    z = addrs(y, 1); if (realprec(z) > prec) z = rtor(z,prec); /* e^x */
     z = mulrr(y, addsr(1, invr(z)));
   }
   else
@@ -453,7 +458,7 @@ void
 mpsinhcosh(GEN x, GEN *s, GEN *c)
 {
   pari_sp av;
-  long lx, ex;
+  long prec, ex;
   GEN z, zi, S, C;
   if (!signe(x))
   {
@@ -461,14 +466,14 @@ mpsinhcosh(GEN x, GEN *s, GEN *c)
     *c = mpcosh0(ex);
     *s = mpsinh0(ex); return;
   }
-  lx = realprec(x);
-  *c = cgetr(lx);
-  *s = cgetr(lx); av = avma;
+  prec = realprec(x);
+  *c = cgetr(prec);
+  *s = cgetr(prec); av = avma;
   if (expo(x) + BITS_IN_LONG < 1)
-  { /* y = e^x-1; e^x - e^(-x) = y(1 + 1/(y+1)) */
+  { /* x close to 0; y = e^x-1; e^x - e^(-x) = y(1 + 1/(y+1)) */
     GEN y = mpexpm1(x);
-    lx += EXTRAPRECWORD;
-    z = addrs(y,1); if (realprec(z) > lx) z = rtor(z, lx); /* e^x */
+    incrprec(prec);
+    z = addrs(y,1); if (realprec(z) > prec) z = rtor(z, prec); /* e^x */
     zi = invr(z); /* z = exp(x), zi = exp(-x) */
     S = mulrr(y, addsr(1,zi));
   }
@@ -515,18 +520,18 @@ gsinh(GEN x, long prec)
 GEN
 mptanh(GEN x)
 {
-  long lx, s = signe(x);
+  long px, s = signe(x);
   GEN y;
 
-  if (!s) return real_0_bit(expo(x));
-  lx = realprec(x);
-  if (abscmprr(x, utor(prec2nbits(lx), LOWDEFAULTPREC)) >= 0) {
-    y = real_1(lx);
+  if (!s) return real_0_expo(expo(x));
+  px = realprec(x);
+  if (abscmprr(x, utor(px, LOWDEFAULTPREC)) >= 0) {
+    y = real_1(px);
   } else {
     pari_sp av = avma;
     long e = expo(x) + BITS_IN_LONG;
     GEN t;
-    if (e < 0) x = rtor(x, lx + nbits2extraprec(-e));
+    if (e < 0) x = rtor_lg(x, nbits2lg(px - e));
     t = exp1r_abs(gmul2n(x,1)); /* exp(|2x|) - 1 */
     y = gc_leaf(av, divrr(t, addsr(2,t)));
   }
@@ -564,19 +569,19 @@ gtanh(GEN x, long prec)
 GEN
 mpcotanh(GEN x)
 {
-  long lx, s = signe(x);
+  long px, s = signe(x);
   GEN y;
 
   if (!s) pari_err_DOMAIN("cotan", "argument", "=", gen_0, x);
 
-  lx = realprec(x);
-  if (abscmprr(x, utor(prec2nbits(lx), LOWDEFAULTPREC)) >= 0) {
-    y = real_1(lx);
-  } else {
+  px = realprec(x);
+  if (abscmprr(x, utor(px, LOWDEFAULTPREC)) >= 0) y = real_1(px);
+  else
+  {
     pari_sp av = avma;
     long e = expo(x) + BITS_IN_LONG;
     GEN t;
-    if (e < 0) x = rtor(x, lx + nbits2extraprec(-e));
+    if (e < 0) x = rtor_lg(x, nbits2lg(px - e));
     t = exp1r_abs(gmul2n(x,1)); /* exp(|2x|) - 1 */
     y = gc_leaf(av, divrr(addsr(2,t), t));
   }
@@ -618,15 +623,14 @@ gcotanh(GEN x, long prec)
 GEN
 mpasinh(GEN x)
 {
-  long lx, e, s = signe(x);
+  long px, e, s = signe(x);
   GEN z, res;
   pari_sp av;
 
   if (!s) return rcopy(x);
-  lx = realprec(x); e = expo(x) + BITS_IN_LONG;
-  res = cgetr(lx);
-  av = avma;
-  if (e < 0) x = rtor(x, lx + nbits2extraprec(-e));
+  px = realprec(x); e = expo(x) + BITS_IN_LONG;
+  res = cgetr(px); av = avma;
+  if (e < 0) x = rtor_lg(x, nbits2lg(px - e));
   z = logr_abs( addrr_sign(x,1, sqrtr_abs( addrs(sqrr(x), 1) ), 1) );
   if (signe(x) < 0) togglesign(z);
   affrr(z, res); return gc_const(av, res);
@@ -688,13 +692,14 @@ gasinh(GEN x, long prec)
 GEN
 mpacosh(GEN x)
 {
-  long lx = realprec(x), e;
-  GEN z, res = cgetr(lx);
+  long px = realprec(x), e;
+  GEN z, res = cgetr(px);
   pari_sp av = avma;
-  e = expo(signe(x) > 0? subrs(x,1): addrs(x,1));
+  GEN x1 = signe(x) > 0? subrs(x,1): addrs(x,1);
+  e = expo(x1);
   if (e == -(long)HIGHEXPOBIT)
-    return gc_const((pari_sp)(res + lx), real_0_bit(- bit_prec(x) >> 1));
-  if (e < -5) x = rtor(x, realprec(x) + nbits2extraprec(-e));
+    return gc_const((pari_sp)(res + px), real_0_expo(- realprec(x) >> 1));
+  if (e < -5) x = rtor_lg(x, nbits2lg(realprec(x) - e));
   z = logr_abs( addrr_sign(x, 1, sqrtr( subrs(sqrr(x), 1) ), 1) );
   affrr(z, res); return gc_const(av, res);
 }
@@ -779,11 +784,11 @@ mpatanh(GEN x)
   long e, s = signe(x);
   GEN z;
   if (!s) return rcopy(x);
-  z = s > 0? subsr(1,x): addsr(1,x); e = expo(z);
-  if (e < -5)
+  z = s > 0? subsr(1,x): addsr(1,x); e = expo(z) + BITS_IN_LONG;
+  if (e < 0)
   {
-    x = rtor(x, realprec(x) + nbits2extraprec(-e)-EXTRAPRECWORD);
-    z = s > 0? subsr(1,x): addsr(1,x); e = expo(z);
+    x = rtor_lg(x, nbits2lg(realprec(x) - e));
+    z = s > 0? subsr(1,x): addsr(1,x);
   }
   z = invr(z); shiftr_inplace(z, 1); /* 2/(1-|x|) */
   z = logr_abs( addrs(z,-1) ); if (s < 0) togglesign(z);
@@ -797,7 +802,7 @@ get_nmax(double u, double v, long prec)
   long nmax = -1;
   if (d)
   {
-    d = ceil(prec2nbits(prec) / d);
+    d = ceil(prec / d);
     if (dblexpo(d) < BITS_IN_LONG) nmax = (long)d;
   }
   return nmax;
@@ -886,7 +891,7 @@ gatanh(GEN x, long prec)
       {
         ulong u = z[2];
         av = avma; e = expi((signe(y) < 0)? addii(y, z): subii(y, z));
-        set_avma(av); if (e < - prec2nbits(prec)) break;
+        set_avma(av); if (e < - prec) break;
         z = cgetg(3, t_COMPLEX); av = avma;
         a = ly == 3? atanhuu(u, y[2], prec): atanhui(u, y, prec);
         gel(z,1) = gc_leaf(av, a);
@@ -896,7 +901,7 @@ gatanh(GEN x, long prec)
       else
       { /* |y| < z; ly = 3 */
         av = avma; e = expi((signe(y) < 0)? addii(y, z): subii(y, z));
-        set_avma(av); if (e < - prec2nbits(prec)) break;
+        set_avma(av); if (e < - prec) break;
         a = lz == 3? atanhuu(y[2], z[2], prec): atanhui(y[2], z, prec);
         z = gc_leaf(av, a);
         if (signe(y) < 0) togglesign(z);
@@ -966,17 +971,17 @@ mulu_interval_step_i(ulong a, ulong b, ulong step)
 static GEN
 _mul(void *data, GEN x, GEN y)
 {
-  long prec = (long)data;
+  long l = (long)data;
   /* switch to t_REAL ? */
-  if (typ(x) == t_INT && lg2prec(lgefint(x)) > prec) x = itor(x, prec);
-  if (typ(y) == t_INT && lg2prec(lgefint(y)) > prec) y = itor(y, prec);
+  if (typ(x) == t_INT && lgefint(x) > l) x = itor_lg(x, l);
+  if (typ(y) == t_INT && lgefint(y) > l) y = itor_lg(y, l);
   return mpmul(x, y);
 }
 static GEN
 mulu_interval_step_prec(long l, long m, long s, long prec)
 {
   GEN v = mulu_interval_step_i(l, m, s);
-  return gen_product(v, (void*)prec, &_mul);
+  return gen_product(v, (void*)prec2lg(prec), &_mul);
 }
 
 /* x * (i*(i+1)) */
@@ -1033,7 +1038,7 @@ static GEN
 lngamma1(GEN z, long prec)
 { /* sum_{i > l} |z|^(i-1) = |z|^l / (1-|z|) < 2^-B
    * for l > (B+1) / |log2(|z|)| */
-  long i, l = ceil((prec2nbits(prec) + 1) / - dbllog2(z));
+  long i, l = ceil((prec + 1) / - dbllog2(z));
   GEN s, vz;
 
   if (l <= 1) return gmul(negeuler(prec), z);
@@ -1105,7 +1110,7 @@ gamma_optim(double ssig, double st, long prec, long *plim, long *pN)
   v = v - st;
   l2 = u*u + v*v;
   if (l2 < 0.000001) l2 = 0.000001;
-  l = (prec2nbits_mul(prec, M_LN2) - log(l2)/2) / 2.;
+  l = (prec * M_LN2 - log(l2)/2) / 2.;
   if (l < 0) l = 0.;
 
   if (st > 1 && l > 0)
@@ -1138,7 +1143,7 @@ gamma_use_1(double s, double t, long prec, long *plim, long *pN)
   if (d < 1e-16) return 1;
   gamma_optim(s, t, prec, plim, pN);
   if (d >= 0.5) return 0;
-  k = prec2nbits(prec) / -log2(dblcnorm(a, t)); /* 2k = lngamma1 bound */
+  k = prec / -log2(dblcnorm(a, t)); /* 2k = lngamma1 bound */
   return (t ? k: 1.5*k) < *plim + *pN;
 }
 static GEN
@@ -1169,7 +1174,7 @@ cxgamma(GEN s0, int dolog, long prec)
     S = gprec_w(s,LOWDEFAULTPREC);
     /* l2 ~ |lngamma(s))|^2 */
     l2 = gnorm(gmul(S, glog(S, LOWDEFAULTPREC)));
-    l = (prec2nbits_mul(prec, M_LN2) - rtodbl(glog(l2,LOWDEFAULTPREC))/2) / 2.;
+    l = (prec * M_LN2 - rtodbl(glog(l2,LOWDEFAULTPREC))/2) / 2.;
     if (l < 0) l = 0.;
 
     iS = imag_i(S);
@@ -1345,9 +1350,8 @@ cxgamma(GEN s0, int dolog, long prec)
  * n = [1450, 1930, 2750, 3400, 4070, 5000, 6000, 8800, 26000, 50000, 130000,
  *      380000, 1300000, 6000000]; */
 static long
-gamma2_n(long prec)
+gamma2_n(long b)
 {
-  long b = prec2nbits(prec);
   if (b <=  64) return 1450;
   if (b <= 128) return 1930;
   if (b <= 192) return 2750;
@@ -1743,7 +1747,7 @@ static GEN
 gammafrac24(GEN a, GEN b, long prec)
 {
   pari_sp av;
-  long A, B, m, am, x, bit;
+  long A, B, m, am, x;
   GEN z0, z, t;
   if (!(A = itos_or_0(a)) || !(B = itos_or_0(b)) || B > 24) return NULL;
   switch(B)
@@ -1753,12 +1757,12 @@ gammafrac24(GEN a, GEN b, long prec)
       m = A / B;
       x = A % B; /* = A - m*B */
       if (x < 0) { x += B; m--; } /* now 0 < x < B, A/B = x/B + m */
-      am = labs(m); bit = prec2nbits(prec);
+      am = labs(m);
       /* Depending on B and prec, we must experimentally replace the 0.5
        * by 0.4 to 2.0 for optimal value. Play safe. */
-      if (am > 0.5 * bit * sqrt(bit) / log(bit)) return NULL;
+      if (am > 0.5 * prec * sqrt(prec) / log(prec)) return NULL;
       z0 = cgetr(prec); av = avma;
-      prec += EXTRAPREC64;
+      incrprec(prec);
       z = gammafrac24_s(x, B, prec);
       if (m)
       {
@@ -1800,14 +1804,16 @@ ggamma(GEN x, long prec)
     case t_FRAC:
     {
       GEN a = gel(x,1), b = gel(x,2), c = gammafrac24(a, b, prec);
+      long lgprec;
+
       if (c) return c;
-      av = avma; c = subii(a,b);
+      av = avma; c = subii(a,b); lgprec = prec2lg(prec);
       if (signe(a) < 0)
       { /* gamma will use functional equation x -> z = 1-x = -c/b >= 1/2.
          * Gamma(x) = Pi / (sin(Pi z) * Gamma(z)) */
         GEN z = mkfrac(negi(c), b), q = ground(z), r = gsub(z,q);
         GEN pi = mppi(prec); /* |r| <= 1/2 */
-        z = fractor(z, prec+EXTRAPREC64);
+        z = fractor_lg(z, lgprec + EXTRAPREC64 / BITS_IN_LONG);
         y = divrr(pi, mulrr(mpsin(gmul(pi, r)), cxgamma(z, 0, prec)));
         if (mpodd(q)) togglesign(y);
         return gc_upto(av, y);
@@ -1816,21 +1822,21 @@ ggamma(GEN x, long prec)
       { /* 0 < x < 1/2 gamma would use funeq: adding 1 is cheaper. */
         if (expi(a) - expi(b) < -3) /* close to 0 */
         {
-          if (lg2prec(lgefint(b)) >= prec) x = fractor(x,prec);
+          if (lgefint(b) >= lgprec) x = fractor_lg(x, lgprec);
           y = mpexp(lngamma1(x, prec));
         }
         else
-          y = cxgamma(fractor(mkfrac(addii(a,b), b), prec), 0, prec);
+          y = cxgamma(fractor_lg(mkfrac(addii(a,b), b), lgprec), 0, prec);
         return gc_upto(av, gdiv(y, x));
       }
       if (expi(c) - expi(b) < -3)
       { /* x = 1 + c/b is close to 1 */
         x = mkfrac(c,b);
-        if (lg2prec(lgefint(b)) >= prec) x = fractor(x,prec);
+        if (lgefint(b) >= lgprec) x = fractor_lg(x,prec);
         y = mpexp(lngamma1(x, prec));
       }
       else
-        y = cxgamma(fractor(x, prec), 0, prec);
+        y = cxgamma(fractor_lg(x, lgprec), 0, prec);
       return gc_upto(av, y);
     }
 
@@ -1866,9 +1872,8 @@ mpfactr_basecase(long n, long prec)
  * b = [64, 128, 192, 256, 512, 1024, 2048, 4096, 8192, 16384]
  * n = [1930, 2650, 3300, 4270, 9000, 23000, 75000, 210000, 750000, 2400000] */
 static long
-mpfactr_n(long prec)
+mpfactr_n(long b)
 {
-  long b = prec2nbits(prec);
   if (b <=  64) return 1930;
   if (b <= 128) return 2650;
   if (b <= 192) return 3300;
@@ -1906,9 +1911,8 @@ mpfactr(long n, long prec)
 /* First a little worse than mpfactr_n because of the extra logarithm.
  * Asymptotically same. */
 static ulong
-lngamma_n(long prec)
+lngamma_n(long b)
 {
-  long b = prec2nbits(prec);
   double N;
   if (b <=  64) return 1450UL;
   if (b <= 128) return 2010UL;
@@ -1941,15 +1945,15 @@ glngamma(GEN x, long prec)
     case t_FRAC:
     {
       GEN a = gel(x,1), b = gel(x,2), c = gammafrac24(a, b, prec);
-      long e;
+      long e, lgprec;
       if (c) return glog(c, prec);
-      c = subii(a,b); e = expi(b) - expi(c);
+      c = subii(a,b); e = expi(b) - expi(c); lgprec = prec2lg(prec);
       if (signe(a) < 0)
       { /* gamma will use functional equation x -> z = 1-x = -c/b >= 1/2.
          * lngamma(x) = log |Pi / (sin(Pi z) * Gamma(z))| + I*Pi * floor(x) */
         GEN z = mkfrac(negi(c), b), q = ground(z), r = gsub(z,q);
         GEN pi = mppi(prec); /* |r| <= 1/2 */
-        z = fractor(z, prec+EXTRAPREC64);
+        z = fractor_lg(z, lgprec + EXTRAPREC64 / BITS_IN_LONG);
         y = subrr(logr_abs(divrr(pi, mpsin(gmul(pi,r)))), cxgamma(z, 1, prec));
         y = gadd(y, mkcomplex(gen_0, mulri(pi, gfloor(x))));
         return gc_upto(av, y);
@@ -1958,7 +1962,7 @@ glngamma(GEN x, long prec)
       { /* 0 < x < 1/2 gamma would use funeq: adding 1 is cheaper. */
         if (expi(a) - expi(b) < -3) /* close to 0 */
         {
-          if (lg2prec(lgefint(b)) >= prec) x = fractor(x,prec);
+          if (lgefint(b) >= lgprec) x = fractor_lg(x, lgprec);
           y = lngamma1(x, prec);
         }
         else
@@ -1968,13 +1972,12 @@ glngamma(GEN x, long prec)
       if (e > 3)
       {
         x = mkfrac(c,b);
-        if (lg2prec(lgefint(b)) >= prec)
-          x = fractor(x, prec + nbits2extraprec(e));
+        if (lgefint(b) >= lgprec) x = fractor_lg(x, lgprec + nbits2nlong(e));
         y = lngamma1(x, prec);
       }
       else
       {
-        x = fractor(x, e > 1? prec+EXTRAPREC64: prec);
+        x = fractor_lg(x, e > 1? lgprec + EXTRAPREC64 / BITS_IN_LONG: lgprec);
         y = cxgamma(x, 1, prec);
       }
       return gc_upto(av, y);
@@ -2012,7 +2015,7 @@ err_psi(GEN s)
 static long
 psi_lim(double L, double la, long prec)
 {
-  double d = (prec2nbits_mul(prec, 2*M_LN2) - log(L)) / (4*(1+log(la)));
+  double d = (prec * (2*M_LN2) - log(L)) / (4*(1+log(la)));
   return (d < 2)? 2: 2 + (long)ceil(d);
 }
 /* max(|log (s + it - Euler)|, 1e-6) */
@@ -2036,7 +2039,7 @@ cxpsi(GEN s0, long der, long prec)
   if (der)
   {
     av = avma;
-    res = zetahurwitz(stoi(der + 1), s0, 0, prec2nbits(prec));
+    res = zetahurwitz(stoi(der + 1), s0, 0, prec);
     if(!odd(der)) res = gneg(res);
     return gc_upto(av, gmul(mpfact(der), res));
   }
@@ -2160,7 +2163,7 @@ serpsiz0(GEN z0, long L, long v, long prec)
     a = gdiv(gadd(gadd(gmul(c1,A),gmul(c2,A1)),gmul(c3,A2)), c0);
     b = gdiv(gadd(gadd(gmul(c1,B),gmul(c2,B1)),gmul(c3,B2)), c0);
     Q = gdiv(a,b);
-    if (gexpo(gsub(Q,Q0)) < -prec2nbits(prec)) break;
+    if (gexpo(gsub(Q,Q0)) < -prec) break;
     A2 = A1; A1 = A; A = a;
     B2 = B1; B1 = B; B = b;
     if (gc_needed(av,1))
@@ -2178,19 +2181,18 @@ serpsiz0(GEN z0, long L, long v, long prec)
 static GEN
 Hseries(long m, long L, long v, long prec)
 {
-  long i, k, bit, l = L+3, M = m < 0? 1-m: m;
+  long i, k, l = L+3, M = m < 0? 1-m: m;
   pari_sp av = avma;
   GEN H = cgetg(l, t_SER);
   H[1] = evalsigne(1)|evalvarn(v)|evalvalser(0);
-  prec += EXTRAPREC64;
-  bit = -prec2nbits(prec);
+  incrprec(prec);
   for(k = 2; k < l; k++) gel(H,k) = gen_1; /* i=1 */
   for (i = 2; i < M; i++)
   {
     GEN ik = invr(utor(i, prec));
     for (k = 2; k < l; k++)
     {
-      if (k > 2) { ik = divru(ik, i); if (expo(ik) < bit) break; }
+      if (k > 2) { ik = divru(ik, i); if (expo(ik) < -prec) break; }
       gel(H,k) = gadd(gel(H,k), ik);
     }
     if (gc_needed(av,3))
@@ -2222,7 +2224,7 @@ serpsi(GEN y, long prec)
   if (typ(z0) == t_INT && !is_bigint(z0))
   {
     long m = itos(z0);
-    if (abscmpiu(muluu(prec2nbits(prec),L), labs(m)) > 0)
+    if (abscmpiu(muluu(prec,L), labs(m)) > 0)
     { /* psi(m+x) = psi(1+x) + sum_{1 <= i < m} 1/(i+x) for m > 0
                     psi(1+x) - sum_{0 <= i < -m} 1/(i+x) for m <= 0 */
       GEN H = NULL;
@@ -2293,7 +2295,7 @@ gpsi(GEN x, long prec)
   {
     case t_INT:
       if (signe(x) <= 0) err_psi(x);
-      if (lgefint(x) > 3 || (n = itou(x)) > psi_n(prec2nbits(prec))) break;
+      if (lgefint(x) > 3 || (n = itou(x)) > psi_n(prec)) break;
       av = avma; y = mpeuler(prec);
       return gc_leaf(av, n == 1? negr(y): gsub(harmonic(n-1), y));
     case t_REAL: case t_COMPLEX: return cxpsi(x,0,prec);
@@ -2322,7 +2324,7 @@ gpsi_der(GEN x, long der, long prec)
   {
     case t_INT:
       if (signe(x) <= 0) err_psi(x);
-      if (lgefint(x) > 3 || (n = itou(x)) > psi_n(prec2nbits(prec))) break;
+      if (lgefint(x) > 3 || (n = itou(x)) > psi_n(prec)) break;
       av = avma;
       y = der ? szeta(der + 1, prec): mpeuler(prec);
       if (n > 1)
@@ -2339,7 +2341,7 @@ gpsi_der(GEN x, long der, long prec)
       if (!der) y = serpsi(y,prec);
       else
       {
-        y = zetahurwitz(stoi(der + 1), x, 0, prec2nbits(prec));
+        y = zetahurwitz(stoi(der + 1), x, 0, prec);
         if(!odd(der)) y = gneg(y);
         y = gmul(mpfact(der), y);
       }

@@ -755,7 +755,7 @@ unegquadclassnoF(ulong x, ulong *pD) { return quadclassnoF_u(x, -1, pD); }
 ulong
 uposquadclassnoF(ulong x, ulong *pD) { return quadclassnoF_u(x, 1, pD); }
 
-/* *pD = coredisc(x), *pR = regulator (x > 0) or NULL */
+/* *pD = coredisc(x) */
 GEN
 quadclassnoF(GEN x, GEN *pD)
 {

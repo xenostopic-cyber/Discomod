@@ -167,7 +167,7 @@ static GEN
 lambertW(GEN z, long k, long prec)
 {
   pari_sp av = avma;
-  long bit = prec2nbits(prec), L = -(bit / 3 + 10), ct = 0, p;
+  long L = -(prec / 3 + 10), ct = 0, p;
   double wd;
   GEN w, vp;
 
@@ -202,12 +202,12 @@ lambertW(GEN z, long k, long prec)
   { /* away from -1/e: can reduce accuracy and self-correct */
     long pb;
     w = wd == 0.? z: dbltor(wd);
-    vp = cgetg(30, t_VECSMALL); pb = bit;
+    vp = cgetg(30, t_VECSMALL); pb = prec;
     while (pb > BITS_IN_LONG * 3/4)
     { vp[++ct] = nbits2prec(pb); pb = (pb + 2) / 3; }
     p = vp[ct]; w = gprec_w(w, p);
   }
-  if ((k == -1 && (bit < 192 || bit > 640)) || (k == 0 && bit > 1024))
+  if ((k == -1 && (prec < 192 || prec > 640)) || (k == 0 && prec > 1024))
   {
     for(;;)
     {
@@ -254,7 +254,7 @@ lambertWC(GEN z, long branch, long prec)
 {
   pari_sp av = avma;
   GEN w, pii2k, zl, lzl, L, Lz;
-  long bit0, si, j, fl = 0, lim = 6, lp = DEFAULTPREC, bit = prec2nbits(prec);
+  long bit0, si, j, fl = 0, lim = 6, lp = DEFAULTPREC;
 
   si = gsigne(imag_i(z)); if (!si) z = real_i(z);
   pii2k = gmulsg(branch, PiI2(lp));
@@ -303,13 +303,14 @@ lambertWC(GEN z, long branch, long prec)
     }
   }
   w = lamaux(w, L, &bit0, lp);
-  while (bit0 < bit || (Lz && gexpo(gsub(gadd(w, glog(w, prec)), Lz)) > 16-bit))
+  while (bit0 < prec ||
+         (Lz && gexpo(gsub(gadd(w, glog(w, prec)), Lz)) > 16-prec))
   {
     long p = nbits2prec(bit0 <<= 1);
     L = gadd(gmulsg(branch, PiI2(p)), glog(gprec_w(z, p), p));
     w = lamaux(gprec_w(w, p), L, NULL, p);
   }
-  return gc_GEN(av, gprec_w(w, nbits2prec(bit)));
+  return gc_GEN(av, gprec_w(w, prec));
 }
 
 /* exp(t (1 + O(t^n))), n >= 0 */

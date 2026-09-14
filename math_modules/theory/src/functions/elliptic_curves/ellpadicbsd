@@ -26,7 +26,7 @@ Doc: Given an elliptic curve $E$ over $\Q$, its quadratic twist $E_{D}$
  analytic rank is equal to the rank of the Mordell-Weil group $E_{D}(\Q)$,
  plus $1$ if the reduction of $E_{D}$ at $p$ is split multiplicative;
  if $r = 0$, then both the analytic rank and the Mordell-Weil rank are
- unconditionnally $0$.
+ unconditionally $0$.
 
  Recall that the $p$-adic BSD conjecture (Mazur, Tate, Teitelbaum, Bernardi,
  Perrin-Riou) predicts an explicit link between $R_{p} S$ and

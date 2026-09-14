@@ -117,7 +117,7 @@ rcopy_sign(GEN x, long sx) { GEN y = rcopy(x); setsigne(y,sx); return y; }
 GEN
 addir_sign(GEN x, long sx, GEN y, long sy)
 {
-  long e, l, ly;
+  long e, ly;
   GEN z;
 
   if (!sx) return rcopy_sign(y, sy);
@@ -125,19 +125,20 @@ addir_sign(GEN x, long sx, GEN y, long sy)
   if (!sy)
   {
     if (e >= 0) return rcopy_sign(y, sy);
-    z = itor(x, nbits2prec(-e));
+    z = itor_lg(x, nbits2lg(-e));
     setsigne(z, sx); return z;
   }
 
   ly = lg(y);
   if (e > 0)
   {
-    l = lg2prec(ly - divsBIL(e));
-    if (l < LOWDEFAULTPREC) return rcopy_sign(y, sy);
+    ly -= divsBIL(e);
+    if (ly < 3) return rcopy_sign(y, sy);
   }
-  else l = lg2prec(ly) + nbits2extraprec(-e);
+  else
+    ly += nbits2nlong(-e);
   z = (GEN)avma;
-  y = addrr_sign(itor(x,l), sx, y, sy);
+  y = addrr_sign(itor_lg(x, ly), sx, y, sy);
   ly = lg(y); while (ly--) *--z = y[ly];
   set_avma((pari_sp)z); return z;
 }
@@ -145,7 +146,7 @@ addir_sign(GEN x, long sx, GEN y, long sy)
 static GEN
 addsr_sign(long x, GEN y, long sy)
 {
-  long e, l, ly, sx;
+  long e, ly, sx;
   GEN z;
 
   if (!x) return rcopy_sign(y, sy);
@@ -155,18 +156,19 @@ addsr_sign(long x, GEN y, long sy)
   {
     if (e >= 0) return rcopy_sign(y, sy);
     if (sx == -1) x = -x;
-    return stor(x, nbits2prec(-e));
+    return stor_lg(x, nbits2lg(-e));
   }
 
   ly = lg(y);
   if (e > 0)
   {
-    l = lg2prec(ly - divsBIL(e));
-    if (l < LOWDEFAULTPREC) return rcopy_sign(y, sy);
+    ly -= divsBIL(e);
+    if (ly < 3) return rcopy_sign(y, sy);
   }
-  else l = lg2prec(ly) + nbits2extraprec(-e);
+  else
+    ly += nbits2nlong(-e);
   z = (GEN)avma;
-  y = addrr_sign(stor(x,l), sx, y, sy);
+  y = addrr_sign(stor_lg(x, ly), sx, y, sy);
   ly = lg(y); while (ly--) *--z = y[ly];
   set_avma((pari_sp)z); return z;
 }
@@ -192,9 +194,9 @@ addrr_sign(GEN x, long sx, GEN y, long sy)
     if (!sx)
     {
       if (e > 0) ex = ey;
-      return real_0_bit(ex);
+      return real_0_expo(ex);
     }
-    if (e >= 0) return real_0_bit(ey);
+    if (e >= 0) return real_0_expo(ey);
     lz = nbits2lg(-e);
     lx = lg(x); if (lz > lx) lz = lx;
     z = cgetg(lz, t_REAL); while(--lz) z[lz] = x[lz];
@@ -202,7 +204,7 @@ addrr_sign(GEN x, long sx, GEN y, long sy)
   }
   if (!sx)
   {
-    if (e <= 0) return real_0_bit(ex);
+    if (e <= 0) return real_0_expo(ex);
     lz = nbits2lg(e);
     ly = lg(y); if (lz > ly) lz = ly;
     z = cgetg(lz, t_REAL); while (--lz) z[lz] = y[lz];
@@ -280,7 +282,7 @@ addrr_sign(GEN x, long sx, GEN y, long sy)
   else
   {
     i = 2; while (i < lx && x[i] == y[i]) i++;
-    if (i==lx) return real_0_bit(ey+1 - lg2prec(lx));
+    if (i==lx) return real_0_expo(ey+1 - bit_accuracy(lx));
     f2 = (uel(y,i) > uel(x,i));
   }
   /* result is nonzero. f2 = (y > x) */

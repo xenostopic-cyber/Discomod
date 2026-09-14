@@ -253,7 +253,7 @@ lvar_make_safe(void)
 {
   long n;
   entree *ep;
-  for (n = 0; n < functions_tblsz; n++)
+  for (n = 0; n <= functions_hash_MASK; n++)
     for (ep = functions_hash[n]; ep; ep = ep->next)
       if (EpVALENCE(ep) == EpVAR)
       { /* make sure ep->value is a COPY */
@@ -593,7 +593,7 @@ localprec(GEN pp)
 {
   long p = _prec(pp, "localprec");
   checkprec("localprec", p, prec2ndec(LGBITS));
-  p = ndec2nbits(p); push_localbitprec(p);
+  push_localbitprec(ndec2nbits(p));
 }
 void
 localbitprec(GEN pp)

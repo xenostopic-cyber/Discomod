@@ -2,6 +2,10 @@
 
 #include <pthread.h>   /* Include POSIX threads headers */
 
+#ifndef ENABLE_TLS
+#error "this example requires Configure --enable-tls or --mt=ptread"
+#endif
+
 void *
 mydet(void *arg)
 {

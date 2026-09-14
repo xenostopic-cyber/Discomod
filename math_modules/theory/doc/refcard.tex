@@ -159,6 +159,7 @@ $x$\%$y${\rm,} divrem$(x,y)$}
 \li{convert $x$ to simplest possible type}{simplify$(x)$}
 \li{object $x$ with real precision $n$}{precision$(x,n)$}
 \li{object $x$ with bit precision $n$}{bitprecision$(x,n)$}
+\li{$b$-bit fingerprint of $x$}{fingerprint$(x,\{b=64\})$}
 \li{set precision to $p$ digits in dynamic scope}{localprec$(p)$}
 \li{set precision to $p$ bits in dynamic scope}{localbitprec$(p)$}
 
@@ -328,9 +329,10 @@ must be free of side effects. Enabled if threading engine is not \emph{single}
 in gp header.\hfil\break
 \li{evaluate $f$ on $x[1],\dots,x[n]$}{parapply$(f,x)$}
 \li{evaluate closures $f[1],\dots,f[n]$}{pareval$(f)$}
-\li{as \kbd{select}}{parselect$(f,A,\{\fl\})$}
-\li{as \kbd{sum}}{parsum$(i = a,b,\var{expr})$}
-\li{as \kbd{vector}}{parvector$(n,i,\{\var{expr}\})$}
+\li{parallel \kbd{select}}{parselect$(f,A,\{\fl\})$}
+\li{parallel \kbd{sum}}{parsum$(i = a,b,\var{expr})$}
+\li{parallel \kbd{vector}}{parvector$(n,i,\{\var{expr}\})$}
+\li{parallel \kbd{matrix}}{parmatrix$(n,i,j,\{\var{expr}\})$}
 \li{eval $f$ for $i=a,\dots,b$}
    {parfor$(i = a, \{b\}, f,\{r\}, \{f_2\})$}
 \li{\dots for each element $x$ in $v$}
@@ -343,10 +345,9 @@ in gp header.\hfil\break
    {parforstep$(i = a, \{b\}, s, f,\{r\}, \{f_2\})$}
 \li{\dots multivariate}
    {parforvec$(X = v, f,\{r\}, \{f_2\}, \{\fl\})$}
-\li{export $x$ to parallel world}{export$(x)$}
+\li{export $x$ to parallel world }{export$(x)$}
 \li{\dots all dynamic variables}{exportall$()$}
-\li{frees exported value $x$}{unexport$(x)$}
-\li{\dots all exported values}{unexportall$()$}
+\li{frees single or all exported values}{unexport$(x)$, unexportall$()$}
 
 \section{Linear Algebra}
 %
@@ -416,6 +417,7 @@ Image, kernel, inverse and determinant modulo $D$:
 \subsec{HNF and SNF}
 \li{upper triangular Hermite Normal Form}{mathnf$(x)$}
 \li{HNF of $x$ where $d$ is a multiple of det$(x)$}{mathnfmod$(x,d)$}
+\li{reduce $x$ modulo $H$ in HNF}{matmodhnf$(x,H)$}
 \li{multiple of det$(x)$}{matdetint$(x)$}
 \li{HNF of $(x \mid\,$\kbd{diagonal}$(D))$}{mathnfmodid$(x,D)$}
 \li{elementary divisors of $x$}{matsnf$(x)$}

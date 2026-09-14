@@ -1507,7 +1507,7 @@ static GEN
 redquadric(GEN base, GEN pol, GEN zc)
 {
   pari_sp av = avma;
-  long prec = nbits2prec(gexpo(pol)+gexpo(zc)) + EXTRAPRECWORD;
+  long prec = nbits2prec(gexpo(pol)+gexpo(zc)) + EXTRAPREC64;
   for (;;)
   {
     GEN R = roots(pol, prec), s = NULL;

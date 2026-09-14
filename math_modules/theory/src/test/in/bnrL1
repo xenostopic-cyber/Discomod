@@ -15,5 +15,10 @@ cond=rnfconductor(bnf,P,1);
 bnr=bnrinit(bnf,cond[1]);
 real(bnrL1(bnr,cond[3],1))
 
+k = bnfinit(x^2+7,1);
+f = idealhnf(k, Mod(11, x^2 + 7), Mod(1/2*x + 9/2, x^2 + 7));
+bnr = bnrinit(k, f, 1);
+bnrL1(bnr,,4)
+
 default(realprecision,100);
 bnrL1(bnrinit(bnfinit(Q),[5,[1]]))[1]

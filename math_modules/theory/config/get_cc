@@ -112,7 +112,7 @@ if test -n "$__gnuc__"; then
   esac
 
   PRFFLAGS="-pg $OPTFLAGS"
-  GCOVFLAGS="-fprofile-arcs -ftest-coverage"
+  GCOVFLAGS="-fprofile-arcs -ftest-coverage -fprofile-update=atomic"
 else
   DBGFLAGS=${DBGFLAGS:-'-g'}
   PRFFLAGS='-pg'

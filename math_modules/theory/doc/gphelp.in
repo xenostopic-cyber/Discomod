@@ -300,8 +300,9 @@ sub treat {
 
   my ($isdef) = /se:def,/;
   s/(\W)/\\$1/g;
-  # support dbg_* without harming defaults such as prompt_cont
-  s/_/\\\\_/g if (!$isdef);
+  # support dbg_* without harming defaults such as prompt_cont or verbatim
+  # TeX in math mode (e.g., $\Z_K$)
+  s/_/\\\\_/g if (!$isdef && !/\$/);
       ($pipe && open(DOC,"$pipe $docfile |"))
   || (!$pipe && open(DOC,"$docfile")) || die "Cannot open $docfile: $!";
   return &apropos($_) if ($apropos);
@@ -310,7 +311,8 @@ sub treat {
 
   my ($first);
   my ($pat) = $help;
-  if ($pat =~ /[a-zA-Z0-9]$/) { $pat .= '\b'; } else { $pat .= '\}'; }
+  if ($pat =~ /[a-zA-Z0-9]$/) { $pat .= '\b'; }
+  elsif ($pat !~ /\}$/) { $pat .= '\}'; }
   if ($isdef)
   {
     while (<DOC>)
@@ -396,7 +398,10 @@ sub apropos_final_print { my ($chap) = @_;
 sub apropos_check {
   my($line, $current) = @_;
   $line =~ s/\n/ /g;
-  return if ($line !~ /$help/i);
+  if ($help =~ /[a-z]/)
+  { return if ($line !~ /$help/i); }
+  else
+  { return if ($line !~ /$help/); }
 
   local($_) = $current;
   s/\\b\{(.)\}/\\$1/;
@@ -930,7 +935,7 @@ sub basic_subst {
   s/ *\\ll?(?![a-zA-Z]) *([^ ])/ $tr{startcode}$tr{lt}$tr{ll}$tr{endcode} $1/g;
 
   s/\\(vers|PARIversion)(?![a-zA-Z])/$tr{startbold}$version$tr{endbold}/g;
-  s/\\([QRCPFZN])(?![a-zA-Z])/$tr{startbi}$1$tr{endbi}$2/g;
+  s/\\([AQRCPFZN])(?![a-zA-Z])/$tr{startbi}$1$tr{endbi}$2/g;
   s/\\Bbb\b\s*(\w)/$tr{startbi}$1$tr{endbi}/g;
 
   s/\\([oc]br)/$tr{$1}/g;

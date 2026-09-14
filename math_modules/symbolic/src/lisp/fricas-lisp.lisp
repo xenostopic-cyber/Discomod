@@ -43,7 +43,6 @@
   (setq extensions:*intexp-maximum-exponent* (- most-positive-fixnum 64))
   (setf *read-default-float-format* 'double-float))
 
-#-:sbcl
 (eval-when (:execute :load-toplevel)
     (set-initial-parameters))
 
@@ -574,7 +573,6 @@ with this hack and will try to convince the GCL crowd to fix this.
 (fricas-foreign-call |makedir| "makedir" int
         (arg c-string))
 
-#+:fricas_has_remove_directory
 (fricas-foreign-call |remove_directory| "remove_directory" int
         (dir_name c-string))
 

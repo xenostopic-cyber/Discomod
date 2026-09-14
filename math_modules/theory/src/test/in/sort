@@ -41,6 +41,8 @@ vecsearch(v, [3,1]~)
 vecsearch(v, [2,2])
 vecsearch(v, [2,1])
 
+vecsort([ Vecsmall([random(10),random(10)]) |i<-[1..10]], 2)
+
 \\Errors
 vecsearch(Vecsmall(1),1,1)
 vecsort(Vecsmall(1),1)

@@ -15,6 +15,11 @@ ceil(1/2 + w/7)
 round(w)
 round(1/2 + w/7)
 ceil(quadgen(5)*0)
+abs(w)
+abs(3 + 4 * quadgen(-4))
+abs(3 + quadgen(-4))
+abs(3 + 0*quadgen(-4))
+abs(1/2 + 0*quadgen(-4))
 
 w < 1
 1 < w

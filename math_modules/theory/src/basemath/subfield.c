@@ -28,6 +28,7 @@ typedef struct _poldata {
   GEN dis; /* |disc(pol)| */
   GEN roo; /* roots(pol) */
   GEN den; /* multiple of index(pol) */
+  long r1; /* number of real roots */
 } poldata;
 typedef struct _primedata {
   GEN p;  /* prime */
@@ -573,23 +574,42 @@ choose_prime(primedata *S, GEN pol)
 
 /* maxroot t_REAL */
 static GEN
-bound_for_coeff(long m, GEN R, GEN *maxroot)
+bound_for_coeff(long m, GEN R, long r1, GEN *maxroot)
 {
-  GEN b1, b2, M, v, C = vecbinomial(m-1);
-  long i, r1, l = lg(R);
+  GEN v, zmax = NULL, M = NULL, C = vecbinomial(m-1);
+  long i = 1, n = lg(R)-1;
 
-  for (r1 = 1; r1 < l; r1++)
-    if (typ(gel(R,r1)) != t_REAL) break;
-  r1--;
-  R = gabs(R,0); *maxroot = vecmax(R);
-  for (b1 = gen_1, i = 1; i <= r1; i++)
-    if (gcmpgs(gel(R,i), 1) > 0) b1 = gmul(b1, gel(R,i));
-  for (b2 = gen_1    ; i < l; i++)
-    if (gcmpgs(gel(R,i), 1) > 0) b2 = gmul(b2, gel(R,i));
-  M = gmul(b1, gsqr(b2)); /* Mahler measure */
+  if (r1)
+  {
+    for (; i <= r1; i++) /* r1 real roots */
+    {
+      GEN z = gel(R,i);
+      if (!zmax || abscmprr(z, zmax) > 0) zmax = z;
+      if (expo(z) >= 0) M = M? mulrr(M, z): z;
+    }
+  }
+  if (r1 != n)
+  {
+    GEN oldzmax = zmax;
+    int zmax_real = 0;
+    if (zmax) zmax = sqrr(zmax);
+    for (; i <= n; i++) /* r2 pairs of complex roots, use SQUARED modulus */
+    {
+      GEN m = cxnorm(gel(R,i));
+      if (!zmax || cmprr(m, zmax) > 0) { zmax = m; zmax_real = 0; }
+      if (expo(m) >= 0) M = M? mulrr(M, m): m;
+    }
+    zmax = zmax_real? oldzmax: sqrtr_abs(zmax);
+  }
+  setsigne(zmax, 1); *maxroot = zmax; /* largest root modulus */
+  if (M) setsigne(M, 1); /* M = Mahler measure */
   v = cgetg(m+2, t_VEC); gel(v,1) = gel(v,2) = gen_0; /* unused */
   for (i = 1; i < m; i++) /* binom(m-1, i) * M + binom(m-1, i-1) */
-    gel(v, i+2) = ceil_safe(gadd(gmul(gel(C, i+1), M), gel(C, i)));
+  {
+    GEN c = gel(C, i+1);
+    if (M) c = mulir(c, M);
+    gel(v, i+2) = ceil_safe(addri(c, gel(C, i)));
+  }
   return v;
 }
 
@@ -653,7 +673,7 @@ compute_data(blockdata *B)
     gel(DATA,9) = leafcopy(S->interp);
   }
   gel(DATA,1) = pol;
-  MM = gmul2n(bound_for_coeff(B->d, roo, &maxroot), 1);
+  MM = gmul2n(bound_for_coeff(B->d, roo, B->PD->r1, &maxroot), 1);
   gel(DATA,8) = MM;
   e = logintall(shifti(vecmax(MM),20), p, &pe); /* overlift 2^20 [d-1 test] */
   gel(DATA,2) = pe;
@@ -795,21 +815,23 @@ fix_var(GEN x, long v, long fl)
 static void
 subfields_poldata(GEN nf, GEN T, poldata *PD)
 {
-  GEN L, dis;
+  GEN L, D;
 
   PD->pol = T;
   if (nf)
   {
+    PD->r1 = nf_get_r1(nf);
     PD->den = nf_get_zkden(nf);
     PD->roo = nf_get_roots(nf);
-    PD->dis = mulii(absi_shallow(nf_get_disc(nf)), sqri(nf_get_index(nf)));
+    D = mulii(nf_get_disc(nf), sqri(nf_get_index(nf)));
   }
   else
   {
-    PD->den = initgaloisborne(T,NULL,nbits2prec(bit_accuracy(ZX_max_lg(T))), &L,NULL,&dis);
+    long prec = bit_accuracy(ZX_max_lg(T));
+    PD->den = initgaloisborne(T,NULL,prec, &PD->r1,&L,NULL,&D);
     PD->roo = L;
-    PD->dis = absi_shallow(dis);
   }
+  PD->dis = D; setsigne(D, 1);
 }
 
 static GEN nfsubfields_fa(GEN nf, long d, long fl);
@@ -900,7 +922,7 @@ nfsubfields0(GEN nf0, long d, long fl)
     {
       GEN H = gel(L,i);
       if (group_order(H) == o)
-        gel(F,k++) = lift_shallow(galoisfixedfield(G, gel(H,1), fl, v0));
+        gel(F,k++) = lift_shallow(galoisfixedfield(G, H, fl, v0));
     }
     setlg(F, k);
     return gc_GEN(av, F);
@@ -1183,7 +1205,7 @@ galoissubfieldcm(GEN G, long fl)
   /* compute the list of c*g*c*g^(-1) : product of all pairs of conjugations
    * maximal CM subfield is the field fixed by those elements, if c does not
    * belong to the group they generate */
-  checkgroup(G, &elts);
+  elts = checkgroupelts(G);
   elts = gen_sort_shallow(elts,(void*)vecsmall_lexcmp,cmp_nodata);
   H = vecsmall_ei(n,1); /* indices of elements of H */
   Hset = zero_F2v(n);

@@ -108,11 +108,12 @@ mulqi(GEN M, GEN q, GEN *ap, GEN *bp)
 static long
 isint2n(GEN n)
 {
-  GEN x;
   long lx = lgefint(n), i;
+  ulong a;
+  GEN x;
   if (lx == 2) return 0;
   x = int_MSW(n);
-  if (*(ulong*)x != 1UL<<expu(*(ulong*)x) ) return 0;
+  a = (ulong)*x; if (a & (a - 1)) return 0;
   for (i = 3; i < lx; i++)
   {
     x = int_precW(x); if (*x) return 0;

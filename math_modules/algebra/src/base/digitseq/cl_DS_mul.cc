@@ -521,7 +521,7 @@ namespace cln {
           mulu_2loop_square(sourceptr,len,destptr);
         else
 #if CL_USE_GMP && __GNU_MP__ >= 4
-            mpn_mul(destptr,sourceptr,len,sourceptr,len);
+          mpn_mul(destptr,sourceptr,len,sourceptr,len);
 #else
           if (!(len >= cl_fftm_threshold))
             mulu_karatsuba_square(sourceptr,len,destptr);

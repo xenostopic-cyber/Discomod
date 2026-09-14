@@ -827,16 +827,15 @@ suminf(void *E, GEN (*eval)(void *, GEN), GEN a, long bit)
 {
   long fl = 0, G = bit + 1;
   pari_sp av0 = avma, av;
-  GEN x = NULL, _1;
+  GEN t, x, one;
 
   if (typ(a) != t_INT) pari_err_TYPE("suminf",a);
-  a = setloop(a); av = avma;
+  a = setloop(a); t = eval(E, a);
+  one = x = sum_init(real_1(bit), t);
+  av = avma;
   for(;;)
   {
-    GEN t = eval(E, a);
-    if (!x) _1 = x = sum_init(real_1_bit(bit), t);
-
-    x = gadd(x,t);
+    x = gadd(x, t);
     if (!gequal0(t) && gexpo(t) > gexpo(x)-G)
       fl = 0;
     else if (++fl == 3)
@@ -845,10 +844,11 @@ suminf(void *E, GEN (*eval)(void *, GEN), GEN a, long bit)
     if (gc_needed(av,1))
     {
       if (DEBUGMEM>1) pari_warn(warnmem,"suminf");
-      (void)gc_all(av,2, &x, &_1);
+      x = gc_GEN(av, x);
     }
+    t = eval(E, a);
   }
-  return gc_upto(av0, gsub(x, _1));
+  return gc_upto(av0, gsub(x, one));
 }
 GEN
 suminf0(GEN a, GEN code, long bit)
@@ -1450,7 +1450,7 @@ sumpos0(GEN a, GEN code, long flag, long prec)
 GEN
 zbrent(void *E, GEN (*eval)(void *, GEN), GEN a, GEN b, long prec)
 {
-  long sig, iter, itmax, bit, bit0;
+  long sig, iter, itmax, bit;
   pari_sp av = avma;
   GEN c, d, e, fa, fb, fc;
 
@@ -1510,7 +1510,7 @@ zbrent(void *E, GEN (*eval)(void *, GEN), GEN a, GEN b, long prec)
   if (gsigne(fa)*gsigne(fb) > 0)
     pari_err_DOMAIN("solve", "f(a)f(b)", ">", gen_0, mkvec2(fa, fb));
 SOLVE:
-  bit0 = -prec; bit = 3+bit0; itmax = 1 - 2*bit0;
+  bit = 3-prec; itmax = 1 + 2*prec;
   c = b; fc = fb; e = d = NULL;
   for (iter = 1; iter <= itmax; ++iter)
   { /* b = current best guess, a = previous one, c auxiliary point
@@ -1526,7 +1526,7 @@ SOLVE:
     if (bit < exb)
     {
       bit2 = bit + exb - 1;
-      if (expo(m) <= exb + bit0) break; /*SUCCESS*/
+      if (expo(m) <= exb - prec) break; /*SUCCESS*/
     }
     else
     { /* b ~ 0 */
@@ -1674,7 +1674,7 @@ GEN
 derivnum(void *E, GEN (*eval)(void *, GEN, long), GEN x, long prec)
 {
   long newprec, e, ex = gexpo(x), p = precision(x);
-  long b0 = prec2nbits(p? p: prec), b = (long)ceil(b0 * 1.5 + maxss(0,ex));
+  long b0 = p? p: prec, b = (long)ceil(b0 * 1.5 + maxss(0,ex));
   GEN eps, u, v, y;
   pari_sp av = avma;
   newprec = nbits2prec(b + EXTRAPREC64);
@@ -2214,19 +2214,20 @@ asympnum(void *E, GEN (*f)(void *, GEN, long), GEN alpha, long prec)
   const long MAX = 100;
   pari_sp av = avma;
   GEN u, A = cgetg(MAX+1, t_VEC);
-  long i, B = prec2nbits(prec);
-  double LB = 0.9*expu(B); /* 0.9 and 0.95 below are heuristic */
+  double B = 0.9*expu(prec); /* 0.9 and 0.95 below are heuristic */
+  long i;
   struct limit L;
+
   limit_Nprec(&L, alpha, prec);
-  if (alpha) LB *= gtodouble(alpha);
+  if (alpha) B *= gtodouble(alpha);
   limit_init(&L, alpha, 1);
   u = get_u(E, f, L.N, L.prec);
   for(i = 1; i <= MAX; i++)
   {
     GEN a, v, q, s = limitnum_i(&L, u, prec);
-    long n;
+    long n, bit = maxss((long)(0.95*floor(prec - i*B)), 32);
     /* NOT bestappr: lindep properly ignores the lower bits */
-    v = lindep_bit(mkvec2(gen_1, s), maxss((long)(0.95*floor(B - i*LB)), 32));
+    v = lindep_bit(mkvec2(gen_1, s), bit);
     if (lg(v) == 1) break;
     q = gel(v,2); if (!signe(q)) break;
     a = gdiv(negi(gel(v,1)), q);
@@ -2243,7 +2244,7 @@ asympnumraw(void *E, GEN (*f)(void *,GEN,long), long LIM, GEN alpha, long prec)
 {
   pari_sp av = avma;
   double c, d, al;
-  long i, B;
+  long i;
   GEN u, A;
   struct limit L;
 
@@ -2251,9 +2252,8 @@ asympnumraw(void *E, GEN (*f)(void *,GEN,long), long LIM, GEN alpha, long prec)
   c = get_c(alpha);
   d = get_accu(alpha);
   al = alpha? gtodouble(alpha): 1.0;
-  B = prec2nbits(prec);
-  L.N = ceil(solvedivlog(c * al * LIM / M_LN2, c * B));
-  L.prec = nbits2prec(ceil(B + L.N / c + d * L.N));
+  L.N = ceil(solvedivlog(c * al * LIM / M_LN2, c * prec));
+  L.prec = nbits2prec(ceil(prec + L.N / c + d * L.N));
   limit_init(&L, alpha, 1);
   u = get_u(E, f, L.N, L.prec);
   A = cgetg(LIM+2, t_VEC);

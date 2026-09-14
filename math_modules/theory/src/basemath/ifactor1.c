@@ -1992,7 +1992,7 @@ is_357_power(GEN x, GEN *pt, ulong *mask)
          if (*mask & 4) { b = 4; e = 7; }
     else if (*mask & 2) { b = 2; e = 5; }
     else                { b = 1; e = 3; }
-    y = mpround( sqrtnr(itor(x, nbits2prec(64 + bit_accuracy(lx) / e)), e) );
+    y = mpround( sqrtnr(itor_lg(x, nbits2lg(64 + bit_accuracy(lx) / e)), e) );
     if (equalii(powiu(y,e), x))
     {
       if (!pt) return gc_int(av,e);
@@ -2051,7 +2051,7 @@ is_kth_power(GEN x, ulong n, GEN *pt)
 
   if (DEBUGLEVEL>4) err_printf("\nOddPwrs: [%lu] passed modular checks\n",n);
   /* go to the horse's mouth... */
-  y = roundr( sqrtnr(itor(x, nbits2prec(expi(x)/n + 16)), n) );
+  y = roundr( sqrtnr(itor_lg(x, nbits2lg(expi(x)/n + 16)), n) );
   if (!equalii(powiu(y, n), x)) {
     if (DEBUGLEVEL>4) err_printf("\tBut it wasn't a pure power.\n");
     return gc_ulong(av,0);

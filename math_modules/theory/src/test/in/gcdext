@@ -110,7 +110,11 @@ A = 7*t*y*x^2*z^2 - 3*t + t*x*y*z + 11*(x + 1 + t)*y^2 + 5*z + t + 1;
 p = A^3 * (3*t*x - 7*t*y + 2*z - 3*t + 1)^4;
 q = A^4 * (3*t*x - 7*t*y + 2*z + 3*t + 1)^3;
 if (gcd(p,q)!= A^3, error("multivariate gcd"));
-if (type(simplify(gcd(p*Mod(1,101),q*Mod(1,101))/A^3))!="t_INTMOD", error("multivariate gcd"));
+{
+  forprime(l = 2, 7,
+    my(g = simplify(gcd(p*Mod(1,l),q*Mod(1,l))/A^3));
+    if (type(g)!="t_INTMOD", print(l,":",lift(g))));
+}
 
 chkgcdext(a,b,p)=
 {

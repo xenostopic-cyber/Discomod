@@ -2675,8 +2675,18 @@ znorder(GEN x, GEN o)
   pari_sp av = avma;
   GEN b, a;
 
-  if (typ(x) != t_INTMOD) pari_err_TYPE("znorder [t_INTMOD expected]",x);
-  b = gel(x,1); a = gel(x,2);
+  if (typ(x) != t_INTMOD)
+  {
+    if (!o || !checkznstar_i(o) || typ(x) != t_INT)
+      pari_err_TYPE("znorder [t_INTMOD expected]",x);
+    b = znstar_get_N(o); a = modii(x, b);
+  }
+  else
+  {
+    b = gel(x,1); a = gel(x,2);
+    if (o && checkznstar_i(o) && !equalii(b, znstar_get_N(o)))
+      pari_err_TYPE("znorder [inconsistent modulus]",x);
+  }
   if (!equali1(gcdii(a,b))) pari_err_COPRIME("znorder", a,b);
   if (!o)
   {
@@ -3610,6 +3620,65 @@ sersfcont(GEN a, GEN b, long k)
   }
   setlg(y, i); return y;
 }
+static GEN
+quadsfcontbound(GEN a, long k)
+{
+  pari_sp av = avma;
+  long i, l = k+1;
+  GEN y = cgetg(l,t_VEC);
+  for (i=1; i<l; i++)
+  {
+    GEN c = gfloor(a);
+    gel(y,i) = c;
+    a = ginv(gsub(a,c));
+  }
+  return gc_GEN(av, y);
+}
+
+static int
+quad_isreduced(GEN x)
+{
+  GEN c = conj_i(x);
+  return gcmp(x, gen_1) > 0 && gcmp(c,gen_0) < 0 && gcmp(c,gen_m1) > 0;
+}
+
+static GEN
+quadsfcont(GEN a)
+{
+  pari_sp av = avma;
+  GEN a0 = NULL, V, W;
+  long i, l = 16;
+  V = cgetg(l+1, t_VEC);
+  for (i = 1;;)
+  {
+    GEN c;
+    if (quad_isreduced(a))
+      break;
+    c = gfloor(a);
+    gel(V,i++) = c;
+    a = ginv(gsub(a, c));
+    if (i==l+1)
+    {
+      l *= 2; V = vec_lengthen(V, l);
+    }
+  }
+  setlg(V, i);
+  l = 16; a0 = a;
+  W = cgetg(l+1, t_VEC);
+  for (i = 1;; i++)
+  {
+    GEN c = gfloor(a);
+    gel(W,i) = c;
+    a = ginv(gsub(a, c));
+    if (gequal(a, a0))
+      break;
+    if (i==l)
+    {
+      l *= 2; W = vec_lengthen(W, l);
+    }
+  }
+  setlg(W, i+1); return gc_GEN(av, mkvec2(V,W));
+}
 
 GEN
 gboundcf(GEN x, long k)
@@ -3637,12 +3706,18 @@ gboundcf(GEN x, long k)
       case t_FRAC:
         av = avma;
         return gc_upto(av, Qsfcont(gel(x,1),gel(x,2), NULL, k));
+      case t_QUAD:
+        if (signe(quad_disc(x)) <= 0) pari_err_DOMAIN("contfrac","x.disc","<",gen_0,x);
+        return k ? quadsfcontbound(x, k): quadsfcont(x);
     }
     pari_err_TYPE("gboundcf",x);
   }
 
   switch(tx)
   {
+    case t_QFB:
+      if (signe(qfb_disc(x)) <= 0) pari_err_DOMAIN("contfrac","x.disc","<",gen_0,x);
+      return k ? qfr_boundcf(x,k): qfr_cf(x);
     case t_POL: return mkveccopy(x);
     case t_SER:
       av = avma;
@@ -3826,29 +3901,32 @@ mod_to_rfrac(GEN x, GEN N, long B)
   return gdiv(a,b);
 }
 
-/* k > 0 t_INT, x a t_FRAC, returns the convergent a/b
- * of the continued fraction of x with b <= k maximal */
+/* k > 0 t_INT, x a t_FRAC, returns the convergent best rational
+ * approximation a/b of x with b <= k. This is either the last convergent
+ * p_n/q_n with q_n <= k or (tp_n + p_{n-1})/(tq_n + q_{n-1}) for the largest
+ * integer t such that the denominator is <= k. */
 static GEN
 bestappr_frac(GEN x, GEN k)
 {
-  pari_sp av;
-  GEN p0, p1, p, q0, q1, q, a, y;
+  pari_sp av, av2;
+  GEN p0, p1, q0, q1, a, y;
 
   if (cmpii(gel(x,2),k) <= 0) return gcopy(x);
   av = avma; y = x;
   p1 = gen_1; p0 = truedvmdii(gel(x,1), gel(x,2), &a); /* = floor(x) */
-  q1 = gen_0; q0 = gen_1;
-  x = mkfrac(a, gel(x,2)); /* = frac(x); now 0<= x < 1 */
+  q1 = gen_0; q0 = gen_1; av2 = avma;
+  x = mkfrac(a, gel(x,2)); /* = frac(x); now 0 < x < 1 */
   for(;;)
   {
+    GEN r = gen_0, p, q;
     x = ginv(x); /* > 1 */
-    a = typ(x)==t_INT? x: divii(gel(x,1), gel(x,2));
-    if (cmpii(a,k) > 0)
-    { /* next partial quotient will overflow limits */
+    a = typ(x)==t_INT? x: dvmdii(gel(x,1), gel(x,2), &r);
+    if (cmpii(a,k) > 0 || cmpii(q = addmulii(q1, a, q0), k) > 0)
+    { /* next partial quotient overflows limits */
       GEN n, d;
-      a = divii(subii(k, q1), q0);
-      p = addii(mulii(a,p0), p1); p1=p0; p0=p;
-      q = addii(mulii(a,q0), q1); q1=q0; q0=q;
+      a = divii(subii(k, q1), q0); /* largest a such that a*q0 + q1 <= k */
+      p = addmulii(p1, a, p0); p1 = p0; p0 = p;
+      q = addmulii(q1, a, q0); q1 = q0; q0 = q;
       /* compare |y-p0/q0|, |y-p1/q1| */
       n = gel(y,1);
       d = gel(y,2);
@@ -3857,57 +3935,36 @@ bestappr_frac(GEN x, GEN k)
                    { p1 = p0; q1 = q0; }
       break;
     }
-    p = addii(mulii(a,p0), p1); p1=p0; p0=p;
-    q = addii(mulii(a,q0), q1); q1=q0; q0=q;
-
-    if (cmpii(q0,k) > 0) break;
-    x = gsub(x,a); /* 0 <= x < 1 */
-    if (typ(x) == t_INT) { p1 = p0; q1 = q0; break; } /* x = 0 */
-
+    q1 = q0; q0 = q;
+    p = addmulii(p1, a, p0); p1 = p0; p0 = p;
+    /* q0 <= k */
+    if (r == gen_0) { p1 = p0; q1 = q0; break; } /* x = 0 */
+    x = mkfrac(r, gel(x,2)); /* x -= a => 0 <= x < 1 */
+    if (gc_needed(av,2))
+    {
+      if (DEBUGMEM>1)
+        pari_warn(warnmem,"bestappr, log2(denom) ~ %ld", expi(gel(x,2)));
+      (void)gc_all(av2, 5, &x, &p0, &p1, &q0, &q1);
+    }
   }
-  return gc_upto(av, gdiv(p1,q1));
+  return gc_upto(av, gdiv(p1, q1));
 }
 /* k > 0 t_INT, x != 0 a t_REAL, returns the convergent a/b
  * of the continued fraction of x with b <= k maximal */
 static GEN
 bestappr_real(GEN x, GEN k)
 {
-  pari_sp av = avma;
-  GEN kr, p0, p1, p, q0, q1, q, a, y = x;
+  pari_sp av;
+  long bit, e, v;
 
-  p1 = gen_1; a = p0 = floorr(x);
-  q1 = gen_0; q0 = gen_1;
-  x = subri(x,a); /* 0 <= x < 1 */
-  if (!signe(x)) { cgiv(x); return a; }
-  kr = itor(k, realprec(x));
-  for(;;)
-  {
-    long d;
-    x = invr(x); /* > 1 */
-    if (cmprr(x,kr) > 0)
-    { /* next partial quotient will overflow limits */
-      a = divii(subii(k, q1), q0);
-      p = addii(mulii(a,p0), p1); p1=p0; p0=p;
-      q = addii(mulii(a,q0), q1); q1=q0; q0=q;
-      /* compare |y-p0/q0|, |y-p1/q1| */
-      if (abscmprr(mulir(q1, subri(mulir(q0,y), p0)),
-                   mulir(q0, subri(mulir(q1,y), p1))) < 0)
-                   { p1 = p0; q1 = q0; }
-      break;
-    }
-    d = nbits2prec(expo(x) + 1);
-    if (d > realprec(x)) { p1 = p0; q1 = q0; break; } /* original x was ~ 0 */
-
-    a = truncr(x); /* truncr(x) will NOT raise e_PREC */
-    p = addii(mulii(a,p0), p1); p1=p0; p0=p;
-    q = addii(mulii(a,q0), q1); q1=q0; q0=q;
-
-    if (cmpii(q0,k) > 0) break;
-    x = subri(x,a); /* 0 <= x < 1 */
-    if (!signe(x)) { p1 = p0; q1 = q0; break; }
-  }
-  if (signe(q1) < 0) { togglesign_safe(&p1); togglesign_safe(&q1); }
-  return gc_GEN(av, equali1(q1)? p1: mkfrac(p1,q1));
+  if (!signe(x)) return gen_0;
+  /* i <= e iff nbits2lg(e+1) > lg(x) iff floorr(x) fails */
+  bit = realprec(x); if (bit <= expo(x)) return NULL;
+  av = avma; x = mantissa_real(x, &e); v = vali(x);
+  if (v) { x = shifti(x, -v); e -= v; }
+  if (e <= 0) return gc_INT(av, e? shifti(x, -e): x);
+  if (!k) k = int2n((bit + 1) >> 1);
+  return gc_upto(av, bestappr_frac(mkfrac(x, int2n(e)), k));
 }
 
 /* k t_INT or NULL */
@@ -3921,11 +3978,7 @@ bestappr_Q(GEN x, GEN k)
   {
     case t_INT: return icopy(x);
     case t_FRAC: return k? bestappr_frac(x, k): gcopy(x);
-    case t_REAL:
-      if (!signe(x)) return gen_0;
-      /* i <= e iff nbits2lg(e+1) > lg(x) iff floorr(x) fails */
-      i = bit_prec(x); if (i <= expo(x)) return NULL;
-      return bestappr_real(x, k? k: int2n(i));
+    case t_REAL: return bestappr_real(x, k);
 
     case t_INTMOD: {
       pari_sp av = avma;

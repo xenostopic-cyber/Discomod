@@ -1,0 +1,110 @@
+Function: _header_number_fields_relative
+Class: header
+Section: number_fields_relative
+Doc:
+ \section{Relative extensions of number fields and $\Z_K$-modules}
+
+ We now have a look at data structures attached to relative extensions
+ of number fields $L/K$, and to projective $\Z_{K}$-modules. When defining a
+ relative extension $L/K$, the $\var{nf}$ attached to the base field $K$
+ must be defined by a variable having a lower priority (see
+ \secref{se:priority}) than the variable defining the extension. For example,
+ you may use the variable name $y$ to define the base field $K$, and $x$ to
+ define the relative extension $L/K$.
+
+ \subsec{Basic definitions}\label{se:ZKmodules} %GPHELPskip
+
+ \item $\tev{rnf}$ denotes a relative number field, i.e.~a data structure
+ output by \kbd{rnfinit}, attached to the extension $L/K$. The \var{nf}
+ attached to be base field $K$ is \kbd{rnf.nf}.
+
+ \item A \emph{relative matrix} is an $m\times n$ matrix whose entries are
+ elements of $K$, in any form. Its $m$ columns $A_{j}$ represent elements
+ in $K^{n}$.
+
+ \item An \tev{ideal list} is a row vector of fractional ideals of the number
+ field $\var{nf}$.
+
+ \item A \tev{pseudo-matrix} is a 2-component row vector $(A,I)$ where $A$
+ is a relative $m\times n$ matrix and $I$ an ideal list of length $n$. If $I =
+ \{\goth{a}_{1},\dots, \goth{a}_{n}\}$ and the columns of $A$ are $(A_{1},\dots,
+ A_{n})$, this data defines the torsion-free (projective) $\Z_{K}$-module
+ $\goth{a}_{1} A_{1}\oplus \goth{a}_{n} A_{n}$.
+
+ \item An \tev{integral pseudo-matrix} is a 3-component row vector $(A,I,J)$
+ where $A = (a_{i,j})$ is an $m\times n$ relative matrix and $I =
+ (\goth{b}_{1},\dots, \goth{b}_{m})$, $J = (\goth{a}_{1},\dots, \goth{a}_{n})$ are ideal
+ lists, such that $a_{i,j} \in \goth{b}_{i} \goth{a}_{j}^{-1}$ for all $i,j$. This
+ data defines two abstract projective $\Z_{K}$-modules
+ $N = \goth{a}_{1}\omega_{1}\oplus \cdots\oplus \goth{a}_{n}\omega_{n}$
+ in $K^{n}$,
+ $P = \goth{b}_{1}\eta_{1}\oplus \cdots\oplus \goth{b}_{m}\eta_{m}$ in $K^{m}$,
+ and a $\Z_{K}$-linear map $f:N\to P$ given by
+ $$ f(\sum_{j} \alpha_{j}\omega_{j}) = \sum_{i} \Big(a_{i,j}\alpha_{j}\Big)
+ \eta_{i}.$$
+ This data defines the $\Z_{K}$-module $M = P/f(N)$.
+
+ \item Any \emph{projective} $\Z_{K}$-module\varsidx{projective module} $M$
+ of finite type in $K^{m}$ can be given by a pseudo matrix $(A,I)$.
+
+ \item An arbitrary $\Z_{K}$ module of finite type in $K^{m}$, with nontrivial
+ torsion, is given by an integral pseudo-matrix $(A,I,J)$
+
+ \subsec{Algebraic numbers in relative extensions} %GPHELPskip
+
+ We are given a number field $K = \kbd{nfinit}(T)$, attached to $K = \Q[Y]/(T)$,
+ $T \in \Q[Y]$, and a relative extension $L = \kbd{rnfinit}(K, P)$, attached
+ to $L = K[X]/(P)$, $P \in K[X]$.
+ In all contexts (except \kbd{rnfeltabstorel} and \kbd{rnfeltdown}, see below), an
+ \tev{algebraic number} is given as
+
+ \item a \typ{INT}, \typ{FRAC} or \typ{POL} in $\Q[Y]$ (implicitly modulo $T$)
+ or a \typ{POL} in $K[X]$ (implicitly modulo $P$),
+
+ \item a \typ{POLMOD} (modulo $T$ or $P$), or
+
+ \item a \typ{COL}~\kbd{v} of dimension $m = [K:\Q]$, representing
+ the element in terms of the integral basis \kbd{K.zk};
+
+ \item if an absolute \kbd{nf} structure \kbd{Labs} was attached to $L$, via
+ \kbd{Labs = nfinit}$(L)$, then we can also use a \typ{COL}~\kbd{v} of
+ dimension $[L:\Q]$, representing the element in terms of the computed integral
+ basis \kbd{Labs.zk}. Be careful that in the degenerate case
+ $L = K$, then the previous interpretation (with respect to \kbd{$K$.zk})
+ takes precedence. This is no concern when $K = \Q$ or if $P = X - Y$
+ (because in that case the primitive
+ polynomial \kbd{Labs.pol} defining $L$ of $\Q$ is \kbd{nf.pol} and the
+ computation of \kbd{nf.zk} is deterministic); but in other cases, the
+ integer bases attached to $K$ and \kbd{Labs} may differ.
+
+ \misctitle{Special case: \kbd{rnfeltabstorel} and \kbd{rnfeltdown}}
+ These two functions assume
+ that elements are given in absolute representation (with respect to
+ \kbd{Labs.zk} or modulo \kbd{Labs.pol} and converts them to relative
+ representation modulo \kbd{$L$.pol}. In these two functions (only), a \typ{POL} in
+ $X$ is implicitly understood modulo \kbd{Labs.pol} and a \typ{COL}
+ of length $[L:\Q]$ refers to the integral basis \kbd{Labs.zk} in all cases,
+ including $L = K$.
+
+ \subsec{Pseudo-bases, determinant} %GPHELPskip
+
+ \item The pair $(A,I)$ is a \tev{pseudo-basis} of the module it
+ generates if the $\goth{a}_{j}$ are nonzero, and the $A_{j}$ are $K$-linearly
+ independent. We call $n$ the \emph{size} of the pseudo-basis. If $A$ is a
+ relative matrix, the latter condition means it is square with nonzero
+ determinant; we say that it is in Hermite Normal
+ Form\sidx{Hermite normal form} (HNF) if it is upper triangular and all the
+ elements of the diagonal are equal to 1.
+
+ \item For instance, the relative integer basis \kbd{rnf.zk} is a pseudo-basis
+ $(A,I)$ of $\Z_{L}$, where $A = \kbd{rnf.zk[1]}$ is a vector of elements of $L$,
+ which are $K$-linearly independent. Most \var{rnf} routines return and handle
+ $\Z_{K}$-modules contained in $L$ (e.g.~$\Z_{L}$-ideals) via a pseudo-basis
+ $(A',I')$, where $A'$ is a relative matrix representing a vector of elements of
+ $L$ in terms of the fixed basis \kbd{rnf.zk[1]}
+
+ \item The \emph{determinant} of a pseudo-basis $(A,I)$ is the ideal
+ equal to the product of the determinant of $A$ by all the ideals of $I$. The
+ determinant of a pseudo-matrix is the determinant of any pseudo-basis of the
+ module it generates.
+

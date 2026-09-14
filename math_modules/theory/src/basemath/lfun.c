@@ -684,7 +684,7 @@ lfunthetainit0(GEN ldata, GEN tdom, GEN an2, long m,
     get_cone_fuzz(tdom, &r, &a);
     tdom = mkvec2(dbltor(r), a? dbltor(a): gen_0);
   }
-  prec += maxss(EXTRAPREC64, nbits2extraprec(extrabit));
+  prec = nbits2prec(prec + maxss(EXTRAPREC64, extrabit));
   tech = mkvecn(7, an2,K,R, stoi(bitprec), stoi(m), tdom,
                    gsqrt(ginv(N), prec_fix(prec)));
   return mkvec3(mkvecsmall(t_LDESC_THETA), ldata, tech);
@@ -898,7 +898,7 @@ lfuntheta(GEN data, GEN t, long m, long bitprec)
     limt = minss(limt, lfunthetacost(ldata, t, m, bitprec, NULL));
   if (!limt)
   {
-    set_avma(ltop); S = real_0_bit(-bitprec);
+    set_avma(ltop); S = real_0_expo(-bitprec);
     if (!is_real_t(typ(t)) || !ldata_isreal(ldata))
       S = gc_GEN(ltop, mkcomplex(S,S));
     return S;
@@ -1392,7 +1392,7 @@ lfun_init_theta(GEN ldata, GEN eno, struct lfunp *S)
   {
     tdom = dbltor(sqrt(0.5));
     L = maxss(S->nmax, lfunthetacost(ldata, tdom, 0, S->D, &extrabit));
-    prec += nbits2extraprec(extrabit);
+    prec = nbits2prec(prec + extrabit);
   }
   dual = ldata_get_dual(ldata);
   S->an = ldata_vecan(ldata_get_an(ldata), L, prec);
@@ -1526,7 +1526,7 @@ lfuninit(GEN lmisc, GEN dom, long der, long bitprec)
   }
 
   lfunp_set(ldata, der, bitprec, &S);
-  ldata = ldata_newprec(ldata, nbits2prec(S.Dmax));
+  ldata = ldata_newprec(ldata, S.precmax);
   r = ldata_get_residue(ldata);
   k = ldata_get_k(ldata); /* if k is t_REAL, ldata_newprec may change it */
   /* Note: all guesses should already have been performed (thetainit more

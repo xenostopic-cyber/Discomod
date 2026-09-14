@@ -431,6 +431,19 @@ qfr5_dist(GEN e, GEN d, long prec)
   shiftr_inplace(t, -1); return t;
 }
 
+/* cf rho_get_BC, with contfrac normalizations: applies rho^(-1) and
+ * make sure a > 0 */
+static GEN
+rhoi_cf(GEN *A, GEN *B, GEN *C, GEN t)
+{
+  GEN u, q, a = *A, b = *B, c = *C;
+  q = truedvmdii(addii(t, b), shifti(a,1), &u);
+  *A = subii(c, mulii(q, subii(b, mulii(q,a))));
+  *B = subii(u, t);
+  *C = a;
+  if (signe(*A) < 0) { *A = negi(*A); *B = negi(*B); *C = negi(*C); }
+  return q;
+}
 static void
 rho_get_BC(GEN *B, GEN *C, GEN a, GEN b, GEN c, struct qfr_data *S)
 {
@@ -933,6 +946,48 @@ qfr_red_i(GEN Q, long flag, GEN isqrtD, GEN sqrtD)
       Q = mkqfb(negi(gel(Q,1)), negi(gel(Q,2)), negi(gel(Q,3)), gel(Q,4));
   }
   return qfr_red_basecase_i(Q, flag, isqrtD, sqrtD);
+}
+
+GEN
+qfr_boundcf(GEN x, long n)
+{
+  pari_sp av = avma;
+  GEN a = gel(x,1), b = gel(x,2), c = gel(x,3), d = gel(x,4), V;
+  GEN t = sqrtint(d);
+  long i;
+  if (signe(a) < 0) { a = negi(a); c = negi(c); } else b = negi(b);
+  V = cgetg(n+1, t_VEC);
+  for (i = 1; i <= n; i++) gel(V,i) = rhoi_cf(&a, &b, &c, t);
+  return gc_GEN(av, V);
+}
+
+GEN
+qfr_cf(GEN x)
+{
+  pari_sp av = avma;
+  GEN a = gel(x,1), b = gel(x,2), c = gel(x,3), d = gel(x,4);
+  GEN t = sqrtint(d);
+  GEN a0 = NULL, b0 = NULL, V, W;
+  long i, l = 16;
+  if (signe(a) < 0) { a = negi(a); c = negi(c); }
+  else b = negi(b);
+  V = cgetg(l+1, t_VEC);
+  for (i = 1;;i++)
+  {
+    if (ab_isreduced(a, b, t)) break;
+    gel(V,i) = rhoi_cf(&a, &b, &c, t);
+    if (i==l) { l *= 2; V = vec_lengthen(V, l); }
+  }
+  setlg(V, i); l = 16;
+  a0 = a; b0 = b;
+  W = cgetg(l+1, t_VEC);
+  for (i = 1;; i++)
+  {
+    gel(W,i) = rhoi_cf(&a, &b, &c, t);
+    if (equalii(a,a0) && equalii(b,b0)) break;
+    if (i==l) { l *= 2; W = vec_lengthen(W, l); }
+  }
+  setlg(W, i+1); return gc_GEN(av, mkvec2(V,W));
 }
 
 static GEN

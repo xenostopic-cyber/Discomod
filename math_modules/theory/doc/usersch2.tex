@@ -329,8 +329,8 @@ $\ell \geq 0$; it comprises
 
 \item a mantissa $m$: a multiprecision integer, $0\leq m < 2^\ell$;
 
-\item an exponent $e$: a small integer in $[-2^B,2^B[$, where $B = 31$ on a
-32-bit machine and 63 otherwise.
+\item a binary exponent $e$: a small integer in $[-2^B,2^B[$, where $B = 31$
+on a 32-bit machine and 63 otherwise.
 
 This data may represent any real number $x$ such that
 $$|x - s m 2^e| < 2^{e-\ell}.$$
@@ -353,8 +353,8 @@ integers $n$. Since the result is converted to a \typ{REAL}, you may often
 omit the decimal point in this case: \kbd{6.02 E 23} or \kbd{1e-5} are fine,
 but \kbd{e10} is not.
 
-By definition, \kbd{0.E $n$} returns a real $0$ of exponent $n$, whereas
-\kbd{0.} returns a real 0 ``of default precision'' (of exponent
+By definition, \kbd{0.E $n$} returns a real $0$ of decimal exponent $n$, whereas
+\kbd{0.} returns a real 0 ``of default precision'' (of decimal exponent
 $-\tet{realprecision}$), see \secref{se:whatzero}, behaving like the machine
 epsilon for the current default accuracy: any float of smaller absolute value
 is indistinguishable from $0$.
@@ -380,6 +380,14 @@ Note that most decimal floating point numbers cannot be converted exactly
 in binary, the (binary) number actually stored is a rounded version of the
 (decimal) number input. Analogously, a decimal output is rounded
 from the internal binary representation.
+
+To input a \emph{specific} binary floating point number, you can use $m * 2^e
+* 1.$, where $m$ is the mantissa: a multiplication by a power of $2$ involves
+no rounding. Creating a real $0$ of \emph{binary} exponent $e$ is not obvious
+in GP; you can use
+\bprog
+  realzero(e) = 0. << (e + getlocalbitprec());
+@eprog
 
 \subsec{Intmods (\typ{INTMOD})}%
 \sidx{intmod}\kbdsidx{t_INTMOD}
@@ -2880,7 +2888,7 @@ with \b{r} or \b{w}, if the file name itself contains a space. In such cases,
 just quote filenames or use the underlying \tet{read} or \tet{write} function.
 
 \subseckbd{?$\{\var{command}\}$} The \kbd{gp} on-line help interface.
-If you type \kbd{?$n$} where $n$ is a number from 1 to 11, you will get the
+If you type \kbd{?$n$} where $n$ is a number from 1 to 17, you will get the
 list of functions in Section $3.n$ of the manual (the list of sections being
 obtained by simply typing \kbd{?}). \label{se:exthelp}
 
@@ -3026,13 +3034,13 @@ for \kbd{setdebug("io", $n$)}.
 to the nonnegative integer $n$.
 
 \subsec{\b{h} $\{m$\kbd{-}$n\}$} Outputs some debugging info about the
-hashtable of identifiers used by the GP parser. If the argument is a number
-$n$, outputs the contents of cell $n$. Ranges can be given in the form
-$m$\kbd{-}$n$ (from cell $m$ to cell $n$, \$ = last cell). If a function name
-is given instead of a number or range, outputs info on the internal structure
-of the hash cell this function occupies (a \kbd{struct entree} in C). If the
-range is reduced to a dash ('\kbd{-}'), outputs statistics about hash cell
-usage.
+hashtables of identifiers and defaults used by the GP parser. If the argument
+is a number $n$, outputs the contents of bucket $n$ (in both tables). Ranges
+can be given in the form $m$\kbd{-}$n$ (from bucket $m$ to bucket $n$, \$ =
+last bucket). If an identifier or default is given instead of a number or range,
+outputs info on the internal structure of the bucket this name occupies
+(a \kbd{struct entree} in C). If the range is reduced to a dash ('\kbd{-}'),
+outputs statistics about hash buckets usage, for both tables.
 
 \subsec{\b{l} $\{$\var{logfile}$\}$} Switches \tet{log} mode on and off.
 If a \var{logfile} argument is given, change the default logfile name to

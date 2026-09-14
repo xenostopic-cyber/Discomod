@@ -1,0 +1,12 @@
+Function: _header_hyperelliptic_curves
+Class: header
+Section: hyperelliptic_curves
+Doc:
+ \section{Hyperelliptic curves}
+ A hyperelliptic curve $C$ can be given either by a squarefree polynomial
+ $P$ such that $C: y^{2} = P(x)$ or by a vector $[P,Q]$ such that $C: y^{2} +
+ Q(x)\*y = P(x)$ and $Q^{2}+4\*P$ is squarefree.
+
+ A few functions, sharing the prefix \kbd{genus2}, are specific to the
+ genus~$2$ case ($Q^{2} + 4\*P$ has degree 5 or 6).
+

@@ -465,7 +465,7 @@ LLL_check_progress(GEN Bnorm, long n0, GEN m, int final, long *ti_LLL)
   if (DEBUGLEVEL>2) timer_start(&T);
   u = ZM_lll_norms(m, final? 0.999: 0.75, LLL_INPLACE | LLL_NOFLATTER, &norm);
   if (DEBUGLEVEL>2) *ti_LLL += timer_delay(&T);
-  for (R=lg(m)-1; R > 0; R--)
+  for (R=lg(u)-1; R > 0; R--) /* we may have lg(u) < lg(m) */
     if (cmprr(gel(norm,R), Bnorm) < 0) break;
   for (i=1; i<=R; i++) setlg(u[i], n0+1);
   if (R <= 1)
@@ -526,8 +526,8 @@ LLL_cmbf(GEN P, GEN famod, GEN p, GEN pa, GEN bound, long a, long rec)
   /* tmax = current number of traces used (and computed so far) */
   for (tmax = 0;; tmax += N0)
   {
-    long b, bmin, bgood, delta, tnew = tmax + N0, r = lg(CM_L)-1;
-    GEN M_L, q, CM_Lp, oldCM_L;
+    long b, bmin, delta, tnew = tmax + N0, r = lg(CM_L)-1;
+    GEN M_L, CM_Lp, oldCM_L;
     int first = 1;
     pari_timer ti2, TI;
 
@@ -575,31 +575,21 @@ AGAIN:
     if (first)
     { /* initialize lattice, using few p-adic digits for traces */
       double t = gexpo(T2) - maxdd(32.0, BitPerFactor*r);
-      bgood = (long) (t * LOGp2);
-      b = maxss(bmin, bgood);
-      delta = a - b;
+      b = maxss(bmin, (long)(t * LOGp2));
+      delta = a - b; first = 0;
     }
     else
     { /* add more p-adic digits and continue reduction */
       long b0 = (long)(gexpo(T2) * LOGp2);
       if (b0 < b) b = b0;
-      b = maxss(b-delta, bmin);
-      if (b - delta/2 < bmin) b = bmin; /* near there. Go all the way */
+      b = maxss(bmin, b - delta);
+      if (b - delta/2 < bmin) b = bmin; /* near goal. Go all the way */
     }
-
-    q = powiu(p, b);
-    m = vconcat( CM_L, gdivround(T2, q) );
-    if (first)
-    {
-      GEN P1 = scalarmat(powiu(p, a-b), N0);
-      first = 0;
-      m = shallowconcat( m, vconcat(ZERO, P1) );
-      /*     [ C M_L        0     ]
-       * m = [                    ]   square matrix
-       *     [  T2'  p^(a-b) I_N0 ]   T2' = Tra * M_L  truncated
-       */
-    }
-
+    m = vconcat(CM_L, ZM_mul(gdivround(Tra, powiu(p, b)), M_L));
+    m = shallowconcat( m, vconcat(ZERO, scalarmat(powiu(p, a-b), N0)) );
+    /*     [ C M_L        0     ]
+     * m = [                    ]   square matrix
+     *     [  T2'  p^(a-b) I_N0 ]   T2' = Tra * M_L  truncated */
     CM_L = LLL_check_progress(Bnorm, n0, m, b == bmin, /*dbg:*/ &ti_LLL);
     if (DEBUGLEVEL>2)
       err_printf("LLL_cmbf: (a,b) =%4ld,%4ld; r =%3ld -->%3ld, time = %ld\n",

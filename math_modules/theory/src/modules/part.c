@@ -16,91 +16,111 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
  * Updated by Bill Allombert (2014) to use Selberg formula for L
  * following http://dx.doi.org/10.1112/S1461157012001088
  *
- * This program is basically the implementation of the script
- *
- * Psi(n, q) = my(a=sqrt(2/3)*Pi/q, b=n-1/24, c=sqrt(b));
- *             (sqrt(q)/(2*sqrt(2)*b*Pi))*(a*cosh(a*c)-(sinh(a*c)/c))
- * L(n,q)=sqrt(k/3)*sum(l=0,2*k-1,
-          if(((3*l^2+l)/2+n)%k==0,(-1)^l*cos((6*l+1)/(6*k)*Pi)))
- * part(n) = round(sum(q=1,5 + 0.24*sqrt(n),L(n,q)*Psi(n,q)))
- *
- * only faster.
- *
- * ------------------------------------------------------------------
- *   The first restriction depends on Pari's maximum precision of floating
- * point reals, which is 268435454 bits in 2.2.4, since the algorithm needs
- * high precision exponentials. For that engine, the maximum possible argument
- * would be in [5*10^15,10^16], the computation of which would need days on
- * a ~1-GHz computer. */
+ * This program is a variant of the basic script
+
+   Psi(n, q) = my(b = n-1/24, a = sqrt(2/3)*Pi*sqrt(b) / q); \
+               (a*cosh(a)-sinh(a)) / ((2*b)^(3/2)*Pi);
+   L(n,q)=sum(l=0,2*q-1, \
+              if(((3*l^2+l)/2+n)%q==0,(-1)^l*cos((6*l+1)/(6*q)*Pi)))
+   part(n) = round(sum(q=1,5 + 0.24*sqrt(n), q*L(n,q)*Psi(n,q)) / sqrt(3));
+
+ * Requires high precision exponentials which fail if
+ *   log2( exp(sqrt(2*n/3)*Pi) ) > LGBITS * BITS_IN_LONG
+ * so around n ~ 2^54 on a 32-bit machine. Impose n < 2^54 since the
+ * computation is in O~(n) anyway. This also ensures that 6(0.24 sqrt(n) + 5)
+ * fits in an ulong */
 
 #include "pari.h"
 #include "paripriv.h"
 
 /****************************************************************/
 
-/* Given c = sqrt(2/3)*Pi*sqrt(N-1/24)
- * Psi(N, q) = my(a = c/q); sqrt(q) * (a*cosh(a) - sinh(a)) */
+/* Given c = Pi/6*sqrt(24*n-1)
+ * Psi(n, q) = my(a = c/q); a*cosh(a) - sinh(a) */
 static GEN
-psi(GEN c, ulong q, long prec)
+psi(GEN c, ulong q)
 {
   GEN a = divru(c, q), ea = mpexp(a), invea = invr(ea);
-  GEN cha = shiftr(addrr(ea, invea), -1);  /* ch(a) */
-  GEN sha = shiftr(subrr(ea, invea), -1);  /* sh(a) */
-  return mulrr(sqrtr(utor(q,prec)), subrr(mulrr(a,cha), sha));
+  GEN cha = shiftr(addrr(ea, invea), -1); /* ch(a) */
+  GEN sha = shiftr(subrr(ea, invea), -1); /* sh(a) */
+  return subrr(mulrr(a,cha), sha);
 }
 
-/* L(n,q)=sqrt(k/3)*sum(l=0,2*k-1,
-          if(((3*l^2+l)/2+n)%k==0,(-1)^l*cos((6*l+1)/(6*k)*Pi)))
- * Never called with q < 3, so ignore this case */
+/* n > 0, T[1] = x, T[i] = x^i or NULL return x^n and update T according to
+ * the naive addition chain for n. Yao's algorithm would save a few
+ * multiplications (e.g., if we have 2 and 4 we can build 6 directy instead of
+ * caching 3 first) */
 static GEN
-L(GEN n, ulong k, long bitprec)
+gpow_cache(ulong n, GEN T)
 {
-  ulong r, l, m;
-  long pr = nbits2prec(bitprec / k + k);
-  GEN s = utor(0,pr), pi = mppi(pr);
-  pari_sp av = avma;
+  GEN y = gel(T,n);
+  if (y) return y;
+  if (odd(n))
+    y = gmul(gel(T,1), gpow_cache(n - 1, T));
+  else
+    y = gsqr(gpow_cache(n >> 1, T));
+  gel(T,n) = y; return y;
+}
 
-  r = 2; m = umodiu(n,k);
-  for (l = 0; l < 2*k; l++)
-  {
+/* L(n,q)=sum(l=0,2*q-1, \
+              if(((3*l^2+l)/2+n)%q==0,(-1)^l*cos((6*l+1)/(6*q)*Pi)))
+ * Not called with q < 3, so ignore this case
+ * Because n < 2^54 and q < 0.24*sqrt(n)+5, 12*q+1 fits into a 32-bit ulong */
+static GEN
+SelbergL(GEN n, ulong q, long bitprec)
+{
+  ulong l, lastl = 0, r = 2, m = umodiu(n,q), L = odd(q)? q: 2*q;
+  GEN s = NULL, v6 = NULL, zlast = NULL;
+
+  for (l = 0; l < L; l++)
+  { /* r = 2 + 3l mod q, m = n + (3l^2 + l)/2 mod q*/
     if (m == 0)
     {
-      GEN c = mpcos(divru(mulru(pi, 6*l+1), 6*k));
-      affrr(odd(l)? subrr(s, c): addrr(s, c), s);
-      set_avma(av);
+      GEN c;
+      if (!v6)
+      {
+        long prec = nbits2prec(bitprec / q + q);
+        zlast = rootsof1u_cx(12*q, prec);
+        v6 = const_vec(L, NULL); /* v6[l] = z^(6l) = e(l/2q) */
+        gel(v6,1) = gpowgs(zlast, 6);
+      }
+      if (l) zlast = gmul(zlast, gpow_cache(l - lastl, v6));
+      /* zlast = e((1 + 6l)/(12q)), t_COMPLEX of t_REALs */
+      c = gel(zlast, 1); /* cos(Pi*(6*l+1)/(6*q)) as a t_REAL */
+      if (!s)
+        s = odd(l)? negr(c): c;
+      else
+        s = odd(l)? subrr(s, c): addrr(s, c);
+      lastl = l;
     }
-    m += r; if (m >= k) m -= k;
-    r += 3; if (r >= k) r -= k;
+    m += r; if (m >= q) m -= q;
+    r += 3; if (r >= q) r -= q;
   }
-  /* multiply by sqrt(k/3) */
-  return mulrr(s, sqrtr((k % 3)? rdivss(k,3,pr): utor(k/3,pr)));
+  if (!s) return NULL;
+  /* if q odd, l and l+q contribute the same, so we halved the range */
+  return odd(q)? gmul2n(s,1): s;
 }
 
-/* Return a low precision estimate of log p(n). */
-static GEN
-estim(GEN n)
+/* estimate of log2 p(n) ~ log2(exp(Pi sqrt(2n/3)) / 4n sqrt(3)) */
+static double
+log2pn(GEN n)
 {
   pari_sp av = avma;
-  GEN p1, pi = mppi (DEFAULTPREC);
-
-  p1 = divru( itor(shifti(n,1), DEFAULTPREC), 3 );
-  p1 = mpexp( mulrr(pi, sqrtr(p1)) ); /* exp(Pi * sqrt(2N/3)) */
-  p1 = divri (shiftr(p1,-2), n);
-  p1 = divrr(p1, sqrtr( utor(3,DEFAULTPREC) ));
-  return gc_upto(av, mplog(p1));
+  GEN z, pi = mppi(DEFAULTPREC);
+  z = divru(itor(shifti(n,1), DEFAULTPREC), 3);
+  z = mpexp(mulrr(pi, sqrtr(z))); /* exp(Pi * sqrt(2n/3)) */
+  z = divrr(z, mulir(shifti(n,2), sqrtr(utor(3,DEFAULTPREC))));
+  return gc_double(av, dbllog2(z));
 }
 
-/* c = sqrt(2/3)*Pi*sqrt(n-1/24);  d = 1 / ((2*b)^(3/2) * Pi); */
+/* b = n-1/24; c = Pi*sqrt(2*b/3) = Pi*sqrt((24*n-1)) / 6;
+ * d = sqrt(3)*(2*b)^(3/2) * Pi = 6*b*c = (24*n-1) * c / 4 */
 static void
 pinit(GEN n, GEN *c, GEN *d, ulong prec)
 {
-  GEN b = divru( itor( subiu(muliu(n,24), 1), prec ), 24 ); /* n - 1/24 */
-  GEN sqrtb = sqrtr(b), Pi = mppi(prec), pi2sqrt2, pisqrt2d3;
-
-  pisqrt2d3 = mulrr(Pi, sqrtr( divru(utor(2, prec), 3) ));
-  pi2sqrt2  = mulrr(Pi, sqrtr( utor(8, prec) ));
-  *c = mulrr(pisqrt2d3, sqrtb);
-  *d = invr( mulrr(pi2sqrt2, mulrr(b,sqrtb)) );
+  GEN m = subiu(muliu(n,24), 1), Pi = mppi(prec);
+  *c = divru(mulrr(Pi, sqrtr(itor(m, prec))), 6);
+  *d = mulir(m, *c); shiftr_inplace(*d, -2);
 }
 
 /* part(n) = round(sum(q=1,5 + 0.24*sqrt(n), L(n,q)*Psi(n,q))) */
@@ -108,35 +128,33 @@ GEN
 numbpart(GEN n)
 {
   pari_sp ltop = avma, av;
-  GEN sum, est, C, D, p1, p2;
+  GEN sum, C, D, s1, s2;
   long prec, bitprec;
   ulong q;
 
   if (typ(n) != t_INT) pari_err_TYPE("partition function",n);
   if (signe(n) < 0) return gen_0;
   if (abscmpiu(n, 2) < 0) return gen_1;
-  if (cmpii(n, uu32toi(0x38d7e, 0xa4c68000)) >= 0)
-    pari_err_OVERFLOW("numbpart [n < 10^15]");
-  est = estim(n);
-  bitprec = (long)(rtodbl(est)/M_LN2) + 32;
+  if (expi(n) > 53) pari_err_OVERFLOW("numbpart [n < 2^54]");
+  bitprec = (long)log2pn(n) + 32; /* ~ log2 p(n) + 32 */
   prec = nbits2prec(bitprec);
   pinit(n, &C, &D, prec);
-  sum = utor(0, prec);
-  /* Because N < 10^16 and q < sqrt(N), q fits into a long
-   * In fact q < 2 LONG_MAX / 3 */
-  av = avma; togglesign(est);
-  for (q = (ulong)(sqrt(gtodouble(n))*0.24 + 5); q >= 3; q--, set_avma(av))
+  sum = utor(0, prec); av = avma;
+  for (q = (ulong)(sqrt(gtodouble(n))*0.24 + 5); q >= 3; q--)
   {
-    GEN t = L(n, q, bitprec);
-    if (abscmprr(t, mpexp(divru(est,q))) < 0) continue;
-
-    t = mulrr(t, psi(gprec_w(C, nbits2prec(bitprec / q + 32)), q, prec));
-    affrr(addrr(sum, t), sum);
+    GEN L = SelbergL(n, q, bitprec);
+    if (L)
+    {
+      GEN P = psi(gprec_w(C, nbits2prec(bitprec / q + 32)), q);
+      affrr(addrr(sum, mulru(mulrr(L, P), q)), sum); set_avma(av);
+    }
   }
-  p1 = addrr(sum, psi(C, 1, prec));
-  p2 = psi(C, 2, prec);
-  affrr(mod2(n)? subrr(p1,p2): addrr(p1,p2), sum);
-  return gc_INT (ltop, roundr(mulrr(D,sum)));
+  /* L(n,1) = sqrt(3) */
+  s1 = mulrr(psi(C, 1), sqrtr_abs(utor(3, prec)));
+  /* 2 * L(n,2) = (-1)^n * sqrt(6) */
+  s2 = mulrr(psi(C, 2), sqrtr_abs(utor(6, prec)));
+  if (mpodd(n)) togglesign(s2);
+  return gc_INT(ltop, roundr(divrr(addrr(addrr(sum, s2), s1), D)));
 }
 
 /* for loop over partitions of integer k.

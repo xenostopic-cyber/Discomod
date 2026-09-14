@@ -515,23 +515,23 @@ _lerchphi(GEN z, GEN s, GEN a, long prec)
 {
   GEN res = NULL, L, LT, J, rs, mleft, left, right, top, w, Linf, tabg;
   GEN E, f, fm;
-  long B = prec2nbits(prec), MB = 3 - B, NB, prec2;
+  long B = 3 - prec, NB, prec2;
   entree *ep;
 
-  if (gexpo(z) < MB) return gpow(a, gneg(s), prec);
-  if (gexpo(gsubgs(z, 1)) < MB) return zetahurwitz(s, a, 0, B); /* z ~ 1 */
-  if (gexpo(gaddgs(z, 1)) < MB) /* z ~ -1 */
+  if (gexpo(z) < B) return gpow(a, gneg(s), prec);
+  if (gexpo(gsubgs(z, 1)) < B) return zetahurwitz(s, a, 0, prec); /* z ~ 1 */
+  if (gexpo(gaddgs(z, 1)) < B) /* z ~ -1 */
   {
-    GEN tmp = gsub(zetahurwitz(s, gmul2n(a, -1), 0, B),
-                   zetahurwitz(s, gmul2n(gaddgs(a, 1), -1), 0, B));
+    GEN tmp = gsub(zetahurwitz(s, gmul2n(a, -1), 0, prec),
+                   zetahurwitz(s, gmul2n(gaddgs(a, 1), -1), 0, prec));
     return gmul(gpow(gen_2, gneg(s), prec), tmp);
   }
   if (gcmpgs(gmulsg(10, gabs(z, prec)), 9) <= 0) /* |z| <= 9/10 */
-    return lerch_easy(z, s, a, B);
+    return lerch_easy(z, s, a, prec);
   if (gcmpgs(real_i(a), 2) < 0)
     return gadd(gpow(a, gneg(s), prec),
                 gmul(z, _lerchphi(z, s, gaddgs(a, 1), prec)));
-  NB = (long)ceil(B + M_PI * fabs(gtodouble(imag_i(s))));
+  NB = (long)ceil(prec + M_PI * fabs(gtodouble(imag_i(s))));
   prec2 = nbits2prec(NB);
   z = gprec_w(z, prec2); /* |z| > 9/10 */
   s = gprec_w(s, prec2);
@@ -543,7 +543,7 @@ _lerchphi(GEN z, GEN s, GEN a, long prec)
   E = shallowcopy(E); gel(E,4) = stoi(-prec2);
   fm = snm_closure(ep, mkvec(E));
   Linf = mkvec2(mkoo(), real_i(a));
-  if (gexpo(gsub(s, rs)) < MB && gcmpgs(rs, 1) >= 0)
+  if (gexpo(gsub(s, rs)) < B && gcmpgs(rs, 1) >= 0)
   { /* s ~ positive integer */
     if (gcmp(gabs(imag_i(L), prec2), sstoQ(1, 4)) < 0 && gsigne(real_i(L)) >= 0)
     { /* Re(L) >= 0, |Im(L)| < 1/4 */
@@ -569,7 +569,7 @@ _lerchphi(GEN z, GEN s, GEN a, long prec)
   }
   w = expIPiC(gsubgs(s, 1), prec2);
   mleft = gneg(left);
-  if (gexpo(imag_i(z)) < MB && gexpo(imag_i(a)) < MB && gexpo(imag_i(s)) < MB
+  if (gexpo(imag_i(z)) < B && gexpo(imag_i(a)) < B && gexpo(imag_i(s)) < B
       && gcmpgs(real_i(z), 1) < 0)
   { /* (z, s, a) real, z < 1 */
     LT = mkvec3(right, mkcomplex(right, top), mkcomplex(mleft, top));

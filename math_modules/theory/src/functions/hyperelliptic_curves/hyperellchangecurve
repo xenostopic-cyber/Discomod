@@ -1,0 +1,23 @@
+Function: hyperellchangecurve
+Section: hyperelliptic_curves
+C-Name: hyperellchangecurve
+Prototype: GG
+Help: hyperellchangecurve(C,m): C being a hyperelliptic curve given by a
+ Weierstrass equation, apply the change of coordinates given by m. C can be
+ given either by a squarefree polynomial P such that
+ C:y^2=P(x) or by a vector [P,Q] such that C:y^2+Q(x)*y=P(x) and Q^2+4P is
+ squarefree.
+Doc: $C$ being a hyperelliptic curve given by a Weierstrass equation,
+ apply the change of coordinates given by $m = [e, [a,b;c,d], H]$.
+
+ If $(X,Y)$ is a point on the new model, the corresponding
+ point $(x,y)$ on $C$ is given by
+ $$
+   x = (a\*X + b) / (c\*X + d), \quad
+   y = (e\*Y + H(X)) / (c\*X + d)^{g+1}.
+ $$
+
+ The input $C$ can be given either by a squarefree polynomial $P$ such that
+ $C: y^{2} = P(x)$ or by a vector $[P,Q]$ such that
+ $C: y^{2} + Q(x)\*y = P(x)$ and $Q^{2}+4\*P$ is squarefree. The output curve
+ is given in $[P, Q]$ format, where $Q$ may be $0$.

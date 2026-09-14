@@ -12,7 +12,7 @@
 namespace cln {
 
 // A vector is a structure having the following interface:
-//     v.size()        returns the number of elements
+//     v.size()          returns the number of elements
 //     v[i]              returns the i-th element (0<=i<length), as a
 //                       pseudo-lvalue (you can assign to it, but not take its
 //                       address - exactly what you want for bit-vectors)

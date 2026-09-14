@@ -43,6 +43,8 @@ parser.add_argument('--no-pretty', help='Disable pretty-printing',
 parser.add_argument('--int-limits',
                     help="Enable string conversion length limitation for int's",
                     action='store_true')
+parser.add_argument('--shortest-str', help='Use shortest str/repr',
+                    action='store_true')
 
 
 def main():
@@ -64,9 +66,13 @@ def main():
     if not args.no_pretty:
         lines.append('mp.pretty = True')
         lines.append('mp.pretty_dps = "repr"')
+    if args.shortest_str:
+        lines.append('mp.shortest_str = True')
 
     try:
         import IPython
+        import IPython.terminal
+        import IPython.terminal.ipapp
         import traitlets
     except ImportError:
         args.no_ipython = True
@@ -90,7 +96,7 @@ def main():
             source = """
 from mpmath._interactive import wrap_float_literals, wrap_hexbinfloats
 ip = get_ipython()
-ip.input_transformers_post.append(wrap_float_literals)
+ip.input_transformers_post.append(wrap_hexbinfloats)
 ip.input_transformers_post.append(wrap_float_literals)
 del ip
 """

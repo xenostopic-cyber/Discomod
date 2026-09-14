@@ -2366,7 +2366,7 @@ FpXQV_ellcharpoly(GEN e, GEN T, GEN p)
       {
         GEN T3 = ZX_to_Flx(T,3);
         GEN v = ell_to_a4a6_Flxq(E, T3, 3), a2 = gel(v,1);
-        ap = typ(a2)==t_VEC ? lgpol(gel(a2,1))==0 ? 1 : -1: 0;
+        ap = typ(a2)==t_VEC ? Flxq_issquare(gel(a2,1), T3, 3)? 1 : -1: 0;
         break;
       }
     default:

@@ -517,8 +517,8 @@ x^3 + 8*x^2 - x - 10, x^5 + 2*x^3 - 4*x^2 - x - 4, x^5 - x^4 + 2*x^3 - 4*x^2
   "C6"=[6,1], "D6"=[6,2], [6,3], [6,4],..., [6,13];
   "C7"=[7,1], "D7"=[7,2], "M21"=[7,3], "M42"=[7,4];
   "C9"=[9,1], [9,2], "D9"=[9,3]."
-  Also supported are "Cp"=[p,1] and "Dp"=[p,2] for any odd prime p,
-  and "Cn"=[n,1] when n is a product of two distinct primes.
+  Also supported are "Cn"=[n,1] for n prime or a product of two distinct
+  primes and "Dp"=[p,2] for any odd prime p.
   ***   at top-level: nflist([12,1])
   ***                 ^--------------
   *** nflist: unsupported group ([12, 1]). Use one of
@@ -530,8 +530,8 @@ x^3 + 8*x^2 - x - 10, x^5 + 2*x^3 - 4*x^2 - x - 4, x^5 - x^4 + 2*x^3 - 4*x^2
   "C6"=[6,1], "D6"=[6,2], [6,3], [6,4],..., [6,13];
   "C7"=[7,1], "D7"=[7,2], "M21"=[7,3], "M42"=[7,4];
   "C9"=[9,1], [9,2], "D9"=[9,3]."
-  Also supported are "Cp"=[p,1] and "Dp"=[p,2] for any odd prime p,
-  and "Cn"=[n,1] when n is a product of two distinct primes.
+  Also supported are "Cn"=[n,1] for n prime or a product of two distinct
+  primes and "Dp"=[p,2] for any odd prime p.
   ***   at top-level: nflist([9,9])
   ***                 ^-------------
   *** nflist: unsupported group ([9, 9]). Use one of
@@ -543,8 +543,8 @@ x^3 + 8*x^2 - x - 10, x^5 + 2*x^3 - 4*x^2 - x - 4, x^5 - x^4 + 2*x^3 - 4*x^2
   "C6"=[6,1], "D6"=[6,2], [6,3], [6,4],..., [6,13];
   "C7"=[7,1], "D7"=[7,2], "M21"=[7,3], "M42"=[7,4];
   "C9"=[9,1], [9,2], "D9"=[9,3]."
-  Also supported are "Cp"=[p,1] and "Dp"=[p,2] for any odd prime p,
-  and "Cn"=[n,1] when n is a product of two distinct primes.
+  Also supported are "Cn"=[n,1] for n prime or a product of two distinct
+  primes and "Dp"=[p,2] for any odd prime p.
   ***   at top-level: nflist([11,3])
   ***                 ^--------------
   *** nflist: unsupported group ([11, 3]). Use one of
@@ -556,8 +556,8 @@ x^3 + 8*x^2 - x - 10, x^5 + 2*x^3 - 4*x^2 - x - 4, x^5 - x^4 + 2*x^3 - 4*x^2
   "C6"=[6,1], "D6"=[6,2], [6,3], [6,4],..., [6,13];
   "C7"=[7,1], "D7"=[7,2], "M21"=[7,3], "M42"=[7,4];
   "C9"=[9,1], [9,2], "D9"=[9,3]."
-  Also supported are "Cp"=[p,1] and "Dp"=[p,2] for any odd prime p,
-  and "Cn"=[n,1] when n is a product of two distinct primes.
+  Also supported are "Cn"=[n,1] for n prime or a product of two distinct
+  primes and "Dp"=[p,2] for any odd prime p.
   ***   at top-level: nflist("M21",[1,10^4],,x)
   ***                 ^-------------------------
   *** nflist: incorrect type in makeMgenvec [field] (t_POL).
@@ -578,6 +578,6 @@ x^3 + 8*x^2 - x - 10, x^5 + 2*x^3 - 4*x^2 - x - 4, x^5 - x^4 + 2*x^3 - 4*x^2
   "C6"=[6,1], "D6"=[6,2], [6,3], [6,4],..., [6,13];
   "C7"=[7,1], "D7"=[7,2], "M21"=[7,3], "M42"=[7,4];
   "C9"=[9,1], [9,2], "D9"=[9,3]."
-  Also supported are "Cp"=[p,1] and "Dp"=[p,2] for any odd prime p,
-  and "Cn"=[n,1] when n is a product of two distinct primes.
-Total time spent: 50956
+  Also supported are "Cn"=[n,1] for n prime or a product of two distinct
+  primes and "Dp"=[p,2] for any odd prime p.
+Total time spent: 78694

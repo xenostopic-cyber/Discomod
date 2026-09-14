@@ -436,23 +436,21 @@ umuluu_le(ulong x, ulong y, ulong n)
 }
 
 INLINE GEN
-real_0_bit(long bitprec) { GEN x=cgetg(2, t_REAL); x[1]=evalexpo(bitprec); return x; }
+real_0_expo(long e) { GEN x = cgetg(2, t_REAL); x[1] = evalexpo(e); return x; }
 INLINE GEN
-real_0(long prec) { return real_0_bit(-prec); }
-INLINE GEN
-real_1_bit(long bit) { return real_1(nbits2prec(bit)); }
+real_0(long prec) { return real_0_expo(-prec); }
 INLINE GEN
 real_1(long prec) {
-  GEN x = cgetr(prec);
-  long i, l = lg(x);
+  long i, l = nbits2lg(prec);
+  GEN x = cgetg(l, t_REAL);
   x[1] = evalsigne(1) | _evalexpo(0);
   x[2] = (long)HIGHBIT; for (i=3; i<l; i++) x[i] = 0;
   return x;
 }
 INLINE GEN
 real_m1(long prec) {
-  GEN x = cgetr(prec);
-  long i, l = lg(x);
+  long i, l = nbits2lg(prec);
+  GEN x = cgetg(l, t_REAL);
   x[1] = evalsigne(-1) | _evalexpo(0);
   x[2] = (long)HIGHBIT; for (i=3; i<l; i++) x[i] = 0;
   return x;
@@ -463,14 +461,26 @@ INLINE GEN
 real2n(long n, long prec) { GEN z = real_1(prec); setexpo(z, n); return z; }
 INLINE GEN
 real_m2n(long n, long prec) { GEN z = real_m1(prec); setexpo(z, n); return z; }
+
 INLINE GEN
-stor(long s, long prec) { GEN z = cgetr(prec); affsr(s,z); return z; }
+stor_lg(long s, long l) { GEN z = cgetg(l, t_REAL); affsr(s,z); return z; }
 INLINE GEN
-utor(ulong s, long prec){ GEN z = cgetr(prec); affur(s,z); return z; }
+stor(long s, long prec) { return stor_lg(s, nbits2lg(prec)); }
+
 INLINE GEN
-itor(GEN x, long prec) { GEN z = cgetr(prec); affir(x,z); return z; }
+utor_lg(ulong u, long l){ GEN z = cgetg(l, t_REAL); affur(u,z); return z; }
 INLINE GEN
-rtor(GEN x, long prec) { GEN z = cgetr(prec); affrr(x,z); return z; }
+utor(ulong u, long prec){ return utor_lg(u, nbits2lg(prec)); }
+
+INLINE GEN
+itor_lg(GEN x, long l) { GEN z = cgetg(l, t_REAL); affir(x,z); return z; }
+INLINE GEN
+itor(GEN x, long prec) { return itor_lg(x, nbits2lg(prec)); }
+
+INLINE GEN
+rtor_lg(GEN x, long l) { GEN z = cgetg(l, t_REAL); affrr(x,z); return z; }
+INLINE GEN
+rtor(GEN x, long prec) { return rtor_lg(x, nbits2lg(prec)); }
 
 INLINE ulong
 int_bit(GEN x, long n)
@@ -926,25 +936,28 @@ remis(GEN x, long y)
 INLINE GEN
 rdivis(GEN x, long y, long prec)
 {
-  GEN z = cgetr(prec);
+  long l = nbits2lg(prec);
+  GEN z = cgetg(l, t_REAL);
   pari_sp av = avma;
-  affrr(divrs(itor(x,prec), y),z);
+  affrr(divrs(itor_lg(x,l), y),z);
   set_avma(av); return z;
 }
 INLINE GEN
 rdivsi(long x, GEN y, long prec)
 {
-  GEN z = cgetr(prec);
+  long l = nbits2lg(prec);
+  GEN z = cgetg(l, t_REAL);
   pari_sp av = avma;
-  affrr(divsr(x, itor(y,prec)), z);
+  affrr(divsr(x, itor_lg(y,l)), z);
   set_avma(av); return z;
 }
 INLINE GEN
 rdivss(long x, long y, long prec)
 {
-  GEN z = cgetr(prec);
+  long l = nbits2lg(prec);
+  GEN z = cgetg(l, t_REAL);
   pari_sp av = avma;
-  affrr(divrs(stor(x, prec), y), z);
+  affrr(divrs(stor_lg(x, l), y), z);
   set_avma(av); return z;
 }
 
@@ -952,30 +965,35 @@ INLINE void
 rdiviiz(GEN x, GEN y, GEN z)
 {
   long lz = lg(z), lx = lgefint(x), ly = lgefint(y);
+  const long EXTRALG64 = EXTRAPREC64 / BITS_IN_LONG;
   if (lx == 2) { affur(0, z); return; }
+  /* x != 0 */
   if (ly == 3)
   {
     affir(x, z); if (signe(y) < 0) togglesign(z);
     affrr(divru(z, y[2]), z);
   }
-  else if (lx > lz + 1 || ly > lz + 1)
+  else if (lx > lz + EXTRALG64 || ly > lz + EXTRALG64)
   {
     affir(x,z); affrr(divri(z, y), z);
   }
   else
-  {
-    long b = lg2prec(lz) + expi(y) - expi(x) + 1;
+  { /* bit size of shifti(x,b) < 2*realprec(z) + 64*/
+    long b = bit_accuracy(lz) + expi(y) - expi(x) + 1;
     GEN q = divii(b > 0? shifti(x, b): x, y);
     affir(q, z); if (b > 0) shiftr_inplace(z, -b);
   }
   set_avma((ulong)z);
 }
 INLINE GEN
-rdivii(GEN x, GEN y, long prec)
-{ GEN z = cgetr(prec); rdiviiz(x, y, z); return z; }
+rdivii_lg(GEN x, GEN y, long l)
+{ GEN z = cgetg(l, t_REAL); rdiviiz(x, y, z); return z; }
 INLINE GEN
-fractor(GEN x, long prec)
-{ return rdivii(gel(x,1), gel(x,2), prec); }
+rdivii(GEN x, GEN y, long prec) { return rdivii_lg(x, y, nbits2lg(prec)); }
+INLINE GEN
+fractor_lg(GEN x, long l) { return rdivii_lg(gel(x,1), gel(x,2), l); }
+INLINE GEN
+fractor(GEN x, long prec) { return fractor_lg(x, nbits2lg(prec)); }
 
 INLINE int
 dvdii(GEN x, GEN y)

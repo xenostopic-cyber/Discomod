@@ -173,22 +173,29 @@ emacs           @Using GP under GNU Emacs@2
 Emacs           @Using GP under GNU Emacs@2
 0               @Functions and Operations Available in PARI and GP
 1               @Programming in GP: control statements
-2               @Standard monadic or dyadic operators
-3               @Conversions and similar elementary functions or commands
-4               @Combinatorics
-5               @Arithmetic functions
-6               @Polynomials and power series
-7               @Vectors, matrices, linear algebra and sets
-8               @Transcendental functions
-9               @Sums, products, integrals and similar functions
-10              @General number fields
-11              @Associative and central simple algebras
-12              @Elliptic curves
-13              @$L$-functions
-14              @Hypergeometric Motives
-15              @Modular forms
-16              @Modular symbols
-17              @Plotting functions
+2               @Programming in GP: other specific functions
+3               @Parallel programming in GP
+4               @Plotting functions
+5               @Standard monadic or dyadic operators
+6               @Conversions and similar elementary functions or commands
+7               @Combinatorics
+8               @Basic number theory
+9               @$(\Z/N\Z)^*$ and Dirichlet characters
+10              @Polynomials and power series
+11              @Linear algebra. Vectors, matrices and sets
+12              @Transcendental functions
+13              @Sums, products, integrals and similar functions
+14              @Quadratic number fields and binary quadratic forms
+15              @General number fields
+16              @Galois theory and class field theory
+17              @Relative extensions of number fields and $\Z_K$-modules
+18              @Associative and central simple algebras
+19              @Elliptic curves
+20              @Hyperelliptic curves
+21              @$L$-functions
+22              @Hypergeometric Motives
+23              @Modular forms
+24              @Modular symbols
 ell             @Elliptic curves
 mf              @Modular forms
 nf              @Number field structures
@@ -214,3 +221,4 @@ integrals       @Sums, products, integrals and similar functions
 gchar           @Hecke Grossencharacters
 Grossencharacter @Hecke Grossencharacters
 grossencharacter @Hecke Grossencharacters
+LLL             @qflll

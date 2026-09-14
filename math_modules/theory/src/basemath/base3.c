@@ -2249,13 +2249,14 @@ chk_ind(const char *s, long i, long r1)
   if (i > r1) pari_err_DOMAIN(s, "index", ">", utoi(r1), utoi(i));
 }
 static GEN
-parse_embed(GEN ind, long r, const char *f)
+parse_embed(GEN ind, long r, int *single, const char *f)
 {
   long l, i;
-  if (!ind) return identity_perm(r);
+  *single = 0;
+  if (!ind)return identity_perm(r);
   switch(typ(ind))
   {
-    case t_INT: ind = mkvecsmall(itos(ind)); break;
+    case t_INT: ind = mkvecsmall(itos(ind)); *single = 1; break;
     case t_VEC: case t_COL: ind = vec_to_vecsmall(ind); break;
     case t_VECSMALL: break;
     default: pari_err_TYPE(f, ind);
@@ -2270,8 +2271,10 @@ nfeltsign(GEN nf, GEN x, GEN ind0)
   pari_sp av = avma;
   long i, l;
   GEN v, ind;
+  int single;
+
   nf = checknf(nf);
-  ind = parse_embed(ind0, nf_get_r1(nf), "nfeltsign");
+  ind = parse_embed(ind0, nf_get_r1(nf), &single, "nfeltsign");
   l = lg(ind);
   if (is_rational_t(typ(x)))
   { /* nfsign_arch would test this, but avoid converting t_VECSMALL -> t_VEC */
@@ -2282,11 +2285,10 @@ nfeltsign(GEN nf, GEN x, GEN ind0)
       case 1: s = gen_1; break;
       default: s = gen_0; break;
     }
-    set_avma(av);
-    return (ind0 && typ(ind0) == t_INT)? s: const_vec(l-1, s);
+    set_avma(av); return single? s: const_vec(l-1, s);
   }
   v = nfsign_arch(nf, x, ind);
-  if (ind0 && typ(ind0) == t_INT) { set_avma(av); return v[1]? gen_m1: gen_1; }
+  if (single) return gc_const(av, v[1]? gen_m1: gen_1);
   settyp(v, t_VEC);
   for (i = 1; i < l; i++) gel(v,i) = v[i]? gen_m1: gen_1;
   return gc_upto(av, v);
@@ -2296,11 +2298,13 @@ nfeltsign(GEN nf, GEN x, GEN ind0)
 GEN
 nfeltembed_i(GEN *pnf, GEN x, GEN ind0, long prec0)
 {
-  long i, e, l, r1, r2, prec, prec1;
+  long i, e, l, r1, r2, prec;
   GEN v, ind, cx, nf = *pnf;
+  int single;
+
   nf_get_sign(nf,&r1,&r2);
   x = nf_to_scalar_or_basis(nf, x);
-  ind = parse_embed(ind0, r1+r2, "nfeltembed");
+  ind = parse_embed(ind0, r1+r2, &single, "nfeltembed");
   l = lg(ind);
   if (typ(x) != t_COL)
   {
@@ -2308,9 +2312,8 @@ nfeltembed_i(GEN *pnf, GEN x, GEN ind0, long prec0)
     return x;
   }
   x = Q_primitive_part(x, &cx);
-  prec1 = prec0; e = gexpo(x);
-  if (e > 8) prec1 += nbits2extraprec(e);
-  prec = prec1;
+  prec = prec0; e = gexpo(x);
+  if (e > 8) prec = nbits2prec(prec + e);
   if (nf_get_prec(nf) < prec) nf = nfnewprec_shallow(nf, prec);
   v = cgetg(l, t_VEC);
   for(;;)
@@ -2319,9 +2322,7 @@ nfeltembed_i(GEN *pnf, GEN x, GEN ind0, long prec0)
     for (i = 1; i < l; i++)
     {
       GEN t = nfembed_i(M, x, ind[i]);
-      long e = gexpo(t);
-      if (gequal0(t) || precision(t) < prec0
-                     || (e < 0 && prec < prec1 + nbits2extraprec(-e)) ) break;
+      if (gequal0(t) || precision(t) + gexpo(t) < prec0) break;
       if (cx) t = gmul(t, cx);
       gel(v,i) = t;
     }
@@ -2330,8 +2331,7 @@ nfeltembed_i(GEN *pnf, GEN x, GEN ind0, long prec0)
     if (DEBUGLEVEL>1) pari_warn(warnprec,"eltnfembed", prec);
     *pnf = nf = nfnewprec_shallow(nf, prec);
   }
-  if (ind0 && typ(ind0) == t_INT) v = gel(v,1);
-  return v;
+  return single? gel(v,1): v;
 }
 GEN
 nfeltembed(GEN nf, GEN x, GEN ind0, long prec0)
@@ -2344,13 +2344,13 @@ nfeltembed(GEN nf, GEN x, GEN ind0, long prec0)
 GEN
 nfpolsturm(GEN nf, GEN f, GEN ind0)
 {
-  pari_sp av = avma;
-  long d, l, r1, single;
   GEN ind, u, v, vr1, T, s, t;
+  pari_sp av = avma;
+  long d, l, r1;
+  int single;
 
   nf = checknf(nf); T = nf_get_pol(nf); r1 = nf_get_r1(nf);
-  ind = parse_embed(ind0, r1, "nfpolsturm");
-  single = ind0 && typ(ind0) == t_INT;
+  ind = parse_embed(ind0, r1, &single, "nfpolsturm");
   l = lg(ind);
 
   if (gequal0(f)) pari_err_ROOTS0("nfpolsturm");

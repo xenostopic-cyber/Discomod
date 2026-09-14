@@ -753,7 +753,7 @@ lindep2(GEN x, long dig)
       bit = 32 + gexpo(x);
     }
     else
-      bit = (long)prec2nbits_mul(bit, 0.8);
+      bit = (long)bit * 0.8;
   }
   return lindep_bit(x, bit);
 }
@@ -1034,7 +1034,7 @@ GEN
 bestapprnf(GEN x, GEN T, GEN roT, long prec)
 {
   pari_sp av = avma;
-  long tx = typ(x), dT = 1, bit;
+  long tx = typ(x), dT = 1;
   GEN V;
 
   if (T)
@@ -1068,8 +1068,7 @@ bestapprnf(GEN x, GEN T, GEN roT, long prec)
     roT = n? rootsof1u_cx(n,prec): gel(QX_complex_roots(T,prec), 1);
   }
   V = vec_prepend(gpowers(roT, dT-1), NULL);
-  bit = prec2nbits_mul(prec, 0.8);
-  return gc_GEN(av, bestapprnf_i(x, T, V, bit));
+  return gc_GEN(av, bestapprnf_i(x, T, V, (long)prec * 0.8));
 }
 
 /********************************************************************/
@@ -2171,7 +2170,7 @@ fincke_pohst(GEN a, GEN B0, long stockmax, long PREC, FP_chk_fun *CHECK)
     if (i)
       prec = i;
     else {
-      prec = DEFAULTPREC + nbits2extraprec(gexpo(r));
+      prec = nbits2prec(DEFAULTPREC + gexpo(r));
       if (prec < PREC) prec = PREC;
     }
     if (DEBUGLEVEL>2) err_printf("first LLL: prec = %ld\n", prec);

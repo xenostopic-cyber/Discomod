@@ -51,13 +51,14 @@ quadratic_prec_mask(long n)
 /**                                                                   **/
 /***********************************************************************/
 
+/* b = NULL for 1; a x = 1 mod p  */
 static GEN
 Zp_divlift(GEN b, GEN a, GEN x, GEN p, long n)
 {
   pari_sp ltop = avma, av;
   ulong mask;
   GEN q = p;
-  if (n == 1) return gcopy(x);
+  if (n == 1) return b? Fp_mul(b,x,p): modii(x, p);
   mask = quadratic_prec_mask(n);
   av = avma;
   while (mask > 1)

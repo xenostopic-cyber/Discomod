@@ -18,20 +18,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 static long
 groupelts_sumorders(GEN S)
 {
-  long i, s = 0;
-  for(i=1; i < lg(S); i++) s += perm_orderu(gel(S,i));
+  long i, s = 0, l = lg(S);
+  for(i = 1; i < l; i++) s += perm_orderu(gel(S,i));
   return s;
 }
 
 static long
 vecgroup_sumorders(GEN L)
 {
-  long i, s = 0;
-  for (i=1; i<lg(L); i++)
-  {
-    GEN G = gel(L,i);
-    s += (lg(G)==3 && typ(gel(G,1))==t_VEC) ? group_order(G): lg(G)-1;
-  }
+  long i, s = 0, l = lg(L);
+  for (i = 1; i < l; i++) s += group_order(gel(L,i));
   return s;
 }
 
@@ -45,7 +41,7 @@ indexgroupsubgroup(GEN L, long order, const long *good, const long *bad)
     long idx;
     const long *p;
     if (group_order(G)!=order) continue;
-    idx = group_ident(G,NULL);
+    idx = group_ident(G);
     for(p=good; *p; p++)
       if (*p==idx) return 1;
     for(p=bad; *p; p++)
@@ -68,7 +64,7 @@ indexgroupcentre(GEN G, GEN Z, const long *good, const long *bad)
       GEN C = group_quotient(G,H);
       GEN Q = quotient_group(C,G);
       const long *p;
-      long idx=group_ident(Q,NULL);
+      long idx=group_ident(Q);
       set_avma(btop);
       for(p=good;*p;p++)
         if (*p==idx) return 1;
@@ -86,7 +82,7 @@ vecgroup_idxlist(GEN L, long order)
   long i, j, l = lg(L);
   GEN V = cgetg(l, t_VECSMALL);
   for (i = j = 1; i < l; i++)
-    if (group_order(gel(L,i)) == order) V[j++] = group_ident(gel(L,i),NULL);
+    if (group_order(gel(L,i)) == order) V[j++] = group_ident(gel(L,i));
   setlg(V, j); return gc_leaf(av, vecsmall_uniq(V));
 }
 
@@ -96,13 +92,13 @@ vecgroup_idxlist(GEN L, long order)
  */
 
 static long
-group_ident_i(GEN G, GEN S)
+group_ident_i(GEN G)
 {
-  long n = S? lg(S)-1: group_order(G);
+  long n = group_order(G);
   long s;
-  GEN F,p,e;
+  GEN S, F, p, e;
   if (n==1) return 1;
-  if (!S) S = group_elts(G,group_domain(G));
+  S = group_elts(G, group_domain(G));
   s = groupelts_sumorders(S);/*This is used as a hash value*/
   F = factoru(n);
   p = gel(F,1);
@@ -507,17 +503,17 @@ group_ident_i(GEN G, GEN S)
 }
 
 long
-group_ident(GEN G, GEN S)
+group_ident(GEN G)
 {
   pari_sp av = avma;
-  long idx = group_ident_i(G, S);
+  long idx = group_ident_i(G);
   if (idx < 0) pari_err_TYPE("group_ident [not a group]", G);
   if (!idx) pari_err_IMPL("galoisidentify for groups of order > 127");
   return gc_long(av, idx);
 }
 
 long
-group_ident_trans(GEN G, GEN S)
+group_ident_trans(GEN G)
 {
   const long tab[]={
         4, 1, 2, -1,
@@ -546,7 +542,7 @@ group_ident_trans(GEN G, GEN S)
   /* N.B. known up to 32 (Cannon-Holt) */
   if (n > 30) pari_err_IMPL("group_ident_trans [n > 30]");
   if (uisprime(n)) return 1;
-  s = group_ident(G,S);
+  s = group_ident(G);
   for(t=tab;*t>=0;t++)
   {
     if (t[0]==n) return t[s];

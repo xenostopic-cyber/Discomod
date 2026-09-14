@@ -183,6 +183,107 @@ special (void)
   mpfr_clears (x, y, (mpfr_ptr) 0);
 }
 
+/* Bug reported by Mikhail Hogrefe on 2026-07-20:
+   https://sympa.inria.fr/sympa/arc/mpfr/2026-07/msg00003.html */
+static void
+bug20260720a (void)
+{
+  mpfr_t x, y, z;
+  long n[] = { 5, 50, 500, 5000, 50000, LONG_MAX };
+  int i, inexact;
+
+  mpfr_inits2 (2, x, y, z, (mpfr_ptr) 0);
+  mpfr_set_ui (x, 2, MPFR_RNDN);
+  mpfr_set_ui (y, 1, MPFR_RNDN);
+  mpfr_nextbelow (y);
+  for (i = 0; i < numberof (n); i++)
+    {
+      inexact = mpfr_rootn_si (z, x, -n[i], MPFR_RNDZ);
+      if (!mpfr_equal_p (z, y) || inexact >= 0)
+        {
+          printf ("Error in bug20260720a for i = %d, n = %ld:\n", i, n[i]);
+          printf ("Expected ");
+          mpfr_dump (y);
+          printf ("with inex < 0\n");
+          printf ("Got      ");
+          mpfr_dump (z);
+          printf ("with inex = %d\n", inexact);
+          exit (1);
+        }
+    }
+  mpfr_clears (x, y, z, (mpfr_ptr) 0);
+}
+
+/* Same bug as bug20260720a, more complex testcases */
+static void
+bug20260720b (void)
+{
+  mpfr_t x, y, z;
+  int prec, i, n0 = 200000; /* n0 is even to test negative values */
+
+  mpfr_init2 (x, 2);
+  mpfr_set_ui_2exp (x, 1, n0, MPFR_RNDN);
+  for (prec = 2; prec < 18; prec += 5)
+    {
+      mpfr_inits2 (prec, y, z, (mpfr_ptr) 0);
+      mpfr_set_ui_2exp (y, 1, -1, MPFR_RNDN);
+      for (i = 1; i >= -1; i -= 2)
+        {
+          int n = n0 + i, inexact, neg, dir = i > 0;
+
+          for (neg = 0; neg < 2; neg++)
+            {
+              inexact = mpfr_rootn_si (z, x, -n, MPFR_RNDN);
+              if (!mpfr_equal_p (z, y) ||
+                  dir ? (inexact >= 0) : (inexact <= 0))
+                {
+                  printf ("Error in bug20260720b for prec = %d, i = %d,"
+                          " neg = %d, RNDN, 2^(-%d/%d)\n",
+                          prec, i, neg, n0, n);
+                  printf ("Expected ");
+                  mpfr_dump (y);
+                  printf ("with inex %c 0\n", dir ? '<' : '>');
+                  printf ("Got      ");
+                  mpfr_dump (z);
+                  printf ("with inex = %d\n", inexact);
+                  exit (1);
+                }
+              MPFR_CHANGE_SIGN (x);
+              MPFR_CHANGE_SIGN (y);
+              dir = !dir;
+            }
+
+          if (i < 0)
+            mpfr_nextbelow (y);
+
+          dir = 1;
+          for (neg = 0; neg < 2; neg++)
+            {
+              inexact = mpfr_rootn_si (z, x, -n, MPFR_RNDZ);
+              if (!mpfr_equal_p (z, y) ||
+                  dir ? (inexact >= 0) : (inexact <= 0))
+                {
+                  printf ("Error in bug20260720b for prec = %d, i = %d,"
+                          " neg = %d, RNDZ, 2^(-%d/%d)\n",
+                          prec, i, neg, n0, n);
+                  printf ("Expected ");
+                  mpfr_dump (y);
+                  printf ("with inex %c 0\n", dir ? '<' : '>');
+                  printf ("Got      ");
+                  mpfr_dump (z);
+                  printf ("with inex = %d\n", inexact);
+                  exit (1);
+                }
+              MPFR_CHANGE_SIGN (x);
+              MPFR_CHANGE_SIGN (y);
+              dir = !dir;
+            }
+        }
+      mpfr_clears (y, z, (mpfr_ptr) 0);
+    }
+  mpfr_clear (x);
+}
+
 #define TEST_FUNCTION mpfr_rootn_si
 #define INTEGER_TYPE long
 #define INT_RAND_FUNCTION() \
@@ -195,6 +296,8 @@ main (void)
   tests_start_mpfr ();
 
   special ();
+  bug20260720a ();
+  bug20260720b ();
 
   /* The sign of the random value y (used to generate a potential bad case)
      is negative with a probability 256/512 = 1/2 for odd n, and never

@@ -1,0 +1,32 @@
+Function: _header_quadratic
+Class: header
+Section: quadratic
+Doc:
+ \section{Quadratic number fields and binary quadratic forms}
+ This section contains functions related to the arithmetic of quadratic
+ number fields. More general functions, more systematic and easier to use,
+ apply to general number fields and will be covered in the next sections. To
+ study the arithmetic of quadratic fields, you may use either sets of functions
+ For instance if you want integral binary quadratic forms (and
+ classes) rather than ideals (and ideal classes). The quadratic setting also
+ treats non-maximal orders transparently, whereas there is no support for
+ non-maximal orders in the general setting.
+
+ We create quadratic numbers using \kbd{quadgen} and binary quadratic
+ forms using \kbd{Qfb}. Quadratic numbers are added, multiplied, etc.~using
+ standard GP operators (\kbd{+}, \kbd{*}, etc.) and quadratic forms are
+ \emph{composed} using \kbd{*}.
+ Reduction of forms modulo $\text{SL}(2,\Z)$ is done via \kbd{qfbred} or
+ \kbd{qfbredsl2} when the unimodular transformation matrix is desired.
+ The functions \kbd{qfbcomp} and \kbd{qfbpow} compute products and powers
+ in the class group, incorporating reduction at each step. The function
+ \kbd{qfbsolve} solves the equation $q(x,y) = n$ in integers $x,y$.
+
+ The functions \kbd{qfbclassno}, \kbd{quadunit}, \kbd{quadregulator}
+ respectively return the \emph{ordinary} (not narrow) class number,
+ thefundamental unit, and the regulator. The function \kbd{quadclassunit} is
+ asymptotically faster as the discriminant tends to infinity and return the
+ (ordinary) class group structure and the regulator of a quadratic order all
+ at once, but it is conditional on the GRH. The functions \kbd{quadhilbert}
+ and \kbd{quadray} compute Hilbert class fields and ray class fields using
+ complex multiplication or Stark units.

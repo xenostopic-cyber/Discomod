@@ -1405,6 +1405,24 @@ ZM_ishnf(GEN x)
   return 1;
 }
 int
+QM_ishnf(GEN x)
+{
+  long i,j, lx = lg(x);
+  for (i=1; i<lx; i++)
+  {
+    GEN xii = gcoeff(x,i,i);
+    if (gsigne(xii) <= 0) return 0;
+    for (j=1; j<i; j++)
+      if (gsigne(gcoeff(x,i,j))) return 0;
+    for (j=i+1; j<lx; j++)
+    {
+      GEN xij = gcoeff(x,i,j);
+      if (gsigne(xij)<0 || gcmp(xij,xii)>=0) return 0;
+    }
+  }
+  return 1;
+}
+int
 ZM_isidentity(GEN x)
 {
   long i,j, lx = lg(x);

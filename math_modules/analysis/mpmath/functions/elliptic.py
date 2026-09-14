@@ -10,10 +10,11 @@ a function which satisfies
     f(z + 2 \omega_1) = f(z + 2 \omega_2) = f(z)
 
 for some half-periods `\omega_1, \omega_2` with
-`\mathrm{Im}[\omega_1 / \omega_2] > 0`. The canonical elliptic
-functions are the Jacobi elliptic functions. More broadly, this section
-includes  quasi-doubly periodic functions (such as the Jacobi theta
-functions) and other functions useful in the study of elliptic functions.
+`\mathrm{Im}[\omega_2 / \omega_1] > 0`. The classical examples include
+the Jacobi elliptic functions and the Weierstrass elliptic functions.
+More broadly, this section includes quasi-doubly periodic functions
+(such as the Jacobi theta functions) and other functions useful in the
+study of elliptic functions.
 
 Many different conventions for the arguments of
 elliptic functions are in use. It is even standard to use
@@ -24,6 +25,9 @@ must satisfy `|q| < 1`; the elliptic parameter `m` (an arbitrary
 complex number); the elliptic modulus `k` (an arbitrary complex
 number); and the half-period ratio `\tau`, which usually must
 satisfy `\mathrm{Im}[\tau] > 0`.
+Elliptic functions may also be parameterized by half-periods
+`\omega_1, \omega_2`, where `\tau = \omega_2 / \omega_1`, or by
+Weierstrass invariants `g_2, g_3`.
 These quantities can be expressed in terms of each other
 using the following relations:
 
@@ -50,9 +54,11 @@ number theory, which we here denote by q-bar:
 
     \bar{q} = q^2 = e^{2 i \pi \tau}
 
-For convenience, mpmath provides functions to convert
-between the various parameters (:func:`~mpmath.qfrom`, :func:`~mpmath.mfrom`,
-:func:`~mpmath.kfrom`, :func:`~mpmath.taufrom`, :func:`~mpmath.qbarfrom`).
+For convenience, mpmath provides functions to convert between the various
+parameters, including half-periods and Weierstrass invariants where
+applicable (:func:`~mpmath.qfrom`, :func:`~mpmath.mfrom`,
+:func:`~mpmath.kfrom`, :func:`~mpmath.taufrom`, :func:`~mpmath.qbarfrom`,
+:func:`~mpmath.g2g3from`, :func:`~mpmath.omega1omega2from`).
 
 **References**
 
@@ -62,7 +68,7 @@ between the various parameters (:func:`~mpmath.qfrom`, :func:`~mpmath.mfrom`,
 
 """
 
-from .functions import defun, defun_wrapped
+from .functions import ctx_lru_cache, defun, defun_wrapped
 
 @defun_wrapped
 def eta(ctx, tau):
@@ -120,10 +126,29 @@ def nome(ctx, m):
         v = ctx.mpc(0, v.imag)
     return v
 
+def _validate_weierstrass_pair_args(funcname, g2, g3, omega1, omega2):
+    if (g2 is None) != (g3 is None):
+        raise ValueError("%s: must provide both g2 and g3" % funcname)
+    if (omega1 is None) != (omega2 is None):
+        raise ValueError("%s: must provide both omega1 and omega2" % funcname)
+
+def _validate_weierstrass_parameter_args(
+        funcname, q, m, k, tau, qbar, g2, g3, omega1, omega2):
+    _validate_weierstrass_pair_args(funcname, g2, g3, omega1, omega2)
+    parameter_count = sum(x is not None for x in [q, m, k, tau, qbar])
+    parameter_count += int(g2 is not None) + int(omega1 is not None)
+    if parameter_count != 1:
+        raise ValueError("%s: must provide exactly one elliptic "
+                         "parameterization" % funcname)
+
 @defun_wrapped
-def qfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
+@ctx_lru_cache(maxsize=16)
+def qfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None,
+          g2=None, g3=None, omega1=None, omega2=None):
     r"""
-    Returns the elliptic nome `q`, given any of `q, m, k, \tau, \bar{q}`::
+    Returns the elliptic nome `q`, given any of `q, m, k, \tau, \bar{q}`.
+    It may also be computed from both Weierstrass invariants `g_2, g_3`,
+    or both half-periods `\omega_1, \omega_2`::
 
         >>> from mpmath import mp, qfrom, mfrom, kfrom, taufrom, qbarfrom
         >>> mp.dps = 25
@@ -138,8 +163,11 @@ def qfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         (0.25 + 0.0j)
         >>> qfrom(qbar=qbarfrom(q=0.25))
         0.25
+        >>> qfrom(omega1=1, omega2=0.5j)
+        (0.2078795763507619085469556 + 0.0j)
 
     """
+    _validate_weierstrass_pair_args("qfrom", g2, g3, omega1, omega2)
     if q is not None:
         return ctx.convert(q)
     if m is not None:
@@ -150,12 +178,19 @@ def qfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         return ctx.expjpi(tau)
     if qbar is not None:
         return ctx.sqrt(qbar)
+    if g2 is not None:
+        return ctx.qfrom(tau=ctx.taufrom(g2=g2, g3=g3))
+    if omega1 is not None:
+        return ctx.qfrom(tau=ctx.taufrom(omega1=omega1, omega2=omega2))
 
 @defun_wrapped
-def qbarfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
+@ctx_lru_cache(maxsize=16)
+def qbarfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None,
+             g2=None, g3=None, omega1=None, omega2=None):
     r"""
     Returns the number-theoretic nome `\bar q`, given any of
-    `q, m, k, \tau, \bar{q}`::
+    `q, m, k, \tau, \bar{q}`, both Weierstrass invariants `g_2, g_3`,
+    or both half-periods `\omega_1, \omega_2`::
 
         >>> from mpmath import (mp, qbarfrom, qfrom, extraprec, mfrom,
         ...                     kfrom, taufrom)
@@ -171,8 +206,11 @@ def qbarfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         0.25
         >>> qbarfrom(tau=taufrom(qbar=0.25))
         (0.25 + 0.0j)
+        >>> qbarfrom(omega1=1, omega2=0.5j)
+        (0.04321391826377224977441774 + 0.0j)
 
     """
+    _validate_weierstrass_pair_args("qbarfrom", g2, g3, omega1, omega2)
     if qbar is not None:
         return ctx.convert(qbar)
     if q is not None:
@@ -183,12 +221,24 @@ def qbarfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         return nome(ctx, ctx.convert(k)**2) ** 2
     if tau is not None:
         return ctx.expjpi(2*tau)
+    if g2 is not None:
+        return ctx.qbarfrom(tau=ctx.taufrom(g2=g2, g3=g3))
+    if omega1 is not None:
+        return ctx.qbarfrom(tau=ctx.taufrom(omega1=omega1, omega2=omega2))
 
 @defun_wrapped
-def taufrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
+@ctx_lru_cache(maxsize=16)
+def taufrom(ctx, q=None, m=None, k=None, tau=None, qbar=None,
+            g2=None, g3=None, omega1=None, omega2=None):
     r"""
     Returns the elliptic half-period ratio `\tau`, given any of
-    `q, m, k, \tau, \bar{q}`::
+    `q, m, k, \tau, \bar{q}`, both Weierstrass invariants
+    `g_2, g_3`, or both half-periods `\omega_1, \omega_2`.
+
+    For `g_2, g_3`, this function returns the representative in the standard modular
+    fundamental domain, with the boundary conventions documented in :func:`~mpmath.kleinjinv`.
+
+    **Examples**
 
         >>> from mpmath import mp, taufrom, qfrom, mfrom, kfrom, qbarfrom
         >>> mp.dps = 25
@@ -203,8 +253,11 @@ def taufrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         (0.0 + 0.5j)
         >>> taufrom(qbar=qbarfrom(tau=0.5j))
         (0.0 + 0.5j)
+        >>> taufrom(omega1=1, omega2=0.5j)
+        (0.0 + 0.5j)
 
     """
+    _validate_weierstrass_pair_args("taufrom", g2, g3, omega1, omega2)
     if tau is not None:
         return ctx.convert(tau)
     if m is not None:
@@ -218,12 +271,54 @@ def taufrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
     if qbar is not None:
         qbar = ctx.convert(qbar)
         return ctx.log(qbar) / (2*ctx.pi*ctx.j)
+    if g2 is not None:
+        g2 = ctx.convert(g2)
+        g3 = ctx.convert(g3)
+        if g2 == 0:
+            return ctx.mpc(ctx.one/2, ctx.sqrt(3)/2)
+        if g3 == 0:
+            return ctx.j
+        discriminant = g2**3 - 27*g3**2
+        g2_term = abs(g2)**3
+        g3_term = 27*abs(g3)**2
+        shape_ratio = min(g2_term, g3_term) / max(g2_term, g3_term)
+        if (ctx.im(g2) == 0 and ctx.im(g3) == 0 and
+                discriminant != 0 and
+                shape_ratio >= ctx.ldexp(1, -20)):
+            real_g2 = ctx.re(g2)
+            real_g3 = ctx.re(g3)
+            real_discriminant = ctx.re(discriminant)
+            K, K_complement, _ = _real_elliptic_data(
+                ctx, real_g2, real_g3, real_discriminant)
+            if real_discriminant > 0:
+                if real_g3 > 0:
+                    return ctx.j*K_complement/K
+                return ctx.j*K/K_complement
+            if real_g2 > 0:
+                if real_g3 > 0:
+                    return ctx.one/2 + ctx.j*K_complement/(2*K)
+                return ctx.one/2 + ctx.j*K/(2*K_complement)
+            if real_g3 > 0:
+                return (-K+ctx.j*K_complement)/(K+ctx.j*K_complement)
+            return (K+ctx.j*K_complement)/(K-ctx.j*K_complement)
+        return ctx.kleinjinv(g2**3/discriminant)
+    if omega1 is not None:
+        omega1 = ctx.convert(omega1)
+        omega2 = ctx.convert(omega2)
+        tau = omega2 / omega1
+        if ctx.im(tau) <= 0:
+            raise ValueError("taufrom: omega ratio must be in upper "
+                             "half-plane")
+        return tau
 
 @defun_wrapped
-def kfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
+@ctx_lru_cache(maxsize=16)
+def kfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None,
+          g2=None, g3=None, omega1=None, omega2=None):
     r"""
     Returns the elliptic modulus `k`, given any of
-    `q, m, k, \tau, \bar{q}`::
+    `q, m, k, \tau, \bar{q}`, both Weierstrass invariants `g_2, g_3`,
+    or both half-periods `\omega_1, \omega_2`::
 
         >>> from mpmath import mp, kfrom, mfrom, qfrom, taufrom, qbarfrom
         >>> mp.dps = 25
@@ -238,6 +333,8 @@ def kfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         (0.25 + 0.0j)
         >>> kfrom(qbar=qbarfrom(k=0.25))
         0.25
+        >>> kfrom(omega1=1, omega2=0.5j)
+        (0.985171431009416038689502 + 0.0j)
 
     As `q \to 1` and `q \to -1`, `k` rapidly approaches
     `1` and `i \infty` respectively::
@@ -251,6 +348,7 @@ def kfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         >>> kfrom(q=-1)
         (0.0 + infj)
     """
+    _validate_weierstrass_pair_args("kfrom", g2, g3, omega1, omega2)
     if k is not None:
         return ctx.convert(k)
     if m is not None:
@@ -259,6 +357,11 @@ def kfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         q = ctx.expjpi(tau)
     if qbar is not None:
         q = ctx.sqrt(qbar)
+    if q is None:
+        if g2 is not None:
+            return ctx.kfrom(tau=ctx.taufrom(g2=g2, g3=g3))
+        if omega1 is not None:
+            return ctx.kfrom(tau=ctx.taufrom(omega1=omega1, omega2=omega2))
     if q == 1:
         return q
     if q == -1:
@@ -266,10 +369,13 @@ def kfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
     return (ctx.jtheta(2,0,q)/ctx.jtheta(3,0,q))**2
 
 @defun_wrapped
-def mfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
+@ctx_lru_cache(maxsize=16)
+def mfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None,
+          g2=None, g3=None, omega1=None, omega2=None):
     r"""
     Returns the elliptic parameter `m`, given any of
-    `q, m, k, \tau, \bar{q}`::
+    `q, m, k, \tau, \bar{q}`, both Weierstrass invariants `g_2, g_3`,
+    or both half-periods `\omega_1, \omega_2`::
 
         >>> from mpmath import mp, mfrom, qfrom, kfrom, taufrom, qbarfrom, taylor
         >>> mp.dps = 25
@@ -284,6 +390,8 @@ def mfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         (0.25 + 0.0j)
         >>> mfrom(qbar=qbarfrom(m=0.25))
         0.25
+        >>> mfrom(omega1=1, omega2=0.5j)
+        (0.9705627484771405856202647 + 0.0j)
 
     As `q \to 1` and `q \to -1`, `m` rapidly approaches
     `1` and `-\infty` respectively::
@@ -304,6 +412,7 @@ def mfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         [0.0, 16.0, -128.0, 704.0, -3072.0, 11488.0, -38400.0, 117632.0]
 
     """
+    _validate_weierstrass_pair_args("mfrom", g2, g3, omega1, omega2)
     if m is not None:
         return m
     if k is not None:
@@ -312,6 +421,11 @@ def mfrom(ctx, q=None, m=None, k=None, tau=None, qbar=None):
         q = ctx.expjpi(tau)
     if qbar is not None:
         q = ctx.sqrt(qbar)
+    if q is None:
+        if g2 is not None:
+            return ctx.mfrom(tau=ctx.taufrom(g2=g2, g3=g3))
+        if omega1 is not None:
+            return ctx.mfrom(tau=ctx.taufrom(omega1=omega1, omega2=omega2))
     if q == 1:
         return ctx.convert(q)
     if q == -1:
@@ -341,6 +455,19 @@ jacobi_spec = {
 }
 
 @defun
+@ctx_lru_cache(maxsize=16)
+def _ellipfun_data(ctx, kind, q):
+    """Return the argument scale and constant factor for ``ellipfun``."""
+    S = jacobi_spec[kind]
+    t_scale = ctx.one / ctx.jtheta(3, 0, q)**2
+    factor = ctx.one
+    for a in S[0]:
+        factor *= ctx.jtheta(a, 0, q)
+    for b in S[1]:
+        factor /= ctx.jtheta(b, 0, q)
+    return t_scale, factor
+
+@defun
 def ellipfun(ctx, kind, u=None, m=None, q=None, k=None, tau=None):
     try:
         S = jacobi_spec[kind]
@@ -368,10 +495,8 @@ def ellipfun(ctx, kind, u=None, m=None, q=None, k=None, tau=None):
             else:           v = getattr(ctx, S[5])(u)
             v += 0*q*u
         else:
-            t = u / ctx.jtheta(3, 0, q)**2
-            v = ctx.one
-            for a in S[0]: v *= ctx.jtheta(a, 0, q)
-            for b in S[1]: v /= ctx.jtheta(b, 0, q)
+            t_scale, v = ctx._ellipfun_data(kind, q)
+            t = u * t_scale
             for c in S[2]: v *= ctx.jtheta(c, t, q)
             for d in S[3]: v /= ctx.jtheta(d, t, q)
     finally:
@@ -379,7 +504,8 @@ def ellipfun(ctx, kind, u=None, m=None, q=None, k=None, tau=None):
     return +v
 
 @defun_wrapped
-def kleinj(ctx, tau=None, **kwargs):
+def kleinj(ctx, tau=None, q=None, m=None, k=None, qbar=None,
+           g2=None, g3=None, omega1=None, omega2=None):
     r"""
     Evaluates the Klein j-invariant, which is a modular function defined for
     `\tau` in the upper half-plane as
@@ -399,6 +525,11 @@ def kleinj(ctx, tau=None, **kwargs):
 
     An alternative, common notation is that of the j-function
     `j(\tau) = 1728 J(\tau)`.
+
+    The half-period ratio may be supplied directly as ``tau``, or through
+    any of the argument forms accepted by :func:`~mpmath.qfrom`.
+    The invariant can also be computed directly from Weierstrass invariants
+    by providing both ``g2`` and ``g3``.
 
     **Plots**
 
@@ -465,13 +596,120 @@ def kleinj(ctx, tau=None, **kwargs):
         1264538.909475140509320227
 
     """
-    q = ctx.qfrom(tau=tau, **kwargs)
+    _validate_weierstrass_pair_args("kleinj", g2, g3, omega1, omega2)
+    if g2 is not None:
+        g2 = ctx.convert(g2)
+        g3 = ctx.convert(g3)
+        return g2**3 / (g2**3 - 27*g3**2)
+    q = ctx.qfrom(q=q, m=m, k=k, tau=tau, qbar=qbar,
+                  omega1=omega1, omega2=omega2)
     t2 = ctx.jtheta(2,0,q)
     t3 = ctx.jtheta(3,0,q)
     t4 = ctx.jtheta(4,0,q)
     P = (t2**8 + t3**8 + t4**8)**3
     Q = 54*(t2*t3*t4)**8
     return P/Q
+
+
+def _fundamental_domain_tau(ctx, tau):
+    """Reduce an upper-half-plane tau using the Weierstrass conventions."""
+    a, b, c, d = ctx._reduce_psl2z(tau)
+    tau = (a*tau + b) / (c*tau + d)
+    if ctx.almosteq(ctx.re(tau), -ctx.one/2):
+        tau += 1
+    if ctx.almosteq(abs(tau), ctx.one) and ctx.re(tau) < 0:
+        tau = -1/tau
+    return tau
+
+
+@defun_wrapped
+def kleinjinv(ctx, J):
+    r"""
+    Evaluates the canonical inverse Klein j-invariant.
+
+    Given a value `J`, returns a half-period ratio `\tau` such that
+    ``kleinj(tau)`` equals `J`, up to numerical error. Since ``kleinj`` is
+    invariant under modular transformations, its inverse on the upper
+    half-plane is multivalued. Klein's invariant identifies the modular
+    quotient `\mathbb{H}/\operatorname{PSL}(2,\mathbb{Z})` with the complex
+    plane. Here `\mathbb{H}` is the upper half-plane
+    `\operatorname{Im}(\tau)>0`, and `\operatorname{PSL}(2,\mathbb{Z})` is the
+    modular group, acting by
+
+    .. math ::
+
+        \tau \mapsto \frac{a\tau+b}{c\tau+d}, \qquad
+        a,b,c,d \in \mathbb{Z}, \quad ad-bc=1.
+
+    The quotient means that values of `\tau` related by these transformations
+    are treated as equivalent. Thus every finite `J` has a unique
+    representative once a boundary convention is fixed. This function
+    returns that representative in the standard modular fundamental domain
+    `|\operatorname{Re}(\tau)| \leq 1/2`, `|\tau| \geq 1`. On its boundary,
+    `\operatorname{Re}(\tau)=1/2` is preferred to `-1/2`, and the right half
+    of the circle `|\tau|=1` is preferred. In particular, `J=0` returns
+    `1/2+i\sqrt{3}/2`, and `J=1` returns `i`.
+
+    See https://en.wikipedia.org/wiki/J-invariant for background on this
+    correspondence and the standard fundamental domain.
+
+    **Examples**
+
+        >>> from mpmath import mp, kleinj, kleinjinv, chop
+        >>> mp.dps = 25
+        >>> mp.pretty = True
+        >>> tau = 0.625+0.75j
+        >>> chop(kleinj(kleinjinv(kleinj(tau))) - kleinj(tau))
+        0.0
+        >>> kleinjinv(1)
+        (0.0 + 1.0j)
+        >>> kleinjinv(0)
+        (0.5 + 0.8660254037844386467637232j)
+        >>> tau = mp.mpc('2.3', '0.4')
+        >>> chop(kleinjinv(kleinj(tau)))
+        (-0.2 + 1.6j)
+
+    """
+
+    # The implementation uses the classical inverse construction via the
+    # modular lambda function, described as Method 1 in the Wikipedia article
+    # at https://en.wikipedia.org/wiki/J-invariant#Inverse_functions.
+    # It first converts from the normalized invariant `J` to `j = 1728 J`,
+    # then solves
+    #     j = 256 (1 - x)^3 / x^2, \quad x = \lambda (1 - \lambda),
+    # for `\lambda`.  The half-period ratio is then obtained from
+    #     \tau = i K(1 - \lambda) / K(\lambda),
+    # where `K` is the complete elliptic integral.  Using
+    #     K(m) = \pi / (2 \operatorname{AGM}(1, \sqrt{1 - m})),
+    # this is evaluated by the arithmetic-geometric mean formula
+    #     \tau =
+    #     i \operatorname{AGM}(1, \sqrt{1 - \lambda}) /
+    #     \operatorname{AGM}(1, \sqrt{\lambda}).
+    # The algebraic construction initially produces one modularly equivalent
+    # value using principal roots. That value is then reduced to the
+    # fundamental domain described above.
+    J = ctx.convert(J)
+    if J == 0:
+        tau = ctx.mpc(-ctx.mpf(1)/2, ctx.sqrt(3)/2)
+    else:
+        _j = 1728 * J
+        sqrt_arg = 3*(1728*_j**2 - _j**3)
+        exponent = ctx.mpf(1) / ctx.mpf(3)
+        t = (-_j**3 + 2304*_j**2 - 884736*_j +
+             12288*ctx.sqrt(sqrt_arg))**exponent
+        x = (ctx.mpf(1)/768*t + (1 - _j/768) -
+             (1536*_j - _j**2)/(768*t))
+        lbd = (1 + ctx.sqrt(1 - 4*x))/2
+
+        # For real J > 1 the selected lambda is real. Principal-root rounding
+        # can leave a sub-precision imaginary part, needlessly making both AGM
+        # evaluations use substantially slower complex arithmetic.
+        if ctx.im(J) == 0 and ctx.re(J) > 1:
+            lbd = ctx.re(lbd)
+        agm_m = ctx.agm(1, ctx.sqrt(1-lbd))
+        agm_complement = ctx.agm(1, ctx.sqrt(lbd))
+        tau = ctx.j*agm_m/agm_complement
+    return _fundamental_domain_tau(ctx, tau)
 
 
 def RF_calc(ctx, x, y, z, r):
@@ -1484,6 +1722,9 @@ def _roots_from_omega(ctx, omega1, omega2):
     """
     Compute roots e1, e2, e3 of 4*z^3 - g2*z - g3 = 0 using theta functions.
     This is ~10x faster than solving the cubic directly.
+
+    The roots are naturally labelled by e1 = wp(omega1),
+    e2 = wp(omega1 + omega2), and e3 = wp(omega2).
     """
     tau = omega2 / omega1
     q = ctx.qfrom(tau=tau)
@@ -1493,8 +1734,38 @@ def _roots_from_omega(ctx, omega1, omega2):
     e1 = c * (j24 + 2*j44)
     e2 = c * (j24 - j44)
     e3 = -c * (2*j24 + j44)
-    roots = sorted([(e.real, e.imag) for e in [e1, e2, e3]], reverse=True)
-    return [ctx.mpc(real=t[0], imag=t[1]) for t in roots]
+    return e1, e2, e3
+
+
+def _real_elliptic_data(ctx, g2, g3, discriminant):
+    """Return K(m), K(1-m), and the real period-scale denominator."""
+    if discriminant > 0:
+        # Three ordered real roots, obtained without complex Cardano values.
+        root_scale = ctx.sqrt(g2/3)
+        cosine = 3*ctx.sqrt(3)*g3/(g2*ctx.sqrt(g2))
+        cosine = min(ctx.one, max(-ctx.one, cosine))
+        theta = ctx.acos(cosine)/3
+        e1 = root_scale*ctx.cos(theta)
+        e2 = root_scale*ctx.cos(theta-2*ctx.pi/3)
+        e3 = root_scale*ctx.cos(theta+2*ctx.pi/3)
+        period_scale = e1-e3
+        m = (e2-e3)/period_scale
+    else:
+        # One real root and a conjugate pair, using real Cardano radicals.
+        root_discriminant = ctx.sqrt(-discriminant/1728)
+        exponent = ctx.mpf(1)/3
+        u3 = g3/8 + root_discriminant
+        v3 = g3/8 - root_discriminant
+        u = ctx.sign(u3)*abs(u3)**exponent
+        v = ctx.sign(v3)*abs(v3)**exponent
+        real_root = u+v
+        root_real_part = 3*real_root/2
+        root_imaginary_part = ctx.sqrt(3)*(u-v)/2
+        period_scale = ctx.sqrt(
+            root_real_part**2 + root_imaginary_part**2)
+        m = (period_scale-root_real_part)/(2*period_scale)
+    return ctx.ellipk(m), ctx.ellipk(1-m), period_scale
+
 
 def _eisenstein_E4_E6(ctx, tau):
     """
@@ -1504,9 +1775,13 @@ def _eisenstein_E4_E6(ctx, tau):
     q = ctx.qfrom(tau=tau)
     j2 = ctx.jtheta(2, 0, q)
     j3 = ctx.jtheta(3, 0, q)
-    j4 = ctx.jtheta(4, 0, q)
-    E4 = (j2**8 + j3**8 + j4**8) / 2
-    E6 = (-3*j2**8 * (j3**4 + j4**4) + (j3**12 + j4**12)) / 2
+    j24 = j2**4
+    j34 = j3**4
+    # Jacobi's identity j3**4 = j2**4 + j4**4 eliminates one
+    # comparatively expensive theta-constant evaluation.
+    E4 = j24**2 - j24*j34 + j34**2
+    E6 = (j24**3 - ctx.mpf(3)/2*j24**2*j34 -
+          ctx.mpf(3)/2*j24*j34**2 + j34**3)
     return E4, E6
 
 def _eisenstein_G4_G6(ctx, tau):
@@ -1518,178 +1793,305 @@ def _eisenstein_G4_G6(ctx, tau):
     G6 = 2 * ctx.zeta(6) * E6
     return G4, G6
 
-def _inverse_kleinj(ctx, J):
-    """
-    Compute tau from Klein's J-invariant using the inverse j-function.
-    See: https://en.wikipedia.org/wiki/J-invariant
-    """
-    J = ctx.convert(J)
-    _j = 1728 * J
-    sqrt_arg = 3*(1728*_j**2 - _j**3)
-    exponent = ctx.mpf(1) / ctx.mpf(3)
-    t = (-_j**3 + 2304*_j**2 - 884736*_j +
-         12288*ctx.sqrt(sqrt_arg))**exponent
-    x = ctx.mpf(1)/768*t + (1 - _j/768) - (1536*_j - _j**2) / (768*t)
-
-    lbd = (1 + ctx.sqrt(1 - 4*x)) / 2
-    tau = ctx.j * ctx.agm(1, ctx.sqrt(1-lbd)) / ctx.agm(1, ctx.sqrt(lbd))
-    return tau
-
-def _kleinj_from_g2g3(ctx, g2, g3):
-    """
-    Klein's absolute invariant J from g2, g3.
-    (Not the j one with 1728 factor)
-    https://mathworld.wolfram.com/KleinsAbsoluteInvariant.html
-    """
-    g2 = ctx.convert(g2)
-    g3 = ctx.convert(g3)
-    return 1 / (1 - 27*g3**2/g2**3)
-
-def _tau_from_g(ctx, g2, g3):
-    """
-    Compute tau (half-period ratio) from g2, g3.
-    """
-    g2 = ctx.convert(g2)
-    g3 = ctx.convert(g3)
-    J = _kleinj_from_g2g3(ctx, g2, g3)
-    tau = _inverse_kleinj(ctx, J)
-    return tau
-
-def _weierstrass_omega_tau(ctx, funcname, g2=None, g3=None, tau=None,
-                           omega1=None, omega2=None):
-    """
-    Resolve one Weierstrass parameterization to (omega1, tau).
-    """
-    if (g2 is None) != (g3 is None):
-        raise ValueError("%s: must provide both g2 and g3" % funcname)
-    if (omega1 is None) != (omega2 is None):
-        raise ValueError("%s: must provide both omega1 and omega2" % funcname)
-    parameter_count = (int(g2 is not None) + int(tau is not None) +
-                       int(omega1 is not None))
-    if parameter_count != 1:
-        raise ValueError("%s: must provide exactly one of g2, g3; "
-                         "omega1, omega2; or tau" % funcname)
-    if omega1 is not None:
-        omega1 = ctx.convert(omega1)
-        omega2 = ctx.convert(omega2)
-        tau = omega2 / omega1
-        if ctx.im(tau) <= 0:
-            raise ValueError("%s: omega ratio must be in upper half-plane" %
-                             funcname)
-        return omega1, tau
-    if tau is not None:
-        tau = ctx.convert(tau)
-        if ctx.im(tau) <= 0:
-            raise ValueError("%s: tau must be in upper half-plane" % funcname)
-        return ctx.one/2, tau
-    omega1, omega2 = ctx.weierhalfperiods(g2, g3)
-    return omega1, omega2 / omega1
 
 # ============================================================================
 # Weierstrass parameter conversion functions
 # ============================================================================
 
 @defun
-def weierinvariants(ctx, omega1, omega2):
+@ctx_lru_cache(maxsize=16)
+def g2g3from(ctx, q=None, m=None, k=None, tau=None, qbar=None,
+             g2=None, g3=None, omega1=None, omega2=None):
     r"""
-    Returns the Weierstrass invariants `(g_2, g_3)` corresponding to
-    the half-periods `(\omega_1, \omega_2)`::
+    Returns the Weierstrass invariants `(g_2, g_3)`, given any of
+    `q, m, k, \tau, \bar{q}`, both invariants `g_2, g_3`, or both
+    half-periods `\omega_1, \omega_2`.
 
-        >>> from mpmath import mp, chop, weierinvariants
+    The shape-only parameterizations `q, m, k, \tau, \bar{q}` use the
+    normalized half-periods `\omega_1 = 1/2` and
+    `\omega_2 = \tau/2`::
+
+        >>> from mpmath import mp, chop, g2g3from
         >>> mp.pretty = True
-        >>> g2, g3 = weierinvariants(1, 0.5j)
+        >>> g2, g3 = g2g3from(omega1=1, omega2=0.5j)
         >>> chop(g2)
         129.987495088848
         >>> chop(g3)
         -284.355330876541
+        >>> tuple(map(chop, g2g3from(tau=0.5j)))
+        (2079.79992142157, -18198.7411760986)
 
     """
+    _validate_weierstrass_parameter_args(
+        "g2g3from", q, m, k, tau, qbar, g2, g3, omega1, omega2)
     with ctx.extraprec(10):
-        omega1 = ctx.convert(omega1)
-        omega2 = ctx.convert(omega2)
-        if ctx.im(omega2/omega1) <= 0:
-            raise ValueError("weierinvariants: omega ratio must be "
-                             "in upper half-plane")
-        tau = omega2 / omega1
-        q = ctx.qfrom(tau=tau)
-        j2 = ctx.jtheta(2, 0, q)
-        j3 = ctx.jtheta(3, 0, q)
-        factor = ctx.pi / (2 * omega1)
-        g2 = (ctx.mpf(4)/3) * factor**4 * (j2**8 - (j2*j3)**4 + j3**8)
-        g3 = ((ctx.mpf(8)/27) * factor**6 *
-              (j2**12 - (ctx.mpf(3)/2*j2**8*j3**4 +
-                         ctx.mpf(3)/2*j2**4*j3**8) +
-               j3**12))
-        return +g2, +g3
+        if g2 is not None:
+            g2 = ctx.convert(g2)
+            g3 = ctx.convert(g3)
+        else:
+            if omega1 is None:
+                tau = ctx.taufrom(q=q, m=m, k=k, tau=tau, qbar=qbar)
+                if ctx.im(tau) <= 0:
+                    raise ValueError("g2g3from: tau must be in upper "
+                                     "half-plane")
+                omega1 = ctx.one/2
+                omega2 = tau/2
+            else:
+                omega1 = ctx.convert(omega1)
+                omega2 = ctx.convert(omega2)
+            if ctx.im(omega2/omega1) <= 0:
+                raise ValueError("g2g3from: omega ratio must be "
+                                 "in upper half-plane")
+            tau = omega2 / omega1
+            q = ctx.qfrom(tau=tau)
+            j2 = ctx.jtheta(2, 0, q)
+            j3 = ctx.jtheta(3, 0, q)
+            factor = ctx.pi / (2 * omega1)
+            g2 = ((ctx.mpf(4)/3) * factor**4 *
+                  (j2**8 - (j2*j3)**4 + j3**8))
+            g3 = ((ctx.mpf(8)/27) * factor**6 *
+                  (j2**12 - (ctx.mpf(3)/2*j2**8*j3**4 +
+                             ctx.mpf(3)/2*j2**4*j3**8) +
+                   j3**12))
+    return +g2, +g3
 
 @defun
-def weierhalfperiods(ctx, g2, g3):
+@ctx_lru_cache(maxsize=16)
+def omega1omega2from(ctx, q=None, m=None, k=None, tau=None, qbar=None,
+                     g2=None, g3=None, omega1=None, omega2=None):
     r"""
-    Returns a pair of fundamental half-periods `(\omega_1, \omega_2)`
-    corresponding to the Weierstrass invariants `(g_2, g_3)`::
+    Returns the Weierstrass half-periods `(\omega_1, \omega_2)`, given
+    any of `q, m, k, \tau, \bar{q}`, both invariants `g_2, g_3`, or both
+    half-periods `\omega_1, \omega_2`.
+
+    The shape-only parameterizations `q, m, k, \tau, \bar{q}` return the
+    normalized half-periods `\omega_1 = 1/2` and
+    `\omega_2 = \tau/2`.
+
+    When converting from `g_2, g_3`, the basis is chosen so that
+    `\tau = \omega_2/\omega_1` lies in the standard modular fundamental
+    domain. On its boundary, the representative with
+    `\operatorname{Re}(\tau) = 1/2` is preferred to `-1/2`, and the right
+    half of the circle `|\tau| = 1` is preferred. The simultaneous sign
+    ambiguity is fixed by placing `\omega_1` in the right half-plane, with
+    the negative imaginary axis included as its boundary::
 
         >>> from mpmath import mp, chop
-        >>> from mpmath import weierhalfperiods, weierinvariants
+        >>> from mpmath import omega1omega2from, g2g3from
         >>> mp.pretty = True
-        >>> omega1, omega2 = weierhalfperiods(60, 140)
-        >>> g2, g3 = weierinvariants(omega1, omega2)
+        >>> omega1, omega2 = omega1omega2from(g2=60, g3=140)
+        >>> g2, g3 = g2g3from(omega1=omega1, omega2=omega2)
         >>> chop(g2), chop(g3)
         (60.0, 140.0)
         >>> chop(omega2/omega1)
-        (0.5 + 0.209032224450873j)
+        (0.5 + 1.19598784664302j)
+        >>> omega1omega2from(tau=0.5j)
+        (0.5, (0.0 + 0.25j))
 
     """
+    _validate_weierstrass_parameter_args(
+        "omega1omega2from", q, m, k, tau, qbar, g2, g3, omega1, omega2)
+    if omega1 is not None:
+        with ctx.extraprec(10):
+            omega1 = ctx.convert(omega1)
+            omega2 = ctx.convert(omega2)
+            if ctx.im(omega2/omega1) <= 0:
+                raise ValueError("omega1omega2from: omega ratio must be "
+                                 "in upper half-plane")
+        return +omega1, +omega2
+    if g2 is None:
+        with ctx.extraprec(10):
+            tau = ctx.taufrom(q=q, m=m, k=k, tau=tau, qbar=qbar)
+            if ctx.im(tau) <= 0:
+                raise ValueError("omega1omega2from: tau must be in upper "
+                                 "half-plane")
+            omega1 = ctx.one/2
+            omega2 = tau/2
+        return +omega1, +omega2
+
     with ctx.extraprec(10):
         g2 = ctx.convert(g2)
         g3 = ctx.convert(g3)
+        periods = None
 
         if g2 == 0:
             omegaA = (g3 ** (ctx.mpf(-1)/ctx.mpf(6)) *
                       ctx.gamma(ctx.mpf(1)/ctx.mpf(3))**3 / (4*ctx.pi))
             tau = ctx.mpc(ctx.mpf(1)/ctx.mpf(2), ctx.sqrt(3)/2)
+            omegaB = tau * omegaA
         elif g3 == 0:
-            tau = _tau_from_g(ctx, g2, g3)
-            G4, G6 = _eisenstein_G4_G6(ctx, tau)
-            omegaA = (ctx.j * (ctx.mpf(15)/(4*g2) * G4) **
+            # Lemniscatic closed form, written to preserve the principal
+            # fourth-root branch used by the former Eisenstein calculation.
+            lemniscatic = (ctx.gamma(ctx.mpf(1)/4)**2 /
+                           (4*ctx.sqrt(ctx.pi)))
+            omegaA = (ctx.j * (lemniscatic**4/g2) **
                       (ctx.mpf(1)/ctx.mpf(4)))
+            tau = ctx.j
+            omegaB = tau * omegaA
         else:
-            tau = _tau_from_g(ctx, g2, g3)
-            G4, G6 = _eisenstein_G4_G6(ctx, tau)
-            omegaA = ctx.sqrt(g2/g3 * G6/G4 * ctx.mpf(7)/ctx.mpf(12))
+            discriminant = g2**3 - 27*g3**2
+            g2_term = abs(g2)**3
+            g3_term = 27*abs(g3)**2
+            shape_ratio = min(g2_term, g3_term) / max(g2_term, g3_term)
 
-        omegaB = tau * omegaA
-        omegaC = omegaA + omegaB
-        omegas = [omegaA, omegaB, omegaC]
-        index_combos = [(0,1,2), (0,2,1), (1,0,2),
-                        (1,2,0), (2,0,1), (2,1,0)]
+            # Direct root formulas are singular at the cusp and ill-conditioned
+            # near J=0 and J=1. Retain the Eisenstein scale formula there so
+            # small nonzero invariants are not discarded by cancellation.
+            if discriminant == 0 or shape_ratio < ctx.ldexp(1, -20):
+                tau = ctx.taufrom(g2=g2, g3=g3)
+                G4, G6 = _eisenstein_G4_G6(ctx, tau)
+                omegaA = ctx.sqrt(g2/g3 * G6/G4 *
+                                  ctx.mpf(7)/ctx.mpf(12))
+                omegaB = tau * omegaA
+            elif ctx.im(g2) == 0 and ctx.im(g3) == 0:
+                real_g2 = ctx.re(g2)
+                real_g3 = ctx.re(g3)
+                real_discriminant = ctx.re(discriminant)
+                K, K_complement, period_scale = _real_elliptic_data(
+                    ctx, real_g2, real_g3, real_discriminant)
+                if real_discriminant > 0:
+                    sqrt_D = ctx.sqrt(period_scale)
+                    real_period = K/sqrt_D
+                    imaginary_period = K_complement/sqrt_D
 
-        e1, e2, e3 = _roots_from_omega(ctx, omegaA, omegaB)
-        wps = []
-        for omegaN in omegas:
-            wps.append(ctx.weierp(omegaN, omega1=omegaA, omega2=omegaB))
+                    # For positive g3 the standard rectangular basis is
+                    # already reduced. For negative g3 apply its S-transform.
+                    if real_g3 > 0:
+                        periods = (real_period,
+                                   ctx.j*imaginary_period)
+                    else:
+                        periods = (-ctx.j*imaginary_period, real_period)
+                else:
+                    sqrt_H = ctx.sqrt(period_scale)
+                    real_period = K/sqrt_H
+                    imaginary_part = K_complement/(2*sqrt_H)
 
-        maes = []
-        for ic in index_combos:
-            mae = (abs(e1 - wps[ic[0]]) + abs(e2 - wps[ic[1]]) +
-                   abs(e3 - wps[ic[2]])) / 3
-            maes.append(mae)
+                    # These bases directly implement the documented
+                    # fundamental-domain and simultaneous-sign conventions in
+                    # each real symmetry region, so no generic PSL(2,Z)
+                    # reduction is needed.
+                    if real_g2 > 0:
+                        if real_g3 > 0:
+                            periods = (
+                                real_period,
+                                real_period/2 + ctx.j*imaginary_part)
+                        else:
+                            periods = (
+                                -2*ctx.j*imaginary_part,
+                                real_period/2-ctx.j*imaginary_part)
+                    elif real_g3 > 0:
+                        periods = (
+                            real_period/2+ctx.j*imaginary_part,
+                            -real_period/2+ctx.j*imaginary_part)
+                    else:
+                        periods = (
+                            real_period/2-ctx.j*imaginary_part,
+                            real_period/2+ctx.j*imaginary_part)
+            else:
+                # Solve the original cubic directly. This obtains both the
+                # elliptic parameter and its scale together, avoiding inverse
+                # j followed by a separate reconstruction of e1-e3.
+                root_discriminant = ctx.sqrt(-discriminant/1728)
+                u3 = g3/8 + root_discriminant
+                u = u3**(ctx.mpf(1)/3)
+                v = g2/(12*u)
+                cube_root_unity = ctx.expjpi(ctx.mpf(2)/3)
+                cube_root_unity2 = -1-cube_root_unity
+                e1 = u+v
+                e2 = cube_root_unity*u + cube_root_unity2*v
+                e3 = cube_root_unity2*u + cube_root_unity*v
+                D = e1-e3
+                m = (e2-e3)/D
+                sqrt_D = ctx.sqrt(D)
+                omegaA = (ctx.pi /
+                          (2*ctx.agm(1, ctx.sqrt(1-m))*sqrt_D))
+                omegaB = (ctx.j*ctx.pi /
+                          (2*ctx.agm(1, ctx.sqrt(m))*sqrt_D))
+                tau = omegaB/omegaA
 
-        mae = min(maes)
-        min_index = maes.index(mae)
+        if periods is None:
+            if g2 != 0 and g3 != 0:
+                a, b, c, d = ctx._reduce_psl2z(tau)
+                omega1 = d*omegaA + c*omegaB
+                omega2 = b*omegaA + a*omegaB
+            else:
+                omega1, omega2 = omegaA, omegaB
 
-        scale = max([ctx.one] + [abs(x) for x in [e1, e2, e3] + wps])
-        tolerance = ctx.sqrt(ctx.eps) * scale
-        if mae > tolerance: raise ValueError("weierhalfperiods: no convergence")
+            # Remove sub-precision components introduced by inverse-j branch
+            # arithmetic before applying conventions on symmetry boundaries.
+            omega1 = ctx.chop(omega1)
+            omega2 = ctx.chop(omega2)
+            tau = omega2/omega1
+            # Identify equivalent points on the vertical and circular
+            # boundaries of the fundamental domain without recomputing the
+            # period ratio.
+            if ctx.almosteq(ctx.re(tau), -ctx.one/2):
+                omega2 += omega1
+                tau += 1
+            if ctx.almosteq(abs(tau), ctx.one) and ctx.re(tau) < 0:
+                omega1, omega2 = omega2, -omega1
 
-        omega1, omega2 = [omegas[k] for k in index_combos[min_index]][:2]
-        if ctx.im(omega2/omega1) <= 0:
-            omega2 = -omega2
-        return +omega1, +omega2
+            # The invariants do not distinguish a basis from its simultaneous
+            # negation. Place omega1 in the right half-plane, with the negative
+            # imaginary axis included as its boundary.
+            real = ctx.re(omega1)
+            if ((real < 0 and not ctx.almosteq(real, 0)) or
+                    (ctx.almosteq(real, 0) and ctx.im(omega1) > 0)):
+                omega1 = -omega1
+                omega2 = -omega2
+        else:
+            omega1, omega2 = periods
+    return +omega1, +omega2
 
 
 # ============================================================================
 # Main Weierstrass Elliptic Functions
 # ============================================================================
+
+@defun
+@ctx_lru_cache(maxsize=16)
+def _weierp_data(ctx, omega1, omega2):
+    """Return the lattice-dependent data used by ``weierp``."""
+    q = ctx.qfrom(tau=omega2 / omega1)
+    j2 = ctx.jtheta(2, 0, q)
+    j3 = ctx.jtheta(3, 0, q)
+    z_scale = ctx.pi / (2 * omega1)
+    coefficient = (ctx.pi*j2*j3)**2 / (4 * omega1**2)
+    constant = -ctx.pi**2 * (j2**4 + j3**4) / (12 * omega1**2)
+    return q, z_scale, coefficient, constant
+
+@defun
+@ctx_lru_cache(maxsize=16)
+def _weierpprime_data(ctx, omega1, omega2):
+    """Return the lattice-dependent data used by ``weierpprime``."""
+    q = ctx.qfrom(tau=omega2 / omega1)
+    j10p = ctx.jtheta(1, 0, q, 1)
+    z_scale = ctx.pi / (2 * omega1)
+    coefficient = -(ctx.pi * j10p / (2 * omega1))**3
+    return q, z_scale, coefficient
+
+@defun
+@ctx_lru_cache(maxsize=16)
+def _weiersigma_data(ctx, omega1, omega2):
+    """Return the lattice-dependent data used by ``weiersigma``."""
+    q = ctx.qfrom(tau=omega2 / omega1)
+    j10p = ctx.jtheta(1, 0, q, 1)
+    j10ppp = ctx.jtheta(1, 0, q, 3)
+    z_scale = ctx.pi / (2 * omega1)
+    coefficient = 2 * omega1 / (ctx.pi * j10p)
+    exponential_coefficient = -j10ppp / (6 * j10p)
+    return q, z_scale, coefficient, exponential_coefficient
+
+@defun
+@ctx_lru_cache(maxsize=16)
+def _weierzeta_data(ctx, omega1, omega2):
+    """Return the lattice-dependent data used by ``weierzeta``."""
+    q = ctx.qfrom(tau=omega2 / omega1)
+    w1 = -omega1 / ctx.pi
+    p = 1 / (2 * w1)
+    eta1 = (p / (6 * w1) * ctx.jtheta(1, 0, q, 3) /
+            ctx.jtheta(1, 0, q, 1))
+    return q, p, eta1
 
 @defun_wrapped
 def weierp(ctx, z, g2=None, g3=None, tau=None, omega1=None, omega2=None):
@@ -1703,19 +2105,13 @@ def weierp(ctx, z, g2=None, g3=None, tau=None, omega1=None, omega2=None):
 
         (\wp'(z))^2 = 4\wp(z)^3 - g_2 \wp(z) - g_3
 
-    The function may be parameterized in any one of the following ways:
-
-    - by the elliptic invariants `g_2, g_3`;
-    - by the half-periods `\omega_1, \omega_2`;
-    - by `\tau`, corresponding to the normalized half-periods
-      `\omega_1 = 1/2`, `\omega_2 = \tau/2`.
+    The lattice may be specified by the invariants ``g2``, ``g3``, the
+    half-periods ``omega1``, ``omega2``, or ``tau``. See
+    :func:`~mpmath.g2g3from` and :func:`~mpmath.omega1omega2from` for
+    conversions and normalization conventions.
 
     The periods of `\wp` are `2\omega_1` and `2\omega_2`. Thus the
     `\tau` parameterization corresponds to periods `1` and `\tau`.
-
-    For repeated evaluation with the same invariants, it is faster to compute
-    the half-periods once with :func:`~mpmath.weierhalfperiods` and pass them
-    using the `omega1` and `omega2` keywords.
 
     **Examples**
 
@@ -1737,17 +2133,13 @@ def weierp(ctx, z, g2=None, g3=None, tau=None, omega1=None, omega2=None):
 
     """
     z = ctx.convert(z)
-    omega1, tau = _weierstrass_omega_tau(ctx, "weierp", g2, g3, tau,
-                                         omega1, omega2)
-    z_norm = z / (2 * omega1)
-    q = ctx.qfrom(tau=tau)
-    j1z = ctx.jtheta(1, ctx.pi*z_norm, q)
-    j2 = ctx.jtheta(2, 0, q)
-    j3 = ctx.jtheta(3, 0, q)
-    j4z = ctx.jtheta(4, ctx.pi*z_norm, q)
-    wp_theta = ((ctx.pi*j2*j3*j4z/j1z)**2 -
-                ctx.pi**2 * (j2**4 + j3**4) / 3)
-    return wp_theta / omega1**2 / 4
+    omega1, omega2 = ctx.omega1omega2from(
+        g2=g2, g3=g3, tau=tau, omega1=omega1, omega2=omega2)
+    q, z_scale, coefficient, constant = ctx._weierp_data(omega1, omega2)
+    z1 = z * z_scale
+    j1z = ctx.jtheta(1, z1, q)
+    j4z = ctx.jtheta(4, z1, q)
+    return coefficient * (j4z / j1z)**2 + constant
 
 @defun_wrapped
 def weierpprime(ctx, z, g2=None, g3=None, tau=None,
@@ -1761,9 +2153,9 @@ def weierpprime(ctx, z, g2=None, g3=None, tau=None,
 
         (\wp'(z))^2 = 4\wp(z)^3 - g_2 \wp(z) - g_3
 
-    The function accepts the same parameterizations as :func:`~mpmath.weierp`:
-    the invariants `g_2, g_3`, the half-periods `\omega_1, \omega_2`, or
-    `\tau`, corresponding to normalized periods `1` and `\tau`.
+    The function accepts the same parameterizations as :func:`~mpmath.weierp`.
+    See :func:`~mpmath.g2g3from` and :func:`~mpmath.omega1omega2from` for
+    conversions and normalization conventions.
 
     **Examples**
 
@@ -1791,22 +2183,13 @@ def weierpprime(ctx, z, g2=None, g3=None, tau=None,
 
     """
     z = ctx.convert(z)
-    omega1, tau = _weierstrass_omega_tau(ctx, "weierpprime",
-                                         g2, g3, tau, omega1, omega2)
-    z_norm = z / (2 * omega1)
-    q = ctx.qfrom(tau=tau)
-    z1 = ctx.pi * z_norm
-    j10p = ctx.jtheta(1, 0, q, 1)
-    j20 = ctx.jtheta(2, 0, q)
-    j30 = ctx.jtheta(3, 0, q)
-    j40 = ctx.jtheta(4, 0, q)
-    k0 = j10p**3 / (j20 * j30 * j40)
+    omega1, omega2 = ctx.omega1omega2from(
+        g2=g2, g3=g3, tau=tau, omega1=omega1, omega2=omega2)
+    q, z_scale, coefficient = ctx._weierpprime_data(omega1, omega2)
+    z1 = z * z_scale
     j1z1 = ctx.jtheta(1, z1, q)
-    j2z1 = ctx.jtheta(2, z1, q)
-    j3z1 = ctx.jtheta(3, z1, q)
-    j4z1 = ctx.jtheta(4, z1, q)
-    kz = j2z1 * j3z1 * j4z1 / j1z1**3
-    return -ctx.pi**3 / (4 * omega1**3) * k0 * kz
+    j1z2 = ctx.jtheta(1, 2 * z1, q)
+    return coefficient * j1z2 / j1z1**4
 
 @defun_wrapped
 def weiersigma(ctx, z, g2=None, g3=None, tau=None,
@@ -1827,9 +2210,9 @@ def weiersigma(ctx, z, g2=None, g3=None, tau=None,
 
         \wp(z) = -\frac{d^2}{dz^2} \log \sigma(z).
 
-    The function accepts the same parameterizations as :func:`~mpmath.weierp`:
-    the invariants `g_2, g_3`, the half-periods `\omega_1, \omega_2`, or
-    `\tau`, corresponding to normalized periods `1` and `\tau`.
+    The function accepts the same parameterizations as :func:`~mpmath.weierp`.
+    See :func:`~mpmath.g2g3from` and :func:`~mpmath.omega1omega2from` for
+    conversions and normalization conventions.
 
     **Examples**
 
@@ -1846,15 +2229,13 @@ def weiersigma(ctx, z, g2=None, g3=None, tau=None,
 
     """
     z = ctx.convert(z)
-    omega1, tau = _weierstrass_omega_tau(ctx, "weiersigma",
-                                         g2, g3, tau, omega1, omega2)
-    z1 = ctx.pi * z / (2 * omega1)
-    q = ctx.qfrom(tau=tau)
-    j10p = ctx.jtheta(1, 0, q, 1)
-    j10ppp = ctx.jtheta(1, 0, q, 3)
+    omega1, omega2 = ctx.omega1omega2from(
+        g2=g2, g3=g3, tau=tau, omega1=omega1, omega2=omega2)
+    data = ctx._weiersigma_data(omega1, omega2)
+    q, z_scale, coefficient, exponential_coefficient = data
+    z1 = z * z_scale
     j1z1 = ctx.jtheta(1, z1, q)
-    return (2 * omega1 / (ctx.pi * j10p) *
-            ctx.exp(-z1**2 * j10ppp / (6 * j10p)) * j1z1)
+    return coefficient * ctx.exp(z1**2 * exponential_coefficient) * j1z1
 
 @defun_wrapped
 def weierzeta(ctx, z, g2=None, g3=None, tau=None,
@@ -1878,9 +2259,9 @@ def weierzeta(ctx, z, g2=None, g3=None, tau=None,
     Unlike `\wp`, the zeta function is quasi-periodic rather than doubly
     periodic.
 
-    The function accepts the same parameterizations as :func:`~mpmath.weierp`:
-    the invariants `g_2, g_3`, the half-periods `\omega_1, \omega_2`, or
-    `\tau`, corresponding to normalized periods `1` and `\tau`.
+    The function accepts the same parameterizations as :func:`~mpmath.weierp`.
+    See :func:`~mpmath.g2g3from` and :func:`~mpmath.omega1omega2from` for
+    conversions and normalization conventions.
 
     **Examples**
 
@@ -1897,12 +2278,9 @@ def weierzeta(ctx, z, g2=None, g3=None, tau=None,
 
     """
     z = ctx.convert(z)
-    omega1, tau = _weierstrass_omega_tau(ctx, "weierzeta",
-                                         g2, g3, tau, omega1, omega2)
-    w1 = -omega1 / ctx.pi
-    q = ctx.qfrom(tau=tau)
-    p = 1 / 2 / w1
-    eta1 = p / 6 / w1 * ctx.jtheta(1, 0, q, 3) / ctx.jtheta(1, 0, q, 1)
+    omega1, omega2 = ctx.omega1omega2from(
+        g2=g2, g3=g3, tau=tau, omega1=omega1, omega2=omega2)
+    q, p, eta1 = ctx._weierzeta_data(omega1, omega2)
     j1pz = ctx.jtheta(1, p*z, q, 1)
     j1z = ctx.jtheta(1, p*z, q)
     return -eta1 * z + p * j1pz / j1z
@@ -1921,21 +2299,21 @@ def weierpinv(ctx, p, g2=None, g3=None, tau=None, omega1=None, omega2=None,
 
     using Carlson's symmetric integral.
 
-    The function accepts the same parameterizations as :func:`~mpmath.weierp`:
-    the invariants `g_2, g_3`, the half-periods `\omega_1, \omega_2`, or
-    `\tau`, corresponding to normalized periods `1` and `\tau`.
+    The function accepts the same parameterizations as :func:`~mpmath.weierp`.
+    See :func:`~mpmath.g2g3from` and :func:`~mpmath.omega1omega2from` for
+    conversions and normalization conventions.
 
-    The inverse is multivalued up to periods and sign. If `weierp_prime` is
+    The inverse is multivalued up to periods and sign. If ``weierp_prime`` is
     provided, it is used to choose between `z` and `-z` by matching the
     corresponding value of `\wp'(z)`.
 
     **Parameters**
 
-    - `p`: the target value
-    - `g2, g3`: elliptic invariants
-    - `tau` or `omega1, omega2`: alternative parameterizations
-    - `weierp_prime` (optional): derivative value used to choose the sign of
-       the inverse
+    - ``p``: the target value
+    - ``g2``, ``g3``: elliptic invariants
+    - ``tau`` or ``omega1``, ``omega2``: alternative parameterizations
+    - ``weierp_prime`` (optional): derivative value used to choose the sign
+      of the inverse
 
     **Examples**
 
@@ -1956,9 +2334,8 @@ def weierpinv(ctx, p, g2=None, g3=None, tau=None, omega1=None, omega2=None,
 
     """
     p = ctx.convert(p)
-    omega1, tau = _weierstrass_omega_tau(ctx, "weierpinv",
-                                         g2, g3, tau, omega1, omega2)
-    omega2 = omega1 * tau
+    omega1, omega2 = ctx.omega1omega2from(
+        g2=g2, g3=g3, tau=tau, omega1=omega1, omega2=omega2)
     e1, e2, e3 = _roots_from_omega(ctx, omega1, omega2)
 
     # Compute via elliptic integral

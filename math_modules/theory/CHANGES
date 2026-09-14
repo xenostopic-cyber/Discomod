@@ -1,5 +1,40 @@
 Bug numbers refer to the BTS at http://pari.math.u-bordeaux.fr/Bugs/
-Done for version 2.18.1 (released 0?/01/2026):
+Done for version 2.19.0 (released ??/09/2026):
+  Fixed
+     1- bestappr(-1/7, 6) -> 0 [instead of -1/6]
+     2- abs(t_QUAD) would not return exact answer even if possible
+     3- polredbest(x^3-2*x+1) -> SEGV [#2689]
+     4- mflinear(MF in half integer weight, coefs in Q(chi)): wrong result
+BA   5- ellisdivisible: potential oo-loop [#2695]
+BA   6- bnrL1(,,0) over imaginary quadratic fields was wrong [#2693]
+
+  Added
+     1- [libpari] QM_ishnf
+     2- [libpari] fractor_lg, itor_lg, rdivii_lg, rtor_lg, stor_lg, utor_lg
+     3- [libpari] ZX_realroots, ZX_nf_roots
+     4- znorder: allow a znstar for the 'order' optional argument
+     5- allow lfunqf(t_VEC) for lfunqf(matdiagonal(...))
+     6- [libpari] vandermondeinverseinit_real
+BA   7- New GP function galoisorder
+BA   8- [libpari] group_istrivial, groupgen_export, groupelts_gen
+
+  Removed
+     1- real_1_bit: use real_1
+     2- group_export_GAP, group_export_MAGMA: use group_export
+
+  Changed
+     1- bestappr(t_REAL) now choses B = 2^((realprec(x) + 1) \ 2) instead of
+        2^realprec(x).
+     2- [libpari] rename real_0_bit -> real_0_expo
+     3- speed up numbpart
+     4- '?' now prints a short introduction, move the list of help
+        sections to '?*'
+     5- allow arbitrary separable (rational) polynomials in the polred*
+        family of functions. Don't assume irreducibility [#2689]
+     6- readline completion: don't include yet undefined symbols
+BA   7- group_ident, group_ident_trans, checkgroup: remove parameter S
+
+Done for version 2.18.1 (released 24/07/2026):
   Fixed
      1- reduce memory use in Z_ppo
 BA   2- ellrootno over number fields could be slow [#2595]
@@ -69,6 +104,10 @@ BA  58- ellcard(ellinit([ffgen([53,36]),1])) -> wrong result
     59- polcyclofactors(((x^6+x^3+1)*(3*x^3+1))^2) -> oo loop [#2680]
 BA  60- [pthread] ^C could cause a SEGV [#2665]
 BA  61- qfbred(large real QFB) could SEGV
+    62- ZX_factor: rare "no factor" bug [#2670]
+    63- === for t_REAL 0: was not ignoring mantissa
+    64- bnfisprincipal: uninitialized parameter in a deprecated branch
+        (using either bnfinit(,1) or bnfisprincipal(,4) avoided the problem)
 
   Added
      1- [libpari] prodprimes, prodprimeslim
@@ -166,6 +205,11 @@ BA  87- [libpari] ZXX_shifti, ZXX_pval, ZXV_pval
 BA  88- [libpari] FpXQV_ellcharpoly
 BA  89- [libpari] ellheegner_z
 BA  90- [libpari] uisnilpotent
+BA  91- contfrac for real t_QFB and t_QUAD
+BA  92- galoisinit: support for non-WSS Galois groups
+BA  93- new GP function ellheegnertwist
+    94- [libpari] Z_has_prime_3mod4
+    95- support vecsort(vector of t_VECSMALL, k)
 
   Changed
      1- subst: use fast RgX_affine function to compute P(a*x+b) + RgX_deflate
@@ -209,6 +253,9 @@ BA  22- polteichmuller now requires T to be irreducible
     26- gphelp: remove GPHELP_TMPDIR and GPHELP_DOCDIR aliases for GPTMPDIR
         and GPDOCDIR environment variables (obsoleted and left undocumented
         since pari-2.0.12 (1998)).
+    27- gphelp -k and ??? : case sensitive search if keyword is all uppercase.
+        For instance ??? LLL no longer outputs elllog and ellL1, whereas
+        ??? lll still does.
 
   Removed
      1- obsolete functions gerepileall, gerepilemany: use gc_all

@@ -20,7 +20,6 @@ test(10^4);
 numbpart(0)
 numbpart(52602)
 numbpart(147007)
-numbpart(10^15+2)
 partitions(0)
 partitions(1)
 partitions(9)
@@ -38,3 +37,6 @@ forpart(x=12,print(Vec(x)),,[2,6]);
 forpart(x=23,print(Vec(x)),[3,6]);
 forpart(x=5, print(Vec(x)),[0,3]);
 forpart(x=15, print(Vec(x)),[0,3],7);
+
+\\ ERRORS
+numbpart(2^54)

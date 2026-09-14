@@ -33,7 +33,9 @@ Doc: \idx{LLL} algorithm applied to the
  vectors are approximate, with precision varying as needed (Lehmer's trick,
  as generalized by Schnorr). Adapted from Nguyen and Stehl\'e's algorithm
  and Stehl\'e's code (\kbd{fplll-1.3}) as building blocks for the FLATTER
- (block recursive) algorithm of Heninger and Ryan.
+ (block recursive) algorithm of Heninger and Ryan. For an integral square
+ matrix $x$ of dimension $d$ and exponent $b$, the heuristic complexity of
+ this variant is roughly proportional to $d^3(d + b)$.
 
  If $\fl=1$, disable use of FLATTER algorithm; use \kbd{fplll}. This flag
  is provided to experiment with the concrete speed-ups allowed by FLATTER,
@@ -45,10 +47,11 @@ Doc: \idx{LLL} algorithm applied to the
  independent. Returns a partially reduced basis for $x$, using an unpublished
  algorithm by Peter Montgomery: a basis is said to be \emph{partially reduced}
  if $|v_{i} \pm v_{j}| \geq |v_{i}|$ for any two distinct basis vectors
- $v_{i}, \, v_{j}$. This is faster than $\fl=1$, esp. when one row is huge
- compared
- to the other rows (knapsack-style), and should quickly produce relatively
- short vectors. The resulting basis is \emph{not} LLL-reduced in general.
+ $v_{i}, \, v_{j}$. This should be generically faster than $\fl=0$ or $1$,
+ esp. when one row is huge compared
+ to the other rows (knapsack-style).
+ The resulting basis is heuristically short but \emph{not} LLL-reduced in
+ general.
  If LLL reduction is eventually desired, avoid this partial reduction:
  applying LLL to the partially reduced matrix is significantly \emph{slower}
  than starting from a knapsack-type lattice.

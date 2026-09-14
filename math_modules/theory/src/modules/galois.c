@@ -782,9 +782,9 @@ get_ro(long N, GEN rr, PERM S1, PERM S2, resolv *R)
 static long
 sufprec_r(GEN z)
 {
-  long p = bit_prec(z);
+  long p = realprec(z);
   /* bit accuracy of fractional part large enough ? */
-  return ( p - expo(z) > maxss(3*32, (long)0.2*p) );
+  return p - expo(z) > maxss(3*32, (long)0.2*p);
 }
 /* typ(z) = t_REAL or t_COMPLEX, return zi = t_INT approximation */
 static long
@@ -809,7 +809,7 @@ get_ro_perm(PERM S1, PERM S2, long d, resolv *R, buildroot *BR)
       if (e < -64 || sufprec(ro)) break;
       e = 0;
     }
-    BR->pr += nbits2extraprec(e + 10);
+    BR->pr = nbits2prec(BR->pr + e + 10);
     moreprec(BR);
   }
   if (e > -10 || typ(roi) == t_COMPLEX) return NULL;
@@ -2381,7 +2381,7 @@ galoisbig(GEN pol, long prec)
     }
     BR.coef = z;
     BR.p = pol;
-    BR.pr = prec + nbits2extraprec((long)fujiwara_bound(pol));
+    BR.pr = nbits2prec(prec + (long)fujiwara_bound(pol));
     BR.prmax = BR.pr + BIGDEFAULTPREC;
     BR.N = N;
     BR.r = vectrunc_init(N+1);

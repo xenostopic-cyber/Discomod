@@ -4,6 +4,12 @@ Section: operators
 Doc:
  \section{Standard monadic or dyadic operators}
 
+ This section documents Boolean operators, comparison operators, and
+ arithmetic operators. We also include variants on Euclidean division over
+ the integers or polynomial rings, the Euclidean algorithm and standard
+ applications : gcd, lcm, Chinese remainders, continued fractions, Pad\'{e}
+ approximants, etc.
+
  \subsec{Boolean operators}\sidx{Boolean operators}
 
  Any nonzero value is interpreted as \var{true} and any zero as \var{false}

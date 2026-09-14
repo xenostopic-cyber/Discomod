@@ -306,32 +306,30 @@ sumformal(GEN T, long v)
 
 /* 1/zeta(n) using Euler product. Assume n > 0. */
 GEN
-inv_szeta_euler(long n, long prec)
+inv_szeta_euler(long n, long bit)
 {
-  long bit = prec2nbits(prec);
   GEN z, res;
   pari_sp av, av2;
-  double A, D, lba;
+  double A, D;
   ulong p, lim;
   forprime_t S;
 
-  if (n > bit) return real_1(prec);
+  if (n > bit) return real_1(bit);
 
-  lba = prec2nbits_mul(prec, M_LN2);
-  D = exp((lba - log((double)(n-1))) / (n-1));
+  D = exp((bit * M_LN2 - log((double)(n-1))) / (n-1));
   lim = 1 + (ulong)ceil(D);
-  if (lim < 3) return subir(gen_1,real2n(-n,prec));
-  res = cgetr(prec); av = avma; incrprec(prec);
+  if (lim < 3) return subir(gen_1,real2n(-n,bit));
+  res = cgetr(bit); av = avma; incrprec(bit);
 
   (void)u_forprime_init(&S, 3, lim);
-  av2 = avma; A = n / M_LN2; z = subir(gen_1, real2n(-n, prec));
+  av2 = avma; A = n / M_LN2; z = subir(gen_1, real2n(-n, bit));
   while ((p = u_forprime_next(&S)))
   {
     long l = bit - (long)floor(A * log((double)p));
     GEN h;
 
     if (l < BITS_IN_LONG) l = BITS_IN_LONG;
-    l = minss(prec, nbits2prec(l));
+    l = minss(bit, nbits2prec(l));
     h = divrr(z, rpowuu(p, (ulong)n, l));
     z = subrr(z, h);
     if (gc_needed(av,1))
@@ -590,29 +588,28 @@ constreuler(long nb)
 
 /* 1/lfun(-4,n) using Euler product. Assume n > 0. */
 static GEN
-inv_lfun4(long n, long prec)
+inv_lfun4(long n, long bit)
 {
-  long bit = prec2nbits(prec);
   GEN z, res;
   pari_sp av, av2;
   double A;
   ulong p, lim;
   forprime_t S;
 
-  if (n > bit) return real_1(prec);
+  if (n > bit) return real_1(bit);
 
   lim = 1 + (ulong)ceil(exp2((double)bit / n));
-  res = cgetr(prec); av = avma; incrprec(prec);
+  res = cgetr(bit); av = avma; incrprec(bit);
 
   (void)u_forprime_init(&S, 3, lim);
-  av2 = avma; A = n / M_LN2; z = real_1(prec);
+  av2 = avma; A = n / M_LN2; z = real_1(bit);
   while ((p = u_forprime_next(&S)))
   {
     long l = bit - (long)floor(A * log((double)p));
     GEN h;
 
     if (l < BITS_IN_LONG) l = BITS_IN_LONG;
-    l = minss(prec, nbits2prec(l));
+    l = minss(bit, nbits2prec(l));
     h = rpowuu(p, (ulong)n, l); if ((p & 3UL) == 1) setsigne(h, -1);
     z = addrr(z, divrr(z, h)); /* z *= 1 - chi_{-4}(p) / p^n */
     if (gc_needed(av,1))

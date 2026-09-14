@@ -6,7 +6,8 @@ Help: divisorslenstra(N,r,s): finds all divisors d of N such that d = r
  (mod s). Assume that (r,s) = 1 and s^3 > N.
 Doc: Given three integers $N > s > r \geq 0$ such that $(r,s) = 1$
  and $s^{3} > N$, find all divisors $d$ of $N$ such that $d \equiv r \pmod{s}$.
- There are at most $11$ such divisors (Lenstra).
+ There are at most $11$ such divisors and they are found in polynomial
+ time $\tilde{O}(\log N)^2$. (Lenstra).
  \bprog
  ? N = 245784; r = 19; s = 65 ;
  ? divisorslenstra(N, r, s)

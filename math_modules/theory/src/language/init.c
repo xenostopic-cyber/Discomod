@@ -106,7 +106,8 @@ THREAD struct pari_mainstack *pari_mainstack;
 
 static void ** MODULES;
 static pari_stack s_MODULES;
-const long functions_tblsz = 135; /* size of functions_hash */
+const long functions_hash_MASK = 0x1fff; /* functions_hash length - 1 */
+const long defaults_hash_MASK = 0x7f; /* defaults_hash length - 1 */
 entree **functions_hash, **defaults_hash;
 
 void (*cb_pari_display_hist)(long n);
@@ -496,7 +497,7 @@ void
 exportall(void)
 {
   long i;
-  for (i = 0; i < functions_tblsz; i++)
+  for (i = 0; i <= functions_hash_MASK; i++)
   {
     entree *ep;
     for (ep = functions_hash[i]; ep; ep = ep->next)
@@ -831,24 +832,27 @@ extern entree functions_basic[], functions_default[];
 static void
 pari_init_functions(void)
 {
+  size_t s;
   pari_stack_init(&s_MODULES, sizeof(*MODULES),(void**)&MODULES);
   pari_stack_pushp(&s_MODULES,functions_basic);
-  functions_hash = (entree**) pari_calloc(sizeof(entree*)*functions_tblsz);
-  pari_fill_hashtable(functions_hash, functions_basic);
-  defaults_hash = (entree**) pari_calloc(sizeof(entree*)*functions_tblsz);
+  s = sizeof(entree*) * (functions_hash_MASK + 1);
+  functions_hash = (entree**) pari_calloc(s);
+  pari_fill_hashtable(functions_hash, functions_hash_MASK, functions_basic);
+  s = sizeof(entree*) * (defaults_hash_MASK + 1);
+  defaults_hash = (entree**) pari_calloc(s);
   pari_add_defaults_module(functions_default);
 }
 
 void
 pari_add_module(entree *ep)
 {
-  pari_fill_hashtable(functions_hash, ep);
+  pari_fill_hashtable(functions_hash, functions_hash_MASK, ep);
   pari_stack_pushp(&s_MODULES, ep);
 }
 
 void
 pari_add_defaults_module(entree *ep)
-{ pari_fill_hashtable(defaults_hash, ep); }
+{ pari_fill_hashtable(defaults_hash, defaults_hash_MASK, ep); }
 
 /*********************************************************************/
 /*                       PARI MAIN STACK                             */
@@ -1302,7 +1306,7 @@ pari_close_opts(ulong init_opts)
   if (!(init_opts&INIT_noIMTm)) pari_mt_close();
 
   pari_var_close(); /* must come before destruction of functions_hash */
-  for (i = 0; i < functions_tblsz; i++)
+  for (i = 0; i <= functions_hash_MASK; i++)
   {
     entree *ep = functions_hash[i];
     while (ep) {
@@ -1382,7 +1386,7 @@ gp_context_restore(struct gp_context* rec)
   iferr_env = rec->iferr_env;
   GP_DATA->fmt->prettyp = rec->prettyp;
 
-  for (i = 0; i < functions_tblsz; i++)
+  for (i = 0; i <= functions_hash_MASK; i++)
   {
     entree *ep = functions_hash[i];
     while (ep)

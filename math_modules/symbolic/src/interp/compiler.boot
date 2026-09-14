@@ -73,7 +73,6 @@ initEnvHashTable(l) ==
             HPUT($envHashTable, [first u, first v], true)
 
 compTopLevel(x,m,e) ==
-  $killOptimizeIfTrue: local:= false
   $forceAdd: local:= false
   $compTimeSum: local := 0
   $resolveTimeSum: local := 0
@@ -350,7 +349,8 @@ compExpression(x,m,e) ==
   op := first x
   SYMBOLP(op) and (fn := GET(op, "comp_special")) =>
     FUNCALL(fn,x,m,e)
-  getmode(op, e) is ["Mapping", :ml] and (u := applyMapping(x, m, e, ml)) => u
+  SYMBOLP(op) and getmode(op, e) is ["Mapping", :ml] and
+      (u := applyMapping(x, m, e, ml)) => u
   compForm(x,m,e)
 
 compAtom(x, m, e) ==
@@ -397,6 +397,7 @@ compSymbol(s,m,e) ==
     MEMQ(s,$functorLocalParameters) =>
         NRTgetLocalIndex(s, e)
         [s,v.mode,e] --s will be replaced by an ELT form in beforeCompile
+    s = "T" => ["T$", v.mode, e]
     [s,v.mode,e] --s has been SETQd
   m':= getmode(s,e) =>
     if not member(s,$formalArgList) and not MEMQ(s,$FormalMapVariableList) and
@@ -632,9 +633,11 @@ setqSingle(id,val,m,E) ==
       stackMessage ['"No mode in assignment to: ", id]
   finish_setq_single(T, m, id, val, currentProplist)
 
+cons_value(v, m) == ["value", v, m, $EmptyEnvironment]
+
 finish_setq_single(T, m, id, val, currentProplist) ==
   T' := [x, m', e'] := convert(T, m) or return nil
-  newProplist:= consProplistOf(id,currentProplist,"value",removeEnv [val,:rest T])
+  newProplist := [cons_value(val, T.mode), :currentProplist]
   e':= (PAIRP id => e'; addBinding(id,newProplist,e'))
   if isDomainForm(val,e') then
     if isDomainInScope(id,e') then
@@ -647,10 +650,14 @@ finish_setq_single(T, m, id, val, currentProplist) ==
 
   if (k := NRTassocIndex(id)) then
       form := ['SETELT, "%", k, x]
-  else form:=
-         $QuickLet => ["LET",id,x]
-         ["LET",id,x,
-            (isDomainForm(x, e') => ['ELT, id, 0]; first outputComp(id, e'))]
+  else
+      id1 :=
+          id = "T" => "T$"
+          id
+      form :=
+          $QuickLet => ["LET", id1, x]
+          ["LET", id1, x,
+             (isDomainForm(x, e') => ['ELT, id, 0]; first outputComp(id, e'))]
   [form,m',e']
 
 saveLocVarsTypeDecl(x, id, e) ==
@@ -698,7 +705,10 @@ setqMultiple(nameList,val,m,e) ==
     ass_list := []
     for y in nameList repeat
         e := put(y, "value", [genSomeVariable(), D, $noEnv], e)
-        ass_list := cons(["LET", y, ["SPADfirst", g2]], ass_list)
+        y1 :=
+            y = "T" => "T$"
+            y
+        ass_list := cons(["LET", y1, ["SPADfirst", g2]], ass_list)
         ass_list := cons(["LET", g2, ["CDR", g2]], ass_list)
     ass_list := nreverse(rest(ass_list))
     convert([["PROGN",x, x2, :ass_list, g], m', e], m)
@@ -1024,8 +1034,8 @@ getSuccessEnvironment(a,e) ==
   a is ["is",id,m] =>
     IDENTP id and isDomainForm(m,$EmptyEnvironment) =>
          currentProplist:= getProplist(id,e)
-         [.,.,e] := T := comp(m,$EmptyMode,e) or return nil -- duplicates compIs
-         newProplist:= consProplistOf(id,currentProplist,"value",[m,:rest removeEnv T])
+         [., m2, e] := T := comp(m, $EmptyMode,e) or return nil
+         newProplist:= [cons_value(m, m2), :currentProplist]
          addBinding(id,newProplist,e)
     e
   a is ["case",x,m] and IDENTP x =>
@@ -1156,8 +1166,6 @@ compIs(["is",a,b],m,e) ==
 -- Type in returned triple is m when m is not $EmptyMode,
 -- otherwise it is type from T
 coerce(T,m) ==
-  $InteractiveMode => unexpected_error(['"coerce",
-      '"function coerce called from the interpreter."])
   -- FIXME: Hardcoded assumption about Rep
   rplac(CADR(T), substitute("%", $Rep, CADR(T)))
   T':= coerceEasy(T,m) => T'
@@ -1368,11 +1376,14 @@ compileSpad2Cmd args ==
     -- Assume we entered from the "compiler" function, so args ~= nil
     -- and is a file with file extension .spad.
 
+    $no_lisp_compile : local := false
+    $killOptimizeIfTrue : local := false
+
     path := first(args)
     not(has_extention?(path, '"spad")) => throw_msg("S2IZ0082", CONCAT(
       '"The FriCAS system compiler can only compile files with file",
         '" extension _".spad_"."), nil)
-    file_must_exit(path)
+    file_must_exist(path)
 
     $edit_file := path
     say_msg("S2IZ0038",
@@ -1389,6 +1400,8 @@ compileSpad2Cmd args ==
       old _
       nobreak _
       nolibrary _
+      nolispcompile _
+      noopt _
       noquiet _
       vartrace _
       quiet _
@@ -1415,6 +1428,9 @@ compileSpad2Cmd args ==
         fullopt = 'library     => lib := true
         fullopt = 'nolibrary   => lib := false
 
+        fullopt = 'nolispcompile => $no_lisp_compile := true
+        fullopt = 'noopt => $killOptimizeIfTrue := true
+
         -- Ignore quiet/nonquiet if "constructor" is given.
         fullopt = 'quiet       => "ignored now"
         fullopt = 'noquiet     => "ignored now"
@@ -1429,6 +1445,5 @@ compileSpad2Cmd args ==
     spadPrompt()
 
 compilerDoit(lib, path) ==
-    $InteractiveMode : local := nil
     $LISPLIB : local := lib
     spadCompile(path)

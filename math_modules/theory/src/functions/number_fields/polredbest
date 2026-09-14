@@ -4,8 +4,14 @@ C-Name: polredbest
 Prototype: GD0,L,
 Help: polredbest(T,{flag=0}): reduction of the polynomial T (gives minimal
  polynomials only). If flag=1, gives also elements.
-Doc: finds a polynomial with reasonably
- small coefficients defining the same number field as $T$.
+Doc:
+ Let $T$ be a separable polynomial with rational coefficients and consider
+ the \'{e}tale algebra $A = \Q[X]/(T)$. Finds a polynomial $P$ with reasonably
+ small coefficients defining the same algebra $A \sim Q[X]/(P)$.
+ This is mostly useful when $T$ is irreducible and $A$ is a number field,
+ else you should probably first factor $T$, thereby factoring $A$ as a
+ product of number fields.
+
  All $T$ accepted by \tet{nfinit} are also allowed here (e.g. nonmonic
  polynomials, \kbd{nf}, \kbd{bnf}, \kbd{[T,Z\_K\_basis]}). Contrary to
  \tet{polredabs}, this routine runs in polynomial time, but it offers no
@@ -45,11 +51,11 @@ Doc: finds a polynomial with reasonably
  ? charpoly(a)
  %2 = x^4 + 8
  @eprog\noindent In particular, the map $\Q[x]/(T) \to \Q[x]/(P)$,
- $x\mapsto \kbd{a}$ defines an isomorphism of number fields, which can
+ $x\mapsto \kbd{a}$ defines an isomorphism of $\Q$-algebras, which can
  be computed as
  \bprog
    subst(lift(Q), 'x, a)
  @eprog\noindent if $Q$ is a \typ{POLMOD} modulo $T$; \kbd{b = modreverse(a)}
  returns a \typ{POLMOD} giving the inverse of the above map (which should be
- useless since $\Q[x]/(P)$ is a priori a better representation for the number
- field and its elements).
+ useless since $\Q[x]/(P)$ provides a priori a better representation for the
+ algebra and its elements).

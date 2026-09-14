@@ -405,4 +405,7 @@ O(x^2)
   ***   at top-level: lfuncheckfeq(1,I)
   ***                 ^-----------------
   *** lfuncheckfeq: domain error in lfunthetaneed: arg t > 0.7853981633974482790
-Total time spent: 5059
+  ***   at top-level: lfunqf([0])
+  ***                 ^-----------
+  *** lfunqf: impossible inverse in lfunqf: Mat(0).
+Total time spent: 5487

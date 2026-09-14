@@ -55,14 +55,14 @@ trunc2nr(GEN x, long n)
   long ex;
   if (!signe(x)) return gen_0;
   ex = expo(x) + n; if (ex < 0) return gen_0;
-  return mantissa2nr(x, ex - bit_prec(x) + 1);
+  return mantissa2nr(x, ex - realprec(x) + 1);
 }
 
 /* x a t_REAL, x = i/2^e, i a t_INT */
 GEN
 mantissa_real(GEN x, long *e)
 {
-  *e = bit_prec(x)-1-expo(x);
+  *e = realprec(x)-1-expo(x);
   return mantissa2nr(x, 0);
 }
 
@@ -160,13 +160,13 @@ mul0r(GEN x)
 {
   long l = realprec(x), e = expo(x);
   e = (l > 0)? e - l: (e < 0? 2*e: 0);
-  return real_0_bit(e);
+  return real_0_expo(e);
 }
 /* lg(x) > 2 */
 INLINE GEN
 div0r(GEN x) {
   long l = realprec(x), e = expo(x);
-  return real_0_bit(-l - e);
+  return real_0_expo(-l - e);
 }
 
 GEN
@@ -179,7 +179,7 @@ mulsr(long x, GEN y)
   if (!s)
   {
     if (x < 0) x = -x;
-    return real_0_bit( expo(y) + expu(x) );
+    return real_0_expo( expo(y) + expu(x) );
   }
   if (x==1)  return rcopy(y);
   if (x==-1) return negr(y);
@@ -196,7 +196,7 @@ mulur(ulong x, GEN y)
 
   if (!x) return mul0r(y);
   s = signe(y);
-  if (!s) return real_0_bit( expo(y) + expu(x) );
+  if (!s) return real_0_expo( expo(y) + expu(x) );
   if (x==1) return rcopy(y);
   return mulur_2(x, y, s);
 }
@@ -396,8 +396,8 @@ mulrr(GEN x, GEN y)
   GEN z;
 
   if (x == y) return sqrr(x);
-  sx = signe(x); if (!sx) return real_0_bit(expo(x) + expo(y));
-  sy = signe(y); if (!sy) return real_0_bit(expo(x) + expo(y));
+  sx = signe(x); if (!sx) return real_0_expo(expo(x) + expo(y));
+  sy = signe(y); if (!sy) return real_0_expo(expo(x) + expo(y));
   if (sy < 0) sx = -sx;
   lz = lg(x);
   ly = lg(y);
@@ -413,7 +413,7 @@ sqrr(GEN x)
   long lz, sx = signe(x);
   GEN z;
 
-  if (!sx) return real_0_bit(2*expo(x));
+  if (!sx) return real_0_expo(2*expo(x));
   lz = lg(x); z = cgetg(lz, t_REAL);
   sqrz_i(z, x, lz);
   return z;
@@ -430,7 +430,7 @@ mulir(GEN x, GEN y)
     return z;
   }
   sy = signe(y);
-  if (!sy) return real_0_bit(expi(x) + expo(y));
+  if (!sy) return real_0_expo(expi(x) + expo(y));
   if (sy < 0) sx = -sx;
   {
     long lz = lg(y), lx = lgefint(x);
@@ -439,12 +439,12 @@ mulir(GEN x, GEN y)
     if (lx < (lz>>1) || (lx < lz && lz > prec2lg(MULRR_MULII_LIMIT)))
     { /* size mantissa of x < half size of mantissa z, or lx < lz so large
        * that mulrr will call mulii anyway: mulii */
-      x = itor(x, lg2prec(lx));
+      x = itor_lg(x, lx);
       hi = muliispec_mirror(y+2, x+2, lz-2, lx-2);
       mulrrz_end(z, hi, lz, sx, expo(x)+expo(y), hi[lz]);
     }
     else /* dubious: complete x with 0s and call mulrr */
-      mulrrz_i(z, itor(x, lg2prec(lz)), y, lz, 0, sx);
+      mulrrz_i(z, itor_lg(x, lz), y, lz, 0, sx);
     set_avma(av); return z;
   }
 }
@@ -568,7 +568,7 @@ divir(GEN x, GEN y)
     return z;
   }
   z = cgetg(ly, t_REAL); av = avma;
-  affrr(divrr(itor(x, lg2prec(ly+1)), y), z);
+  affrr(divrr(itor_lg(x, ly + 1), y), z);
   set_avma(av); return z;
 }
 
@@ -631,7 +631,7 @@ invr(GEN b)
   for(i=0, p=1; i<s; i++) { p <<= 1; if (mask & 1) p--; mask >>= 1; }
   x = cgetg(l, t_REAL);
   a = rcopy(b); a[1] = _evalexpo(0) | evalsigne(1);
-  affrr(invr_basecase(rtor(a, lg2prec(p+2))), x);
+  affrr(invr_basecase(rtor_lg(a, p+2)), x);
   while (mask > 1)
   {
     p <<= 1; if (mask & 1) p--;
@@ -688,7 +688,7 @@ divru(GEN x, ulong y)
   LOCAL_HIREMAINDER;
 
   if (!y) pari_err_INV("divru",gen_0);
-  if (!s) return real_0_bit(expo(x) - expu(y));
+  if (!s) return real_0_expo(expo(x) - expu(y));
   if (!(y & (y-1))) /* power of 2 */
   {
     if (y == 1) return rcopy(x);
@@ -925,7 +925,7 @@ dbltor(double x)
   const int exp_mid = 0x3ff;/* exponent bias */
   const int expo_len = 11; /* number of bits of exponent */
 
-  if (x==0.) return real_0_bit(-exp_mid);
+  if (x==0.) return real_0_expo(-exp_mid);
   fi.f = x; z = cgetr(DEFAULTPREC);
   {
     const ulong a = fi.i;
@@ -1019,7 +1019,7 @@ dbltor(double x)
   const int expo_len = 11; /* number of bits of exponent */
   const int shift = mant_len-32;
 
-  if (x==0.) return real_0_bit(-exp_mid);
+  if (x==0.) return real_0_expo(-exp_mid);
   fi.f = x; z = cgetr(DEFAULTPREC);
   {
     const ulong a = fi.i[INDEX0];

@@ -1,0 +1,51 @@
+Function: ellheegnertwist
+Section: elliptic_curves
+C-Name: ellheegnertwist
+Prototype: GDGDG
+Help: ellheegnertwist(E,{D=1},{s=1}): return a rational nontorsion point on the
+ twist by D of the elliptic curve E assumed to be of rank 1.
+Doc: Let $E$ be an elliptic curve over the rationals and $D$ a discriminant
+ such that the twist $E_D$ of $E$ by $D$ is of (analytic) rank $1$, returns a
+ nontorsion rational point on the curve.
+
+ This uses a heuristic variant of the Heegner point method that is faster for
+ twists, especially for twists by large discriminants.  The algorithm used only
+ depends on the curve $E_D$. If the curve is of odd rank $\ge 3$, the
+ algorithm will not terminate.
+
+ Since the algorithm cannot compute the Gross-Zagier index formula, the
+ function can return an arbitrary multiple of the generator.
+
+ \bprog
+ ? E = ellinit("442e1");
+ ? Q = ellheegnertwist(E,5)
+ %2 = [215826424/108241, 1489488299426/35611289]  \\ on E_5
+ ? F = elltwist(E,5); P = ellheegner(F)
+ %3 = [-1700, 46115]
+ ? ellmul(F, P, 4) == Q
+ %4 = 1
+ @eprog
+
+ If one suspects the index is divisible by a positive integer $s$, one can
+ pass the latter as an argument to speed up the computation. Unfortunately, a
+ bad guess will slow down the computation. It is also possible to input $E_D$
+ as $E$ and omit $D$: the algorithm starts from the quadratic twist of
+ minimal conductor.
+ \bprog
+ ? F = elltwist(E, 101);
+ ? ellheight(F, ellheegnertwist(F))
+ time = 11,733 ms.
+ %6 = 869.62066954931089052320233830810447719
+ ? ellheight(F, ellheegnertwist(F,,3))
+ time = 1,256 ms.
+ %7 = 96.624518838812321169244704256456053021
+ ? ellheight(F, ellheegnertwist(F,,15))
+ time = 5,050 ms.
+ %8 = 96.624518838812321169244704256456053021
+ @eprog
+
+Function: _heegnersum_worker
+Section: programming/internals
+C-Name: heegnersum_worker
+Prototype: GGLL
+Help: worker for heegnersum

@@ -1353,7 +1353,9 @@ class Basic(Printable):
 
         Trying to replace x with an expression raises an error:
 
-        >>> Integral(x, (x, 1, 2*x)).xreplace({x: 2*y}) # doctest: +SKIP
+        >>> Integral(x, (x, 1, 2*x)).xreplace({x: 2*y})
+        Traceback (most recent call last):
+        ...
         ValueError: Invalid limits given: ((2*y, 1, 4*y),)
 
         See Also
@@ -1857,7 +1859,35 @@ class Basic(Printable):
         return dict(Counter(results))
 
     def count(self, query):
-        """Count the number of matching subexpressions."""
+        """
+        Count the number of matching subexpressions.
+
+        query : type, Basic, or callable
+            Same semantics as in ``find()``.
+
+        Examples
+        ========
+
+        >>> from sympy import sin, cos, Wild
+        >>> from sympy.abc import x, y
+
+        >>> expr = sin(x) + sin(x)*cos(x) + y*sin(y)
+        >>> expr.count(sin)
+        3
+
+        >>> w = Wild('w')
+        >>> expr.count(sin(w))
+        3
+
+        >>> expr.count(lambda e: e.is_Symbol)
+        5
+
+        See Also
+        ========
+
+        find : return matching subexpressions instead of a count
+        has : test whether any match exists
+        """
         query = _make_find_query(query)
         return sum(bool(query(sub)) for sub in _preorder_traversal(self))
 

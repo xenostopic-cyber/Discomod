@@ -207,4 +207,8 @@ case $enable_tls in
 yes) echo '#define ENABLE_TLS' >> $file;;
 esac
 
+case $has_pthread_sigmask in
+yes) echo '#define HAS_PTHREAD_SIGMASK' >> $file;;
+esac
+
 echo '#endif' >> $file

@@ -1,0 +1,41 @@
+Function: znorder
+Section: znstar
+C-Name: znorder
+Prototype: GDG
+Help: znorder(x,{o}): order of the integermod x in (Z/nZ)*.
+ Optional o represents a multiple of the order of the element.
+Description:
+ (gen,?int):int         znorder($1, $2)
+Doc: $x$ must be an integer mod $n$, and the
+ result is the order of $x$ in the multiplicative group $(\Z/n\Z)^{*}$. Returns
+ an error if $x$ is not invertible.
+ The parameter o, if present, represents a nonzero
+ multiple of the order of $x$, see \secref{se:DLfun}; the preferred format for
+ this parameter is \kbd{[ord, factor(ord)]}, where \kbd{ord = eulerphi(n)}
+ is the cardinality of the group.
+ \bprog
+ ? znorder(Mod(3,101))
+ %1 = 100
+ ? znorder(Mod(5,101))
+ %2 = 25
+ ? o = [100, factor(100)]; znorder(Mod(3,101), o)
+ %3 = 100
+ @eprog
+
+ It is also allowed to input a \kbd{znstar}$(n,1)$ structure for $o$. Such
+ a structure implicitly contains $n$, the group order and its factorization.
+ In this case, $x$ may be replaced by any lift.
+ \bprog
+ ? G = znstar(101, 1);
+ ? znorder(5, G)
+ %5 = 25
+ @eprog\noindent It is still possible, although unnecessary, to input
+ an integer modulo $n$ \dots for the right $n$!
+ \bprog
+ ? znorder(Mod(5,101), G)
+ %6 = 25
+ ? znorder(Mod(5,1009), G)
+  ***   at top-level: znorder(Mod(5,1009),G)
+  ***                 ^---------------------
+  *** znorder: incorrect type in znorder [inconsistent modulus] (t_INTMOD).
+ @eprog

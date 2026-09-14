@@ -354,14 +354,14 @@ sd_realprecision(const char *v, long flag)
     sd_ulong_init(v, "realprecision", &newnb, 1, prec2ndec(LGBITS), 0);
     if (fmt->sigd == (long)newnb) return gnil;
     if (fmt->sigd >= 0) fmt->sigd = newnb;
-    prec = ndec2nbits(newnb);
+    prec = ndec2prec(newnb);
     if (prec == precreal) return gnil;
     precreal = prec;
   }
-  if (flag == d_RETURN) return stoi(nbits2ndec(precreal));
+  if (flag == d_RETURN) return stoi(prec2ndec(precreal));
   if (flag == d_ACKNOWLEDGE)
   {
-    long n = nbits2ndec(precreal);
+    long n = prec2ndec(precreal);
     pari_printf("   realprecision = %ld significant digits", n);
     if (fmt->sigd < 0)
       pari_puts(" (all digits displayed)");
@@ -378,14 +378,13 @@ sd_realbitprecision(const char *v, long flag)
   pariout_t *fmt = GP_DATA->fmt;
   if (v)
   {
-    ulong newnb = precreal;
+    ulong prec = precreal;
     long n;
-    sd_ulong_init(v, "realbitprecision", &newnb, 1, LGBITS, 0);
-    if ((long)newnb == precreal) return gnil;
-    n = nbits2ndec(newnb);
-    if (!n) n = 1;
+    sd_ulong_init(v, "realbitprecision", &prec, 1, LGBITS, 0);
+    if ((long)prec == precreal) return gnil;
+    n = prec2ndec(prec); if (!n) n = 1;
     if (fmt->sigd >= 0) fmt->sigd = n;
-    precreal = (long) newnb;
+    precreal = (long)prec;
   }
   if (flag == d_RETURN) return stoi(precreal);
   if (flag == d_ACKNOWLEDGE)
@@ -920,7 +919,7 @@ defaults_list(pari_stack *s)
 {
   entree *ep;
   long i;
-  for (i = 0; i < functions_tblsz; i++)
+  for (i = 0; i <= defaults_hash_MASK; i++)
     for (ep = defaults_hash[i]; ep; ep = ep->next) pari_stack_pushp(s, ep);
 }
 /* ep attached to function f of arity 2. Call f(v,flag) */
@@ -953,7 +952,8 @@ setdefault(const char *s, const char *v, long flag)
 }
 
 GEN
-default0(const char *a, const char *b) { return setdefault(a,b, b? d_SILENT: d_RETURN); }
+default0(const char *a, const char *b)
+{ return setdefault(a,b, b? d_SILENT: d_RETURN); }
 
 /********************************************************************/
 /*                                                                  */

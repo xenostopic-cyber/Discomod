@@ -113,6 +113,25 @@ static void expairseq_match_false_negative(int count)
 	}
 }
 
+// This routine uses the code from Jan Rheinländer's bug report
+// https://lists.ginac.de/archives/list/ginac-list@ginac.de/thread/I2KDSAD64LB4SZLFYUCC2DXXVEWOAA7D/
+static void algebraic_subs()
+{
+	symbol x("x"), y("y"), z("z"), A("A"), B("B");
+	ex w(wild());
+
+	exmap repl;
+	repl[x + y + w] = A/B + w;
+
+	ex expr = x + y + z;
+
+	// Try to substitute x+y with A/B
+	ex result = expr.subs(repl, subs_options::algebraic);
+	ex answer = A/B + z;
+	cbug_on(! (result - answer).is_zero(), "Algebraic substitution failed: " << result
+	        << " is different from " << answer);
+}
+
 int main(int argc, char** argv)
 {
 	const int repetitions = 100;
@@ -121,6 +140,7 @@ int main(int argc, char** argv)
 	match_false_negative();
 	expairseq_failed_match_no_side_effect(repetitions);
 	expairseq_match_false_negative(repetitions);
+	algebraic_subs();
 	std::cout << "not found. ";
 	return 0;
 }

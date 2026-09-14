@@ -23,3 +23,4 @@ void pari_warn(){}
 void quadratic_prec_mask(){}
 void prec2nbits(){}
 void nbits2prec(){}
+void Z_ispow2() {}

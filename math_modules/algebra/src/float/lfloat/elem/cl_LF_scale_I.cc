@@ -71,9 +71,9 @@ const cl_LF scale_float (const cl_LF& x, const cl_I& delta)
 	   )
 	  underflow:
 	  { if (underflow_allowed())
-	    { throw floating_point_underflow_exception(); }
+	      { throw floating_point_underflow_exception(); }
 	    else
-	    { return encode_LF0(TheLfloat(x)->len); } // Ergebnis 0.0
+	      { return encode_LF0(TheLfloat(x)->len); } // Ergebnis 0.0
 	  }
 	goto ok;
 

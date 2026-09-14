@@ -1743,7 +1743,7 @@ GEN
 Flx_digits(GEN x, GEN T, ulong p)
 {
   struct _Flx D;
-  long d = degpol(T), n = (lgpol(x)+d-1)/d;
+  long d = get_Flx_degree(T), n = (lgpol(x)+d-1)/d;
   D.p = p; D.pi = SMALL_ULONG(p)? 0: get_Fl_red(p);
   return gen_digits(x,T,n,(void *)&D, &Flx_ring, _Flx_divrem);
 }

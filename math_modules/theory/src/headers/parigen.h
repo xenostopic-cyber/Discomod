@@ -45,7 +45,6 @@ typedef long *GEN;
 #define MEDDEFAULTPREC 128
 #define BIGDEFAULTPREC 192
 #define LOWDEFAULTPREC  BITS_IN_LONG
-#define EXTRAPRECWORD   BITS_IN_LONG
 #define EXTRAPREC64     64
 #define HIGHBIT (1UL << (BITS_IN_LONG-1))
 #define BITS_IN_HALFULONG (BITS_IN_LONG>>1)
@@ -133,7 +132,7 @@ typedef long *GEN;
 
 #define realprec(x)   (((long)(((ulong)((x)[0])) & LGBITS)-2)<<TWOPOTBITS_IN_LONG)
 #define setprec(x,s)  (((ulong*)(x))[0]=\
-                      (((ulong*)(x))[0]&(~LGBITS)) | evallg(((s)>>TWOPOTBITS_IN_LONG)+2))
+                      (((ulong*)(x))[0]&(~LGBITS)) | evallg(((s+3*BITS_IN_LONG-1)>>TWOPOTBITS_IN_LONG)))
 #define incrprec(x)   ((x += EXTRAPREC64))
 
 #define expo(x)       ((long) ((((ulong)((x)[1])) & EXPOBITS) - HIGHEXPOBIT))

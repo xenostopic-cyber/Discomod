@@ -11,13 +11,11 @@ Doc: creates the \kbd{Ldata} structure (without initialization) corresponding
  $$\Lambda(L, s) = \varepsilon \Lambda(\hat{L}, k - s).$$
 
  \bprog
- ? L = lfunqf(matdiagonal([1,2,3,4]));
- ? eps = lfunrootres(L)[3]; k = L[4];
+ ? L = lfunqf([1,2,3,4]); [N,k] = lfunparams(L);
  ? M = lfundual(L); lfuncheckfeq(M)
- %3 = -127
- ? s= 1+Pi*I;
- ? a = lfunlambda(L,s);
- ? b = eps * lfunlambda(M,k-s);
- ? exponent(a - b)
- %7 = -130
+ %2 = -128
+ ? [r,R,w] = lfunrootres(L);
+ ? check(s) = exponent(lfunlambda(L, s) - w * lfunlambda(M, k-s));
+ ? check(1 + I*Pi)
+ %5 = -130
  @eprog

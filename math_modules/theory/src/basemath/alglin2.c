@@ -844,33 +844,35 @@ minpoly(GEN x, long v)
 /*                       HESSENBERG FORM                           */
 /*                                                                 */
 /*******************************************************************/
+/* |a| < 2^-bit |a0| ? */
 static int
 relative0(GEN a, GEN a0, long bit)
 {
   if (gequal0(a)) return 1;
-  if (gequal0(a0)) return gexpo(a) < bit;
-  return (gexpo(a)-gexpo(a0) < bit);
+  if (gequal0(a0)) return gexpo(a) < -bit;
+  return (gexpo(a)-gexpo(a0) < -bit);
 }
-/* x0 a nonempty square t_MAT that can be written to */
+/* x0 a nonempty square t_MAT that can be written to. If bit = 0, then x is
+ * exact; else used as a bit precision a = o(b) if |a| < 2^-bit |b| */
 static GEN
-RgM_hess(GEN x0, long prec)
+RgM_hess(GEN x0, long bit)
 {
   pari_sp av = avma;
-  long lx = lg(x0), bit = prec? 8 - prec2nbits(prec): 0, m, i, j;
   GEN x = bit? RgM_shallowcopy(x0): x0;
+  long lx = lg(x0), m, i, j;
 
-  for (m=2; m<lx-1; m++)
+  for (m = 2; m < lx-1; m++)
   {
     GEN t = NULL;
     if (!bit)
     { /* first non-zero pivot */
-      for (i=m+1; i<lx; i++)
+      for (i = m+1; i < lx; i++)
         if (!gequal0(t = gcoeff(x,i,m-1))) break;
     }
     else
     { /* maximal pivot */
       long E = -(long)HIGHEXPOBIT, k = lx;
-      for (i=m+1; i<lx; i++)
+      for (i = m+1; i < lx; i++)
       {
         long e = gexpo(gcoeff(x,i,m-1));
         if (e > E) { E = e; k = i; t = gcoeff(x,i,m-1); }
@@ -879,24 +881,23 @@ RgM_hess(GEN x0, long prec)
       i = k;
     }
     if (i == lx) continue;
-    for (j=m-1; j<lx; j++) swap(gcoeff(x,i,j), gcoeff(x,m,j));
+    for (j = m-1; j < lx; j++) swap(gcoeff(x,i,j), gcoeff(x,m,j));
     swap(gel(x,i), gel(x,m));
     if (bit)
     {
-      for (j=m-1; j<lx; j++) swap(gcoeff(x0,i,j), gcoeff(x0,m,j));
+      for (j = m-1; j < lx; j++) swap(gcoeff(x0,i,j), gcoeff(x0,m,j));
       swap(gel(x0,i), gel(x0,m));
     }
     t = ginv(t);
-
-    for (i=m+1; i<lx; i++)
+    for (i = m+1; i < lx; i++)
     {
       GEN c = gcoeff(x,i,m-1);
       if (gequal0(c)) continue;
 
       c = gmul(c,t); gcoeff(x,i,m-1) = gen_0;
-      for (j=m; j<lx; j++)
+      for (j = m; j < lx; j++)
         gcoeff(x,i,j) = gsub(gcoeff(x,i,j), gmul(c,gcoeff(x,m,j)));
-      for (j=1; j<lx; j++)
+      for (j = 1; j < lx; j++)
         gcoeff(x,j,m) = gadd(gcoeff(x,j,m), gmul(c,gcoeff(x,j,i)));
       if (gc_needed(av,2))
       {
@@ -923,7 +924,7 @@ hess(GEN x)
     case t_COMPLEX: break;
     default: prec = 0;
   }
-  return gc_GEN(av, RgM_hess(RgM_shallowcopy(x),prec));
+  return gc_GEN(av, RgM_hess(RgM_shallowcopy(x), prec? prec - 8: 0));
 }
 
 GEN
@@ -1808,7 +1809,7 @@ GEN
 jacobi(GEN a, long prec)
 {
   pari_sp av;
-  long de, e, e1, e2, i, j, p, q, l = lg(a);
+  long e, e1, e2, i, j, p, q, l = lg(a);
   GEN c, ja, L, r, L2, r2, unr, sqrt2;
 
   if (typ(a) != t_MAT) pari_err_TYPE("jacobi",a);
@@ -1847,11 +1848,10 @@ jacobi(GEN a, long prec)
   }
   a = c; unr = real_1(prec);
   sqrt2 = sqrtr_abs(shiftr(unr, 1));
-  de = prec2nbits(prec);
 
  /* e1 = min expo(a[i,i])
   * e2 = max expo(a[i,j]), i < j, occurs at a[p,q] (p < q)*/
-  while (e1-e2 < de)
+  while (e1-e2 < prec)
   {
     pari_sp av2 = avma;
     GEN x, y, t, c, s, u;
@@ -1880,7 +1880,7 @@ jacobi(GEN a, long prec)
     for (i=p+1; i<q; i++) rot(gcoeff(a,p,i), gcoeff(a,i,q), s,u);
     for (i=q+1; i<l; i++) rot(gcoeff(a,p,i), gcoeff(a,q,i), s,u);
     y = gcoeff(a,p,q); t = t? mulrr(t, y): rcopy(y);
-    shiftr_inplace(y, -de - 1);
+    shiftr_inplace(y, -prec - 1);
     affrr(subrr(gel(L,p),t), gel(L,p));
     affrr(addrr(gel(L,q),t), gel(L,q));
     for (i=1; i<l; i++) rot(gcoeff(r,i,p), gcoeff(r,i,q), s,u);

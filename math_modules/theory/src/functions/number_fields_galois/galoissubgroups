@@ -1,0 +1,21 @@
+Function: galoissubgroups
+Section: number_fields_galois
+C-Name: galoissubgroups
+Prototype: G
+Help: galoissubgroups(G): output all the subgroups of G.
+Doc: outputs all the subgroups of the Galois group \kbd{gal}. A subgroup is either a
+ list of group elements or a vector [\var{gen}, \var{orders}], with the same meaning
+ as for $\var{gal}.gen$ and $\var{gal}.orders$. Hence \var{gen} is a vector of
+ permutations generating the subgroup, and \var{orders} is the relatives
+ orders of the generators. The cardinality of a subgroup can be obtained by
+ calling \kbd{galoisorder}.
+ Such subgroup can be used instead of a Galois group in the
+ following command: \kbd{galoischardet}, \kbd{galoisexport}, \kbd{galoisisnormal},
+ \kbd{galoischarpoly}, \kbd{galoisidentify}, \kbd{galoisorder},
+ \kbd{galoissubfields}, \kbd{galoischartable}, \kbd{galoissubgroups},
+ \kbd{galoisconjclasses}, \kbd{galoisisabelian}.
+
+ To get the subfield fixed by a subgroup \var{sub} of \var{gal}, use
+ \bprog
+ galoisfixedfield(gal,sub[1])
+ @eprog

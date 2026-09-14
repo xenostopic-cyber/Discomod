@@ -22,13 +22,13 @@
 ++   in computing limits involving functions with essential singularities.
 ExponentialOfUnivariatePuiseuxSeries(FE, var, cen) : _
       Exports == Implementation where
-  FE  : Join(Field, Comparable)
+  FE  : Join(Field, ComparableRepresentation)
   var : Symbol
   cen : FE
   UPXS ==> UnivariatePuiseuxSeries(FE, var, cen)
 
-  Exports ==> Join(UnivariatePuiseuxSeriesCategory(FE), OrderedAbelianMonoid) _
-        with
+  Exports ==> Join(UnivariatePuiseuxSeriesCategory(FE),
+                   OrderedAbelianSemiGroup) with
     exponential : UPXS -> %
       ++ exponential(f(x)) returns \spad{exp(f(x))}.
       ++ Note: the function does NOT check that \spad{f(x)} has no
@@ -89,7 +89,7 @@ ExponentialOfUnivariatePuiseuxSeries(FE, var, cen) : _
 ++   degree.
 UnivariatePuiseuxSeriesWithExponentialSingularity(R, FE, var, cen) : _
   Exports == Implementation where
-  R   : Join(Comparable, RetractableTo Integer, _
+  R   : Join(ComparableRepresentation, RetractableTo(Integer),
              LinearlyExplicitOver Integer, GcdDomain)
   FE  : Join(AlgebraicallyClosedField, TranscendentalFunctionCategory, _
              FunctionSpace R)
@@ -361,7 +361,7 @@ UnivariatePuiseuxSeriesWithExponentialSingularity(R, FE, var, cen) : _
 ++   are quotients of sums, where each term in the sum is a univariate Puiseux
 ++   series times the exponential of a univariate Puiseux series.
 ExponentialExpansion(R, FE, var, cen) : Exports == Implementation where
-  R   : Join(Comparable, RetractableTo Integer, _
+  R   : Join(ComparableRepresentation, RetractableTo(Integer),
              LinearlyExplicitOver Integer, GcdDomain)
   FE  : Join(AlgebraicallyClosedField, TranscendentalFunctionCategory, _
              FunctionSpace R)

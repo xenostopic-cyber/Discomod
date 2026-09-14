@@ -38,9 +38,9 @@ const cl_LF scale_float (const cl_LF& x, sintC delta)
 	    || (uexp < LF_exp_low) // oder Exponent zu klein?
 	   )
 	  { if (underflow_allowed())
-	    { throw floating_point_underflow_exception(); }
+	      { throw floating_point_underflow_exception(); }
 	    else
-	    { return encode_LF0(TheLfloat(x)->len); } // Ergebnis 0.0
+	      { return encode_LF0(TheLfloat(x)->len); } // Ergebnis 0.0
 	  }
       }
       var uintC len = TheLfloat(x)->len;

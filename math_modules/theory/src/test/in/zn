@@ -26,6 +26,9 @@ N = 2^3*5^2*nextprime(10^10)^2;
 do(N)
 G = znstar(N,1);
 G.clgp
+znorder(Mod(3,N))
+znorder(Mod(3,N), G)
+znorder(3, G)
 znlog(3, G)
 L=znlog(Mod(3,N), G)
 factorback(Mod(G.gen,N),L)
@@ -271,3 +274,4 @@ znconreylog(G, "")
 znconreylog(G, Mod(0,2))
 znconreylog(G, [1])
 znconreylog(G, [1]~)
+znorder(Mod(3,5), znstar(6,1))

@@ -993,7 +993,7 @@ expbitprec(GEN x, long *e)
   if (typ(x) != t_COMPLEX) re = x;
   else
   {
-    im = gel(x,2); *e = maxss(*e, expo(im) + 5 - bit_prec(im));
+    im = gel(x,2); *e = maxss(*e, expo(im) + 5 - realprec(im));
     re = gel(x,1);
   }
   return (expo(re) <= 20);
@@ -1759,7 +1759,7 @@ dump_gen(GEN SUnits, GEN x, long flag)
 static GEN
 isprincipalall(GEN bnf, GEN x, long *pprec, long flag)
 {
-  GEN xar, Wex, Bex, gen, xc, col, A, Q, R, UA, SUnits;
+  GEN xar, Wex, Bex, gen, xc, col, A, Q, Rmax, R, UA, SUnits;
   GEN C = bnf_get_C(bnf), nf = bnf_get_nf(bnf), cyc = bnf_get_cyc(bnf);
   long nB, nW, e;
 
@@ -1800,8 +1800,8 @@ isprincipalall(GEN bnf, GEN x, long *pprec, long flag)
   gen = bnf_get_gen(bnf);
   col = NULL;
   SUnits = bnf_get_sunits(bnf);
-  if (lg(R) == 1
-      || abscmpiu(gel(R,vecindexmax(R)), 4 * (*pprec)) < 0)
+  Rmax = NULL; if (lg(R) > 1) Rmax = gel(R,vecindexmax(R));
+  if (!Rmax || abscmpiu(Rmax, 4 * (*pprec)) < 0)
   { /* q = N (x / prod gj^ej) = N(alpha), denom(alpha) | d */
     GEN d, q = gdiv(ZM_det_triangular(x), get_norm_fact(gen, R, &d));
     col = xar? nf_cxlog(nf, xar, *pprec): NULL;
@@ -1811,6 +1811,12 @@ isprincipalall(GEN bnf, GEN x, long *pprec, long flag)
     col = isprincipalarch(bnf, col, q, gen_1, d, &e);
     if (col && (dump_gen(SUnits, col, flag)
                 || !fact_ok(nf,x, col,gen,R))) col = NULL;
+  }
+  else
+  { /* initialize e, ensure Rmax >= 4 (*pprec + e). If e doesn't fit in ulong,
+     * leave at 0  */
+    e = itou_or_0(shifti(Rmax, -2));
+    if (e) e -= *pprec;
   }
   if (!col && (flag & nf_GENMAT))
   {
@@ -1869,7 +1875,7 @@ isprincipalall(GEN bnf, GEN x, long *pprec, long flag)
   else
   {
     if (e < 0) e = 0;
-    *pprec += nbits2extraprec(e + 128);
+    *pprec = nbits2prec(*pprec + e + 128);
     if (flag & nf_FORCE)
     {
       if (DEBUGLEVEL)
@@ -2565,7 +2571,7 @@ Fincke_Pohst_ideal_both(RELCACHE_t *cache, GEN V, FB_t *F, GEN nf, GEN I, GEN NI
       if (cache->last >= cache->end) return 1; /* we have enough */
     } else
     {
-      gel(V,rel++) = gerepilecopy(av, mkvec3(R, stoi(nz), gx));
+      gel(V,rel++) = gc_GEN(av, mkvec3(R, stoi(nz), gx));
       av = avma;
     }
     if (++relid == Nrelid) break;
@@ -2631,7 +2637,7 @@ bnfinit_FP_worker(GEN INI, GEN PF, GEN nf, long max_FACT, GEN rex, long jid0, lo
   minim_alloc(N+1, &fp.q, &fp.x, &fp.y, &fp.z, &fp.v);
   fact = (FACT*)stack_malloc((F.KC+1)*sizeof(FACT));
   res = Fincke_Pohst_ideal_par(vec, &F, nf, I, NI, fact, max_FACT, &fp, rex, jid, jid0, e0, &Nsmall, &Nfact, mod_p);
-  return gerepilecopy(av, mkvec2(vec, mkvecsmall3(res, Nsmall, Nfact)));
+  return gc_GEN(av, mkvec2(vec, mkvecsmall3(res, Nsmall, Nfact)));
 }
 
 static void
@@ -3578,7 +3584,7 @@ bnfnewprec_shallow(GEN bnf, long prec)
   if (SUnits)
   {
     fu = matal = NULL;
-    prec += nbits2extraprec(gexpo(SUnits));
+    prec = nbits2prec(prec + gexpo(SUnits));
   }
   else
   {
@@ -3586,7 +3592,7 @@ bnfnewprec_shallow(GEN bnf, long prec)
     fu = vecslice(fu, 2, lg(fu)-1);
     if (r1 + r2 > 1) {
       long e = gexpo(bnf_get_logfu(bnf)) + 1 - TWOPOTBITS_IN_LONG;
-      if (e >= 0) prec += nbits2extraprec(e);
+      if (e >= 0) prec = nbits2prec(prec + e);
     }
     matal = bnf_build_matalpha(bnf);
   }
@@ -3916,8 +3922,8 @@ static long
 myprecdbl(long prec, GEN C)
 {
   long p = prec < 1280? precdbl(prec): (long)(prec * 1.5);
-  if (C) p = maxss(p, minss(3*p, prec + nbits2extraprec(gexpo(C))));
-  return p;
+  if (C) p = maxss(p, minss(3*p, prec + gexpo(C)));
+  return nbits2prec(p);
 }
 
 static GEN
@@ -4248,7 +4254,7 @@ START:
             timer_printf(&T, "hnfspec [%ld x %ld]", lg(F.perm)-1, l-1);
           if (flag)
           {
-            PREC += nbits2extraprec(gexpo(C));
+            PREC = nbits2prec(PREC + gexpo(C));
             if (nf_get_prec(nf) < PREC) nf = _nfnewprec(nf, PREC, &nfisclone);
             embs = get_embs(&F, &cache, nf, embs, PREC);
             C = vconcat(RgM_ZM_mul(embs, C), C);
@@ -4336,12 +4342,13 @@ START:
                      cache.last - cache.base > 10 * F.KC) goto START;
 #endif
     old_need = need;
-    if (!lambda)
-    { precpb = "bestappr"; PREC = myprecdbl(PREC, flag? C: NULL); continue; }
     if (!R)
     { /* not full rank for units */
-      if (!need)
-      { precpb = "regulator"; PREC = myprecdbl(PREC, flag? C: NULL); }
+      if (!lambda || !need)
+      {
+        precpb = lambda ? "regulator": "bestappr";
+        PREC = myprecdbl(PREC, flag? C: NULL);
+      }
       continue;
     }
     if (cache.last==old_cache) { need=1; continue; }
@@ -4388,10 +4395,10 @@ START:
       if (RU > 1 /* if there are fund units, test we have correct regulator */
           && (!A || lg(A) < RU || expo(subrr(get_regulator(A), R)) > -1))
       {
-        long add = nbits2extraprec( gexpo(AU) + 64 ) - gprecision(AU);
-        long t = maxss(PREC * 0.15, add);
+        long t = maxss(PREC * 0.15, gexpo(AU) + EXTRAPREC64 - gprecision(AU));
         if (!A && DEBUGLEVEL) err_printf("### Incorrect units lognorm");
-        precpb = "cleanarch"; PREC += maxss(t, EXTRAPREC64); continue;
+        PREC = nbits2prec(PREC + maxss(t, EXTRAPREC64));
+        precpb = "cleanarch"; continue;
       }
       if (flag)
       {
@@ -4418,8 +4425,9 @@ START:
     if (flag) Ce = rowslice(Ce, 1, RU);
     C0 = Ce; Ce = cleanarch(Ce, N, NULL, PREC);
     if (!Ce) {
-      long add = nbits2extraprec( gexpo(C0) + 64 ) - gprecision(C0);
-      precpb = "cleanarch"; PREC += maxss(add, 1);
+      long t = gexpo(C0) + EXTRAPREC64 - gprecision(C0);
+      PREC = nbits2prec(PREC + maxss(t, EXTRAPREC64));
+      precpb = "cleanarch"; continue;
     }
     if (DEBUGLEVEL) timer_printf(&T, "cleanarch");
   } while (need || precpb);

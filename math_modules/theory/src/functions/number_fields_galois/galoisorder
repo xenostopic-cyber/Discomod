@@ -1,0 +1,14 @@
+Function: galoisorder
+Section: number_fields_galois
+C-Name: galoisorder
+Prototype: lG
+Help: galoisorder(gal): gal being output by galoisinit or by galoissubgroups
+ return the order of the underlying group.
+Doc: \var{gal} being output by \kbd{galoisinit} or by \kbd{galoissubgroups}
+ return the order of the underlying group.
+
+ \bprog
+ ? G = galoisinit(x^6+108);
+ ? [galoisorder(H) | H<-galoissubgroups(G)]
+ %2 = [6,3,2,2,2,1]
+ @eprog

@@ -103,11 +103,24 @@ real2nQ(GEN x)
   }
   return z;
 }
+
+/* round t_REAL x to 0 or 2^n if close to such a value */
+static GEN
+mayberound(GEN x, long prec)
+{
+  if (!signe(x))
+  {
+    if (expo(x) <= -prec) x = gen_0;
+  }
+  else
+    if (absrnz_equal2n(x)) x = real2nQ(x);
+  return x;
+}
 /* x a real number */
 GEN
 expIPiR(GEN x, long prec)
 {
-  if (typ(x) == t_REAL && absrnz_equal2n(x)) x = real2nQ(x);
+  if (typ(x) == t_REAL) x = mayberound(x, prec);
   switch(typ(x))
   {
     case t_INT:  return mpodd(x)? gen_m1: gen_1;
@@ -125,7 +138,7 @@ expIPiC(GEN z, long prec)
   y = gel(z,2); if (gequal0(y)) return expIPiR(x, prec);
   pi = mppi(prec);
   r = gmul(pi, y); togglesign(r); r = mpexp(r); /* exp(-pi y) */
-  if (typ(x) == t_REAL && absrnz_equal2n(x)) x = real2nQ(x);
+  if (typ(x) == t_REAL) x = mayberound(x, prec);
   switch(typ(x))
   {
     case t_INT: if (mpodd(x)) togglesign(r);
@@ -434,7 +447,7 @@ set_gamma(GEN *pt, GEN *pa, GEN *pb, GEN *pc, GEN *pd)
 {
   GEN a, b, c, d, t, t0 = *pt, run = dbltor(1. - 1e-8);
   long e = gexpo(gel(t0,2));
-  if (e < 0) t0 = gprec_wensure(t0, precision(t0)+nbits2extraprec(-e));
+  if (e < 0) t0 = gprec_wensure(t0, nbits2prec(precision(t0) - e));
   t = t0;
   a = d = gen_1;
   b = c = gen_0;
@@ -766,7 +779,7 @@ thetanullk(GEN q, long k, long prec)
     qn = gmul(qn,ps);
     ps = gmul(ps,ps2);
     t = gmul(qn, powuu(n, k)); y = gadd(y, t);
-    if (gexpo(t) < -prec2nbits(prec)) break;
+    if (gexpo(t) < -prec) break;
   }
   p1 = gmul2n(gsqrt(gsqrt(q,prec),prec),1);
   if (k&2) y = gneg_i(y);
@@ -779,10 +792,9 @@ vecthetanullk_loop(GEN q2, long k, long prec)
 {
   GEN ps, qn = gen_1, y = const_vec(k, gen_1);
   pari_sp av = avma;
-  const long bit = prec2nbits(prec);
   long i, n;
 
-  if (gexpo(q2) < -2*bit) return y;
+  if (gexpo(q2) < -2*prec) return y;
   ps = gneg_i(q2);
   for (n = 3;; n += 2)
   {
@@ -794,7 +806,7 @@ vecthetanullk_loop(GEN q2, long k, long prec)
       t = gmul(qn, P); gel(y,i) = gadd(gel(y,i), t);
       P = mulii(P, N2);
     }
-    if (gexpo(t) < -bit) return y;
+    if (gexpo(t) < -prec) return y;
     if (gc_needed(av,2))
     {
       if (DEBUGMEM>1) pari_warn(warnmem,"vecthetanullk_loop, n = %ld",n);
@@ -950,7 +962,7 @@ thetaall(GEN z, GEN tau, GEN *pT0, long prec)
   GEN zold, tauold, k, u, un, q, q2, qd, qn;
   GEN S, Skeep, S00, S01, S10, S11, u2, ui2, uin;
   GEN Z00 = gen_1, Z01 = gen_1, Z10 = gen_0, Z11 = gen_0;
-  long n, ct, eS, B, sumr, precold = prec;
+  long n, ct, eS, sumr, precold = prec;
   int theta1p = !z;
 
   if (z) z = redmod2Z(z);
@@ -974,7 +986,7 @@ thetaall(GEN z, GEN tau, GEN *pT0, long prec)
   }
   if ((eS = gexpo(S)) > 0)
   {
-    prec = nbits2prec(eS + prec2nbits(prec));
+    prec = nbits2prec(eS + prec);
     if (z) z = gprec_w(z, prec);
     tau = gprec_w(tau, prec);
   }
@@ -985,7 +997,7 @@ thetaall(GEN z, GEN tau, GEN *pT0, long prec)
     u = expIPiC(z, prec); u2 = gsqr(u); ui2 = ginv(u2);
     un = uin = gen_1;
   }
-  qd = q; B = prec2nbits(prec);
+  qd = q;
   av = avma;
   for (n = 1;; n++)
   { /* qd = q^(4n-3), qn = q^(4(n-1)^2), un = u^(2n-2), uin = 1/un */
@@ -1022,9 +1034,9 @@ thetaall(GEN z, GEN tau, GEN *pT0, long prec)
       tmp = gmul2n(qn, 1); Z00 = gadd(Z00, tmp);
       Z01 = odd(n)? gsub(Z01, tmp): gadd(Z01, tmp);
     }
-    eqn = gexpo(qn) + e; if (eqn < -B) break;
+    eqn = gexpo(qn) + e; if (eqn < -prec) break;
     qd = gmul(qd, q2);
-    prec2 = minss(prec, nbits2prec(eqn + B + 64));
+    prec2 = minss(prec, nbits2prec(eqn + prec + 64));
     qn = gprec_w(qn, prec2); qd = gprec_w(qd, prec2);
     if (u) { un = gprec_w(un, prec2); uin = gprec_w(uin, prec2); }
     if (gc_needed(av, 1))
@@ -1108,7 +1120,7 @@ static GEN
 thetanull11(GEN tau, long prec)
 {
   GEN z = NULL, tauold, q, q8, qd, qn, S, S11;
-  long n, eS, B, sumr, precold = prec;
+  long n, eS, sumr, precold = prec;
 
   tau = upper_to_cx(tau, &prec);
   tau = tauold = gtofp(tau, prec);
@@ -1116,20 +1128,20 @@ thetanull11(GEN tau, long prec)
   S11 = gen_1; ;
   if ((eS = gexpo(S)) > 0)
   {
-    prec += nbits2extraprec(eS);
+    prec = nbits2prec(prec + eS);
     tau = gprec_w(tau, prec);
   }
   q8 = expIPiC(gmul2n(tau,-2), prec); q = gpowgs(q8, 8);
-  qn = gen_1; qd = q; B = prec2nbits(prec);
+  qn = gen_1; qd = q;
   for (n = 1;; n++)
   { /* qd = q^n, qn = q^((n^2-n)/2) */
     long eqn, prec2;
     GEN tmp;
     qn = gmul(qn, qd); tmp = gmulsg(2*n+1, qn); eqn = gexpo(tmp);
     S11 = odd(n)? gsub(S11, tmp): gadd(S11, tmp);
-    if (eqn < -B) break;
+    if (eqn < -prec) break;
     qd = gmul(qd, q);
-    prec2 = minss(prec, nbits2prec(eqn + B + 32));
+    prec2 = minss(prec, nbits2prec(eqn + prec + 32));
     qn = gprec_w(qn, prec2); qd = gprec_w(qd, prec2);
   }
   if (precold < prec) prec = precold;
@@ -1190,7 +1202,7 @@ theta11prime(GEN z, GEN tau, long prec)
   GEN zold, tauold, k, u, un, q, q2, qd, qn;
   GEN S, S11, S11prime, S11all, u2, ui2, uin;
   GEN y, mat;
-  long n, ct, eS, B, sumr, precold = prec;
+  long n, ct, eS, sumr, precold = prec;
 
   if (z) z = redmod2Z(z);
   if (!z || gequal0(z)) pari_err(e_MISC, "z even integer in theta11prime");
@@ -1211,14 +1223,14 @@ theta11prime(GEN z, GEN tau, long prec)
   }
   if ((eS = gexpo(S)) > 0)
   {
-    prec = nbits2prec(eS + prec2nbits(prec));
+    prec = nbits2prec(eS + prec);
     z = gprec_w(z, prec);
     tau = gprec_w(tau, prec);
   }
   q = expIPiC(gmul2n(tau,-2), prec); q2 = gsqr(q); qn = gen_1;
   u = expIPiC(z, prec); u2 = gsqr(u); ui2 = ginv(u2);
   un = uin = gen_1;
-  qd = q; B = prec2nbits(prec);
+  qd = q;
   for (n = 1;; n++)
   { /* qd = q^(4n-3), qn = q^(4(n-1)^2), un = u^(2n-2), uin = 1/un */
     long e = 0, eqn, prec2;
@@ -1231,9 +1243,9 @@ theta11prime(GEN z, GEN tau, long prec)
     S11prime = odd(n)? gsub(S11prime, tmpprime): gadd(S11prime, tmpprime);
     e = maxss(0, gexpo(un)); un = gmul(un, u2); e = maxss(e, gexpo(un));
     qd = gmul(qd, q2); qn = gmul(qn, qd); /* q^(4n^2) */
-    eqn = gexpo(qn) + e; if (eqn < -B) break;
+    eqn = gexpo(qn) + e; if (eqn < -prec) break;
     qd = gmul(qd, q2);
-    prec2 = minss(prec, nbits2prec(eqn + B + 64));
+    prec2 = minss(prec, nbits2prec(eqn + prec + 64));
     qn = gprec_w(qn, prec2); qd = gprec_w(qd, prec2);
     un = gprec_w(un, prec2); uin = gprec_w(uin, prec2);
   }
@@ -1631,7 +1643,7 @@ cxEk(GEN tau, long k, long prec)
   long b;
 
   if ((b = precision(tau))) prec = b;
-  if (gcmpgs(imag_i(tau), (M_LN2 / (2*M_PI)) * (prec2nbits(prec)+1+10)) > 0)
+  if (gcmpgs(imag_i(tau), (M_LN2 / (2*M_PI)) * (prec+1 + 10)) > 0)
     return real_1(prec);
   if (k == 2)
   { /* -theta^(3)(tau/2) / theta^(1)(tau/2) */
@@ -1873,7 +1885,7 @@ inteta(GEN q)
     }
   }
   {
-    long l = -prec2nbits(precision(q));
+    long prec = precision(q);
     pari_sp av = avma;
 
     for(;;)
@@ -1884,7 +1896,7 @@ inteta(GEN q)
        * t = (-1)^(n+1) q^(n(3n+1)/2 + 2n+1) */
       y = gadd(y,t); qn = gmul(qn,q); ps = gmul(t,qn);
       y = gadd(y,ps);
-      if (gexpo(ps)-gexpo(y) < l) return y;
+      if (gexpo(ps)-gexpo(y) < -prec) return y;
       if (gc_needed(av,3))
       {
         if(DEBUGMEM>1) pari_warn(warnmem,"eta");
@@ -1981,8 +1993,7 @@ static GEN
 eta_reduced(GEN x, long prec)
 {
   GEN z = expIPiC(gdivgu(x, 12), prec); /* e(x/24) */
-  if (24 * gexpo(z) >= -prec2nbits(prec))
-    z = gmul(z, inteta( gpowgs(z,24) ));
+  if (24 * gexpo(z) >= -prec) z = gmul(z, inteta( gpowgs(z,24) ));
   return z;
 }
 
@@ -2174,9 +2185,9 @@ jell(GEN x, long prec)
      * then
      *   h = t * (q(2x) / q(x) = t * q(x);
      * but inteta(q) costly and useless if expo(q) << 1  => inteta(q) = 1.
-     * log_2 ( exp(-2Pi Im tau) ) < -prec2nbits(prec)
-     * <=> Im tau > prec2nbits(prec) * log(2) / 2Pi */
-    long C = (long)prec2nbits_mul(prec, M_LN2/(2*M_PI));
+     * log_2 ( exp(-2Pi Im tau) ) < -prec
+     * <=> Im tau > prec * log(2) / 2Pi */
+    long C = (long)(prec * (M_LN2 / (2*M_PI)));
     q = expIPiC(gmul2n(x,1), prec); /* e(x) */
     if (gcmpgs(gel(x,2), C) > 0) /* eta(q(x)) = 1 : no need to compute q(2x) */
       h = q;

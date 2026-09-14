@@ -877,6 +877,7 @@ identicalrr(GEN x, GEN y)
   long i, lx = lg(x);
   if (lg(y) != lx) return 0;
   if (x[1] != y[1]) return 0;
+  if (!signe(x)) return 1;
   i=2; while (i<lx && x[i]==y[i]) i++;
   return (i == lx);
 }
@@ -1127,7 +1128,7 @@ cx_approx_equal(GEN a, GEN b)
   return gc_bool(av, gequal0(d) || (typ(d)==t_COMPLEX && gequal0(cxnorm(d))));
 }
 static int
-r_approx0(GEN x, long e) { return e - expo(x) > bit_prec(x); }
+r_approx0(GEN x, long e) { return e - expo(x) > realprec(x); }
 /* x ~ 0 compared to reference y */
 int
 cx_approx0(GEN x, GEN y)
@@ -2090,7 +2091,7 @@ gabs(GEN x, long prec)
       return absfrac(x);
 
     case t_COMPLEX:
-      av=avma; N=cxnorm(x);
+      av = avma; N = cxnorm(x);
       switch(typ(N))
       {
         case t_INT:
@@ -2106,8 +2107,19 @@ gabs(GEN x, long prec)
       return gc_upto(av, gsqrt(N,prec));
 
     case t_QUAD:
-      av = avma;
-      return gc_leaf(av, gabs(quadtofp(x, prec), prec));
+    {
+      GEN P = gel(x,1), u = gel(x,2), v = gel(x,3);
+      if (isintzero(v)) return gabs(u, prec);
+      if (signe(gel(P,2)) < 0)
+      { /* real */
+        x = quadtofp(x, prec); setabssign(x);
+        return x;
+      }
+      /* complex */
+      av = avma; N = quadnorm(x);
+      if (issquareall(N, &x)) return gc_upto(av, x);
+      return gc_upto(av, gsqrt(N, prec));
+    }
 
     case t_POL:
       lx = lg(x); if (lx<=2) return RgX_copy(x);
@@ -2331,7 +2343,6 @@ quadtofp(GEN x, long prec)
 {
   GEN b, D, z, u = gel(x,2), v = gel(x,3);
   pari_sp av;
-  if (prec < LOWDEFAULTPREC) prec = LOWDEFAULTPREC;
   if (isintzero(v)) return cxcompotor(u, prec);
   av = avma; D = quad_disc(x); b = gel(gel(x,1),3); /* 0 or -1 */
   /* u + v (-b + sqrt(D)) / 2 */

@@ -20,8 +20,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 BEGINEXTERN
 /* functions */
 void   changevalue(entree *ep, GEN val);
-void    freeep(entree *ep);
-void   pari_fill_hashtable(entree **table, entree *ep);
+void   freeep(entree *ep);
+void   pari_fill_hashtable(entree **table, ulong mask, entree *ep);
 
 void compile_err(const char *msg, const char *str);
 void compile_varerr(const char *str);

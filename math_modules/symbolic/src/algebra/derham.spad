@@ -291,7 +291,7 @@ AntiSymm(R : Ring, lVar : List Symbol) : Exports == Implementation where
 
 DeRhamComplex(CoefRing, listIndVar : List(Symbol)) : Exports == Implementation
     where
-  CoefRing : Join(Ring, Comparable)
+  CoefRing : Join(Ring, ComparableRepresentation)
   ASY ==> AntiSymm(R, listIndVar)
   LALG ==> LeftAlgebra
   I ==> Integer
@@ -339,6 +339,9 @@ DeRhamComplex(CoefRing, listIndVar : List(Symbol)) : Exports == Implementation
         ++ the differential form df.
 
   Implementation == ASY add
+
+      import List(ASY)
+      import String
       Rep := ASY
 
       dim := #listIndVar

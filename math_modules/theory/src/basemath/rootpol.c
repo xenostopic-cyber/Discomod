@@ -329,6 +329,7 @@ myshiftic(GEN z, long e)
 static GEN
 RgX_gtofp_bit(GEN q, long bit) { return RgX_gtofp(q, nbits2prec(bit)); }
 
+/* x a complex number (INT, REAL, FRAC or COMPLEX) */
 static GEN
 mygprecrc(GEN x, long prec, long e)
 {
@@ -336,7 +337,7 @@ mygprecrc(GEN x, long prec, long e)
   switch(typ(x))
   {
     case t_REAL:
-      if (!signe(x)) return real_0_bit(e);
+      if (!signe(x)) return real_0_expo(e);
       return realprec(x) == prec? x: rtor(x, prec);
     case t_COMPLEX:
       y = cgetg(3,t_COMPLEX);
@@ -347,15 +348,13 @@ mygprecrc(GEN x, long prec, long e)
   }
 }
 
-/* gprec behaves badly with the zero for polynomials.
-The second parameter in mygprec is the precision in base 2 */
+/* gprec behaves badly with the zero for polynomials. */
 static GEN
 mygprec(GEN x, long bit)
 {
   long e, prec;
-  if (bit < 0) bit = 0; /* should rarely happen */
-  e = gexpo(x) - bit;
-  prec = nbits2prec(bit);
+  if (bit <= 0) bit = BITS_IN_LONG; /* should not happen */
+  e = gexpo(x) - bit; prec = nbits2prec(bit);
   switch(typ(x))
   {
     case t_POL: pari_APPLY_pol_normalized(mygprecrc(gel(x,i),prec,e));
@@ -473,7 +472,7 @@ logmax_modulus(GEN p, double tau)
 
   eps = - 1/log(1.5*tau2); /* > 0 */
   bit = (long) ((double) n*log2(1./tau2)+3*log2((double) n))+1;
-  gunr = real_1_bit(bit+2*n);
+  gunr = real_1(bit+2*n);
   aux = gdiv(gunr, gel(p,2+n));
   q = RgX_Rg_mul(p, aux); gel(q,2+n) = gunr;
   e = findpower(q);
@@ -866,7 +865,7 @@ parameters(GEN p, long *LMAX, double *mu, double *gamma,
   for (   ; i<Lmax; i++) gel(pc,i) = gen_0;
 
   *mu = pariINFINITY;
-  g = real_0_bit(-bit);
+  g = real_0_expo(-bit);
   TWO = real2n(1, DEFAULTPREC);
   av2 = avma;
   RU = gen_1;
@@ -1577,7 +1576,7 @@ mygprec_absolute(GEN x, long bit)
   {
     case t_REAL:
       e = expo(x) + bit;
-      return (e <= 0 || !signe(x))? real_0_bit(-bit): rtor(x, nbits2prec(e));
+      return (e <= 0 || !signe(x))? real_0_expo(-bit): rtor(x, nbits2prec(e));
     case t_COMPLEX:
       if (gexpo(gel(x,2)) < -bit) return mygprec_absolute(gel(x,1),bit);
       y = cgetg(3,t_COMPLEX);
@@ -1735,7 +1734,7 @@ mygprecrc_special(GEN x, long prec, long e)
   switch(typ(x))
   {
     case t_REAL:
-      if (!signe(x)) return real_0_bit(minss(e, expo(x)));
+      if (!signe(x)) return real_0_expo(minss(e, expo(x)));
       return (prec > realprec(x))? rtor(x, prec): x;
     case t_COMPLEX:
       y = cgetg(3,t_COMPLEX);
@@ -1878,7 +1877,7 @@ roots_com(GEN q, long bit)
         if (y < x) x = y;
       }
     }
-    z = real_0_bit(x); l = v + lg(L);
+    z = real_0_expo(x); l = v + lg(L);
     M = cgetg(l, t_VEC); L -= v;
     for (i = 1; i <= v; i++) gel(M,i) = z;
     for (     ; i <  l; i++) gel(M,i) = gel(L,i);
@@ -1888,28 +1887,28 @@ roots_com(GEN q, long bit)
 }
 
 static GEN
-tocomplex(GEN x, long l, long bit)
+tocomplex(GEN x, long prec)
 {
   GEN y;
   if (typ(x) == t_COMPLEX)
   {
-    if (signe(gel(x,1))) return mygprecrc(x, l, -bit);
+    if (signe(gel(x,1))) return mygprecrc(x, prec, -prec);
     x = gel(x,2);
     y = cgetg(3,t_COMPLEX);
-    gel(y,1) = real_0_bit(-bit);
-    gel(y,2) = mygprecrc(x, l, -bit);
+    gel(y,1) = real_0_expo(-prec);
+    gel(y,2) = mygprecrc(x, prec, -prec);
   }
   else
   {
     y = cgetg(3,t_COMPLEX);
-    gel(y,1) = mygprecrc(x, l, -bit);
-    gel(y,2) = real_0_bit(-bit);
+    gel(y,1) = mygprecrc(x, prec, -prec);
+    gel(y,2) = real_0_expo(-prec);
   }
   return y;
 }
 
 /* x,y are t_COMPLEX of t_REALs or t_REAL, compare wrt |Im x| - |Im y|,
- * then Re x - Re y, up to 2^-e absolute error */
+ * then Re x - Re y, up to 2^e absolute error */
 static int
 cmp_complex_appr(void *E, GEN x, GEN y)
 {
@@ -1944,9 +1943,9 @@ cmp_complex_appr(void *E, GEN x, GEN y)
 }
 
 static GEN
-clean_roots(GEN L, long l, long bit, long clean)
+clean_roots(GEN L, long prec, long clean)
 {
-  long i, n = lg(L), ex = 5 - bit;
+  long i, n = lg(L), ex = 5 - prec;
   GEN res = cgetg(n,t_COL);
   for (i=1; i<n; i++)
   {
@@ -1954,22 +1953,21 @@ clean_roots(GEN L, long l, long bit, long clean)
     if (clean && isrealappr(c,ex))
     {
       if (typ(c) == t_COMPLEX) c = gel(c,1);
-      c = mygprecrc(c, l, -bit);
+      c = mygprecrc(c, prec, -prec);
     }
     else
-      c = tocomplex(c, l, bit);
+      c = tocomplex(c, prec);
     gel(res,i) = c;
   }
   gen_sort_inplace(res, (void*)ex, &cmp_complex_appr, NULL);
   return res;
 }
 
-/* the vector of roots of p, with absolute error 2^(- prec2nbits(l)) */
+/* the vector of roots of p, with absolute error 2^(-prec) */
 static GEN
-roots_aux(GEN p, long l, long clean)
+roots_aux(GEN p, long prec, long clean)
 {
   pari_sp av = avma;
-  long bit;
   GEN L;
 
   if (typ(p) != t_POL)
@@ -1981,16 +1979,14 @@ roots_aux(GEN p, long l, long clean)
   if (!signe(p)) pari_err_ROOTS0("roots");
   checkvalidpol(p,"roots");
   if (lg(p) == 3) return cgetg(1,t_COL); /* constant polynomial */
-  if (l < LOWDEFAULTPREC) l = LOWDEFAULTPREC;
-  bit = prec2nbits(l);
-  L = roots_com(p, bit);
-  return gc_GEN(av, clean_roots(L, l, bit, clean));
+  L = roots_com(p, prec);
+  return gc_GEN(av, clean_roots(L, prec, clean));
 }
 GEN
-roots(GEN p, long l) { return roots_aux(p,l, 0); }
+roots(GEN p, long prec) { return roots_aux(p,prec, 0); }
 /* clean up roots. If root is real replace it by its real part */
 GEN
-cleanroots(GEN p, long l) { return roots_aux(p,l, 1); }
+cleanroots(GEN p, long prec) { return roots_aux(p, prec, 1); }
 
 /* private variant of conjvec. Allow non rational coefficients, shallow
  * function. */
@@ -2010,20 +2006,18 @@ polmod_to_embed(GEN x, long prec)
 }
 
 GEN
-QX_complex_roots(GEN p, long l)
+QX_complex_roots(GEN p, long prec)
 {
   pari_sp av = avma;
-  long bit, v;
+  long v;
   GEN L;
 
   if (!signe(p)) pari_err_ROOTS0("QX_complex_roots");
   if (lg(p) == 3) return cgetg(1,t_COL); /* constant polynomial */
-  if (l < LOWDEFAULTPREC) l = LOWDEFAULTPREC;
-  bit = prec2nbits(l);
   v = RgX_valrem(p, &p);
-  L = lg(p) > 3? all_roots(Q_primpart(p), bit): cgetg(1,t_COL);
-  if (v) L = shallowconcat(const_vec(v, real_0_bit(-bit)), L);
-  return gc_GEN(av, clean_roots(L, l, bit, 1));
+  L = lg(p) > 3? all_roots(Q_primpart(p), prec): cgetg(1,t_COL);
+  if (v) L = shallowconcat(const_vec(v, real_0_expo(-prec)), L);
+  return gc_GEN(av, clean_roots(L, prec, 1));
 }
 
 /********************************************************************/
@@ -2152,14 +2146,14 @@ splitpoleval(GEN Pp, GEN Pm, GEN pows, long D, long bitprec)
 {
   GEN vp = gen_bkeval_powers(Pp, degpol(Pp), pows, NULL, &mp_algebra, _mp_cmul);
   GEN vm = gen_bkeval_powers(Pm, degpol(Pm), pows, NULL, &mp_algebra, _mp_cmul);
-  GEN xa = bkeval_single_power(D, pows);
   GEN r;
+  long e;
+
   if (!signe(vp)) return vm;
-  vp = gmul(vp, xa);
-  r = gadd(vp, vm);
-  if (gexpo(vp) - (signe(r)? gexpo(r): 0) > prec2nbits(realprec(vp)) - bitprec)
-    return NULL;
-  return r;
+  vp = gmul(vp, bkeval_single_power(D, pows));
+  e = gexpo(vp) - realprec(vp);
+  r = gadd(vp, vm); if (signe(r)) e -= expo(r);
+  return (e > - bitprec)? NULL: r;
 }
 
 /* optimized Cauchy bound for P = X^D*Pp + Pm, D > deg(Pm) */
@@ -2403,7 +2397,7 @@ ZX_Uspensky_equal_yes(GEN a, long flag, long bit)
   if (flag == 1 && typ(a) != t_REAL)
   {
     if (typ(a) == t_INT && !signe(a))
-      a = real_0_bit(bit);
+      a = real_0_expo(bit);
     else
       a = gtofp(a, nbits2prec(bit));
   }
@@ -2594,7 +2588,8 @@ check_ab(GEN ab)
       typ(b) == t_INFINITY && inf_get_sign(b) > 0) ab = NULL;
   return ab;
 }
-/* e^(1/h) assuming the h-th root is real, beware that sqrtnr assumes e >= 0 */
+/* e^(1/h) assuming the h-th root is real, beware that sqrtnr assumes e >= 0.
+ * Destroy input */
 static GEN
 _sqrtnr(GEN e, long h)
 {
@@ -2605,67 +2600,28 @@ _sqrtnr(GEN e, long h)
   r = sqrtnr(e, h); if (s < 0) setsigne(r, -1);
   return r;
 }
-GEN
-realroots(GEN P, GEN ab, long prec)
+/* P non constant squarefree ZX, P(0) != 0 */
+static GEN
+ZX_realroots_i(GEN P, GEN ab, long prec)
 {
-  pari_sp av = avma;
-  GEN sol = NULL, fa, ex;
-  long i, j, v, l;
-
-  ab = check_ab(ab);
-  if (typ(P) != t_POL) return rootsdeg0(P);
-  if (!RgX_is_ZX(P)) P = RgX_rescale_to_int(P);
-  switch(degpol(P))
-  {
-    case -1: return rootsdeg0(gen_0);
-    case 0: return rootsdeg0(gel(P,2));
-  }
-  v = ZX_valrem(Q_primpart(P), &P);
-  fa = ZX_squff(P, &ex); l = lg(fa); sol = cgetg(l + 1, t_VEC);
-  for (i = 1; i < l; i++)
-  {
-    GEN Pi = gel(fa, i), soli, soli2;
-    long n, h;
-    if (ab) h = 1; else Pi = ZX_deflate_max(Pi, &h);
-    soli = ZX_Uspensky(Pi, odd(h)? ab: gen_0, 1, prec2nbits(prec));
-    n = lg(soli); soli2 = odd(h)? NULL: cgetg(n, t_COL);
-    for (j = 1; j < n; j++)
-    {
-      GEN r = gel(soli, j); /* != 0 */
-      if (typ(r) != t_REAL) gel(soli, j) = r = gtofp(r, prec);
-      if (h > 1)
-      {
-        gel(soli, j) = r = _sqrtnr(r, h);
-        if (soli2) gel(soli2, j) = negr(r);
-      }
-    }
-    if (soli2) soli = shallowconcat(soli, soli2);
-    if (ex[i] > 1) soli = shallowconcat1( const_vec(ex[i], soli) );
-    gel(sol, i) = soli;
-  }
-  if (v && (!ab || (gsigne(gel(ab,1)) <= 0 && gsigne(gel(ab,2)) >= 0)))
-    gel(sol, i++) = const_col(v, real_0(prec));
-  setlg(sol, i); if (i == 1) retgc_const(av, cgetg(1, t_COL));
-  return gc_upto(av, sort(shallowconcat1(sol)));
-}
-GEN
-ZX_realroots_irred(GEN P, long prec)
-{
-  long dP = degpol(P), j, n, h;
   GEN sol, sol2;
-  pari_sp av;
-  if (dP == 1) retmkvec(ZX_deg1root(P, prec));
-  av = avma; P = ZX_deflate_max(P, &h);
-  if (h == dP)
+  long j, n, h = 1;
+  if (!ab)
   {
-    GEN r = _sqrtnr(ZX_deg1root(P, prec), h);
-    return gc_GEN(av, odd(h)? mkvec(r): mkvec2(negr(r), r));
+    long dP = degpol(P);
+    if (dP == 1) retmkcol(ZX_deg1root(P, prec));
+    P = ZX_deflate_max(P, &h);
+    if (h == dP)
+    {
+      GEN r = _sqrtnr(ZX_deg1root(P, prec), h);
+      return odd(h)? mkcol(r): mkcol2(negr(r), r);
+    }
   }
-  sol = ZX_Uspensky(P, odd(h)? NULL: gen_0, 1 | 4, prec2nbits(prec));
+  sol = ZX_Uspensky(P, odd(h)? ab: gen_0, 1, prec);
   n = lg(sol); sol2 = odd(h)? NULL: cgetg(n, t_COL);
   for (j = 1; j < n; j++)
   {
-    GEN r = gel(sol, j);
+    GEN r = gel(sol, j); /* != 0 */
     if (typ(r) != t_REAL) gel(sol, j) = r = gtofp(r, prec);
     if (h > 1)
     {
@@ -2674,7 +2630,52 @@ ZX_realroots_irred(GEN P, long prec)
     }
   }
   if (sol2) sol = shallowconcat(sol, sol2);
-  return gc_upto(av, sort(sol));
+  return sol;
+}
+GEN
+realroots(GEN P, GEN ab, long prec)
+{
+  pari_sp av = avma;
+  GEN sol = NULL, fa, ex;
+  long i, v, l;
+
+  ab = check_ab(ab);
+  if (typ(P) != t_POL) return rootsdeg0(P);
+  if (!RgX_is_ZX(P)) P = RgX_rescale_to_int(P);
+  switch(degpol(P))
+  {
+    case -1: set_avma(av); return rootsdeg0(gen_0);
+    case 0: return gc_upto(av, rootsdeg0(gel(P,2)));
+  }
+  v = ZX_valrem(Q_primpart(P), &P);
+  fa = ZX_squff(P, &ex); l = lg(fa); sol = cgetg(l + 1, t_VEC);
+  for (i = 1; i < l; i++)
+  {
+    GEN s = ZX_realroots_i(gel(fa,i), ab, prec);
+    if (ex[i] > 1) s = shallowconcat1( const_col(ex[i], s) );
+    gel(sol, i) = s;
+  }
+  if (v && (!ab || (gsigne(gel(ab,1)) <= 0 && gsigne(gel(ab,2)) >= 0)))
+    gel(sol, i++) = const_col(v, real_0(prec));
+  setlg(sol, i); if (i == 1) retgc_const(av, cgetg(1, t_COL));
+  return gc_upto(av, sort(shallowconcat1(sol)));
+}
+/* non constant squarefree ZX */
+GEN
+ZX_realroots(GEN P, long prec)
+{
+  pari_sp av = avma;
+  long v = ZX_valrem(P, &P);
+  GEN s = ZX_realroots_i(P, NULL, prec);
+  if (v) s = vec_append(s, real_0(prec));
+  return gc_upto(av, sort(s));
+}
+GEN
+ZX_realroots_irred(GEN P, long prec)
+{
+  pari_sp av = avma;
+  if (degpol(P) == 1) retmkcol(ZX_deg1root(P, prec));
+  return gc_upto(av, sort( ZX_realroots_i(P, NULL, prec) ));
 }
 
 static long

@@ -55,4 +55,4 @@ CL_DEFINE_PRINT_OPERATOR(cl_GV_RA)
 
 }  // namespace cln
 
-#endif /* _CL_GV_RAATIONAL_H */
+#endif /* _CL_GV_RATIONAL_H */

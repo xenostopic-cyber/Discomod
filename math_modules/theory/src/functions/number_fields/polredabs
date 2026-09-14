@@ -7,10 +7,17 @@ Help: polredabs(T,{flag=0}): a smallest generating polynomial of the number
  norm. flag is optional, whose binary digit mean 1: give the element whose
  characteristic polynomial is the given polynomial. 4: give all polynomials
  of minimal T2 norm (give only one of P(x) and P(-x)).
-Doc: returns a canonical defining polynomial $P$ for the number field
- $\Q[X]/(T)$ defined by $T$, such that the sum of the squares of the modulus
- of the roots (i.e.~the $T_{2}$-norm) is minimal. Different $T$ defining
- isomorphic number fields will yield the same $P$. All $T$ accepted by
+Doc:
+ Let $T$ be a separable polynomial with rational coefficients and consider
+ the \'{e}tale algebra $A = \Q[x]/(T)$.
+ Returns a canonical defining polynomial $P$ defining $A \sim Q[x]/(P)$,
+ such that the sum of the squares of the modulus
+ of the roots (i.e.~the $T_{2}$-norm) is minimal. This is mostly useful when
+ $T$ is irreducible and $A$ is a number field, else you should probably first
+ factor $T$, thereby factoring $A$ as a product of number fields.
+
+ Different $T$ defining
+ isomorphic algebras will yield the same $P$. All $T$ accepted by
  \tet{nfinit} are also allowed here, e.g. nonmonic polynomials, or pairs
  \kbd{[T, listP]} specifying that a nonmaximal order may be used. For
  convenience, any number field structure (\var{nf}, \var{bnf},\dots) can also
@@ -39,8 +46,7 @@ Doc: returns a canonical defining polynomial $P$ for the number field
  \misctitle{Warning 2} Apart from the factorization of the discriminant of
  $T$, this routine runs in polynomial time for a \emph{fixed} degree.
  But the complexity is exponential in the degree: this routine
- may be exceedingly slow when the number field has many subfields, hence a
- lot of elements of small $T_{2}$-norm. If you do not need a canonical
+ may be exceedingly slow. If you do not need a canonical
  polynomial, the function \tet{polredbest} is in general much faster (it runs
  in polynomial time), and tends to return polynomials with smaller
  discriminants.
@@ -74,7 +80,7 @@ Doc: returns a canonical defining polynomial $P$ for the number field
  now remove from the list the polynomials whose discriminant do not have
  minimal absolute value. Note that this condition is restricted to the
  original list of polynomials with minimal $T_{2}$ norm and does not imply that
- the defining polynomial for the field with smallest discriminant belongs to
+ the defining polynomial for the algebra with smallest discriminant belongs to
  the list !
 
  \item To a polynomial $P(x) = x^{n} + \dots + a_{n} \in \R[x]$ we attach

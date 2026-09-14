@@ -5715,8 +5715,8 @@ nflist(GEN GP, GEN N, long s, GEN field)
   \"C6\"=[6,1], \"D6\"=[6,2], [6,3], [6,4],..., [6,13];\n\
   \"C7\"=[7,1], \"D7\"=[7,2], \"M21\"=[7,3], \"M42\"=[7,4];\n\
   \"C9\"=[9,1], [9,2], \"D9\"=[9,3].\"\n\
-  Also supported are \"Cp\"=[p,1] and \"Dp\"=[p,2] for any odd prime p,\n\
-  and \"Cn\"=[n,1] when n is a product of two distinct primes";
+  Also supported are \"Cn\"=[n,1] for n prime or a product of two distinct\n\
+  primes and \"Dp\"=[p,2] for any odd prime p";
     pari_err(e_MISC, s, GP);
   }
   if (QT) return gc_GEN(av, nflistQT(n, t, varn(N)));

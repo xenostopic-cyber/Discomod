@@ -769,7 +769,7 @@ static GEN
 mkdata(long N, GEN s, long prec)
 {
   long needlog, prec0, prec1, m = mt_nbthreads(), STEP = maxss(N / (m * m), 1);
-  prec1 = prec0 = prec + EXTRAPRECWORD;
+  prec1 = prec0 = prec + EXTRAPREC64;
   needlog = get_needlog(s);
   if (needlog == 1) prec1 = powcx_prec(log2((double)N), s, prec);
   return mkvecsmalln(5, needlog, prec0, prec1, N, STEP);
@@ -798,7 +798,7 @@ dirpowerssumfun_i(ulong N, GEN s, void *E, GEN (*f)(void *, ulong, long),
   if ((f && N < 49) || (!f && N < 1000))
     return smalldirpowerssum(N, s, E, f, both, prec);
   if (!mk01(E, f, prec, &zerf, &onef)) return mktrivial(both);
-  data = mkdata(N, s, prec); s = gprec_w(s, prec + EXTRAPRECWORD);
+  data = mkdata(N, s, prec); s = gprec_w(s, prec + EXTRAPREC64);
   v2unpack(dirpowsuminit(s, onef, zerf, E, f, data, both), &R, &RB);
   W = gel(R,2); WB = RB? gel(RB,2): NULL;
   av = avma; u_forprime_init(&T, lg(W), N);
@@ -888,7 +888,7 @@ pardirpowerssumfun_i(GEN f, ulong N, GEN s, long both, long prec)
   if ((f && N < 49) || (!f && N < 10000UL))
     return smalldirpowerssum(N, s, (void*)f, mycallvec, both, prec);
   if (!mk01((void*)f, mycallvec, prec, &zerf, &onef)) return mktrivial(both);
-  data = mkdata(N, s, prec); s = gprec_w(s, prec + EXTRAPRECWORD);
+  data = mkdata(N, s, prec); s = gprec_w(s, prec + EXTRAPREC64);
   vR = dirpowsuminit(s, onef, zerf, (void*)f, mycallvec, data, both);
   worker = snm_closure(is_entry("_parsumprimefun_worker"),
                        mkvecn(5, s, zerf, data, vR_get_vW(vR), f? f: gen_0));

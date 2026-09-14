@@ -18,8 +18,8 @@ all GNU software mentioned afterwards, you can find the most convenient site
 to fetch \kbd{gcc} at the address
 $$\url{https://www.gnu.org/prep/ftp.html}$$
 %
-(On Mac OS X, this is also provided in the \kbd{Xcode} tool
-suite; or the lightweight ``Command-Line Tools (CLT) for \kbd{Xcode}''.) You can
+(On macOS, this is also provided in the \kbd{Xcode} tool suite;
+or the lightweight ``Command-Line Tools (CLT) for \kbd{Xcode}''.) You can
 compile PARI with a different compiler, but the PARI kernel takes advantage
 of optimizations provided by \kbd{gcc}. Compiling with GCC results in at least
 20\% speedup on most architectures.
@@ -398,8 +398,8 @@ missing libncurses.so, in which case, you have to install the
 \kbd{readline-devel} without \kbd{ncurses-devel}, which is a bug in
 their package dependency handling).
 
-\item on OS X.4 or higher: these systems comes equipped with a fake
-\kbd{readline}, which is not sufficient for our purpose. As a result, gp is
+\item on macOS: these systems comes equipped with a fake \kbd{readline},
+which is not sufficient for our purpose. As a result, gp is
 built without readline support. Since \kbd{readline} is not trivial to
 install in this environment, a step by step solution can be found in the PARI
 FAQ, see
@@ -475,7 +475,7 @@ triggering an error or a crash when an install'ed function is used.
 \kbd{make install}
 
 \noindent You may have to do this with superuser privileges, depending on the
-target directories. (Tip for MacOS X beginners: use \kbd{sudo make install}.)
+target directories. (Tip for macOS beginners: use \kbd{sudo make install}.)
 In this case, it is advised to type \kbd{make all} first to avoid running
 unnecessary commands as \kbd{root}.
 
@@ -661,7 +661,7 @@ following form (BibTeX format):
 @@manual{PARI2,
     organization = "{The PARI~Group}",
     title        = "{PARI/GP version @vers}",
-    year         = 2025,
+    year         = 2026,
     address      = "Bordeaux",
     note         = "available from \url{https://pari.math.u-bordeaux.fr/}"
 }

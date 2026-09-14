@@ -157,7 +157,7 @@ Kderivsmallinit(GEN ldata, GEN Vga, long m, long bit)
   LA = gammapoles(Vga, &dLA, bit); N = lg(LA)-1;
   prec2 = nbits2prec(dLA + bit * (1 + M_PI*d/C2));
 #if BITS_IN_LONG == 32
-  prec2 += odd(prec2lg(prec2)) ? EXTRAPRECWORD: 0;
+  if (odd(prec2lg(prec2))) prec2 += BITS_IN_LONG;
 #endif
   if (ldata) Vga = ldata_get_gammavec(ldata_newprec(ldata, prec2));
   L = cgetg(N+1, t_VECSMALL);
@@ -173,12 +173,8 @@ Kderivsmallinit(GEN ldata, GEN Vga, long m, long bit)
 
     gel(M,j) = mj = gsubsg(2, gel(S, vecindexmin(real_i(S))));
     for (jj = 1; jj <= N; jj++)
-    {
-      GEN g;
-      if (jj == j) /* poles come from this class only */
-        g = get_gamma(&tj, gel(LA,jj), mj, 1, precdl, prec2);
-      else
-        g = get_gamma(&t, gel(LA,jj), mj, 0, precdl, prec2);
+    { /* if jj = j, poles come from this class only */
+      GEN g = get_gamma((jj==j)? &tj: &t, gel(LA,jj), mj, jj==j, precdl, prec2);
       G = G? gmul(G, g): g;
     }
     c = cgetg(limn+2,t_COL); gel(c,1) = G;
@@ -467,7 +463,7 @@ Klargeinit(GEN Vga, long nlimmax, long *status, long prec)
   if (Vgaeasytheta(Vga)) { *status = 2; return mkvec(gen_1); }
   /* d >= 2 */
   *status = 0;
-  if (prec) prec += nbits2extraprec((prec >> 1) + BITS_IN_LONG);
+  if (prec) prec = nbits2prec(prec + (prec >> 1) + EXTRAPREC64);
   SMd = get_SMd(Vga);
   se = gsinh(RgX_to_ser(pol_x(0), d+2), 0); setvalser(se,0);
   se = gdeflate(se, 0, 2); /* se(x^2) = sinh(x)/x */

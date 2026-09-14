@@ -15,14 +15,14 @@ Doc: returns the \kbd{Ldata} structure attached to the $\Theta$ function
  %2 = 6.0268120396919401235462601927282855839
  ? lfun(x^2+1,2)*4
  %3 = 6.0268120396919401235462601927282855839
- @eprog
+ @eprog\noindent A vector is interpreted as a diagonal matrix.
 
  The following computes the Madelung constant:
  \bprog
- ? L1=lfunqf(matdiagonal([1,1,1]));
- ? L2=lfunqf(matdiagonal([4,1,1]));
- ? L3=lfunqf(matdiagonal([4,4,1]));
- ? F(s)=6*lfun(L2,s)-12*lfun(L3,s)-lfun(L1,s)*(1-8/4^s);
+ ? L1 = lfunqf([1,1,1]);
+ ? L2 = lfunqf([4,1,1]);
+ ? L3 = lfunqf([4,4,1]);
+ ? F(s) = 6*lfun(L2,s) - 12*lfun(L3,s) - lfun(L1,s)*(1-2^(3-2*s));
  ? F(1/2)
- %5 = -1.7475645946331821906362120355443974035
+ %5 = -1.7475645946331821906362120355443974034
  @eprog

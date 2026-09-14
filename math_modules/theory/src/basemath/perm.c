@@ -824,24 +824,34 @@ perm_generate(GEN S, GEN H, long o)
 }
 
 /*Return the order (cardinality) of a group */
+
+static int
+group_has_gen(GEN G)
+{
+  return lg(G)==3 && typ(gel(G,1))==t_VEC;
+}
+
 long
 group_order(GEN G)
 {
-  return zv_prod(grp_get_ord(G));
+  return group_has_gen(G) ? zv_prod(grp_get_ord(G)): lg(G)-1;
 }
 
 /* G being a subgroup of S_n, output n */
 long
 group_domain(GEN G)
 {
-  GEN gen = grp_get_gen(G);
-  if (lg(gen) < 2) pari_err_DOMAIN("group_domain", "#G", "=", gen_1,G);
-  return lg(gel(gen,1)) - 1;
+  if (group_has_gen(G))
+  {
+    GEN gen = grp_get_gen(G);
+    if (lg(gen) < 2) pari_err_DOMAIN("group_domain", "#G", "=", gen_1,G);
+    return lg(gel(gen,1)) - 1;
+  }
+  return lg(gel(G,1)) - 1;
 }
 
-/*Left coset of g mod G: gG*/
-GEN
-group_leftcoset(GEN G, GEN g)
+static GEN
+grp_leftcoset(GEN G, GEN g)
 {
   GEN gen = grp_get_gen(G), ord = grp_get_ord(G);
   GEN res = cgetg(group_order(G)+1, t_VEC);
@@ -855,9 +865,18 @@ group_leftcoset(GEN G, GEN g)
   }
   return res;
 }
-/*Right coset of g mod G: Gg*/
+
+/*Left coset of g mod G: gG*/
 GEN
-group_rightcoset(GEN G, GEN g)
+group_leftcoset(GEN x, GEN g)
+{
+  if (group_has_gen(x)) return grp_leftcoset(x,g);
+  else
+    pari_APPLY_same(perm_mul(g, gel(x,i)));
+}
+
+static GEN
+grp_rightcoset(GEN G, GEN g)
 {
   GEN gen = grp_get_gen(G), ord = grp_get_ord(G);
   GEN res = cgetg(group_order(G)+1, t_VEC);
@@ -871,11 +890,21 @@ group_rightcoset(GEN G, GEN g)
   }
   return res;
 }
+
+/*Right coset of g mod G: Gg*/
+GEN
+group_rightcoset(GEN x, GEN g)
+{
+  if (group_has_gen(x))
+    return grp_rightcoset(x,g);
+  else
+    pari_APPLY_same(perm_mul(gel(x,i), g));
+}
 /*Elements of a group from the generators, cf group_leftcoset*/
 GEN
 group_elts(GEN G, long n)
 {
-  if (lg(G)==3 && typ(gel(G,1))==t_VEC)
+  if (group_has_gen(G))
   {
     GEN gen = grp_get_gen(G), ord = grp_get_ord(G);
     GEN res = cgetg(group_order(G)+1, t_VEC);
@@ -1168,8 +1197,8 @@ group_isA4S4(GEN G)
   return 2;
 }
 /* compute all the subgroups of a group G */
-GEN
-group_subgroups(GEN G)
+static GEN
+grp_subgroups(GEN G)
 {
   pari_sp ltop = avma;
   GEN p1, H, C, Q, M, sg1, sg2, sg3;
@@ -1276,9 +1305,32 @@ group_subgroups(GEN G)
   return gc_upto(ltop,p1);
 }
 
+static GEN
+groupelts_to_group_or_elts(GEN elts)
+{
+  GEN G = groupelts_to_group(elts);
+  return G ? G: gcopy(elts);
+}
+
+static GEN
+vec_groupelts_to_group_or_elts(GEN x)
+{ pari_APPLY_same(groupelts_to_group_or_elts(gel(x,i))) }
+
+GEN
+group_subgroups(GEN G)
+{
+  if (group_has_gen(G)) return grp_subgroups(G);
+  else
+  {
+    pari_sp av = avma;
+    GEN L = groupelts_solvablesubgroups(G);
+    return gc_upto(av, vec_groupelts_to_group_or_elts(L));
+  }
+}
+
 /*return 1 if G is abelian, else 0*/
-long
-group_isabelian(GEN G)
+static long
+grp_isabelian(GEN G)
 {
   GEN g = grp_get_gen(G);
   long i, j, n = lg(g);
@@ -1286,6 +1338,18 @@ group_isabelian(GEN G)
     for(j=1; j<i; j++)
       if (!perm_commute(gel(g,i), gel(g,j))) return 0;
   return 1;
+}
+
+long
+group_isabelian(GEN G)
+{
+  return group_has_gen(G) ? grp_isabelian(G): 0;
+}
+
+long
+group_istrivial(GEN G)
+{
+  return group_has_gen(G) ? lg(grp_get_gen(G))==1 : lg(G)==2;
 }
 
 /*If G is abelian, return its HNF matrix*/
@@ -1357,11 +1421,11 @@ abelian_group(GEN v)
 }
 
 static long
-groupelts_subgroup_isnormal(GEN G, GEN H)
+groupgen_subgroup_isnormal(GEN gen, GEN H)
 {
-  long i, n = lg(G);
+  long i, n = lg(gen);
   for(i = 1; i < n; i++)
-    if (!group_perm_normalize(H, gel(G,i))) return 0;
+    if (!group_perm_normalize(H, gel(gen,i))) return 0;
   return 1;
 }
 
@@ -1369,10 +1433,12 @@ groupelts_subgroup_isnormal(GEN G, GEN H)
 long
 group_subgroup_isnormal(GEN G, GEN H)
 {
+  GEN gen;
   if (lg(grp_get_gen(H)) > 1 && group_domain(G) != group_domain(H))
     pari_err_DOMAIN("group_subgroup_isnormal","domain(H)","!=",
                     strtoGENstr("domain(G)"), H);
-  return groupelts_subgroup_isnormal(grp_get_gen(G), H);
+  gen = group_has_gen(G) ? grp_get_gen(G): G;
+  return groupgen_subgroup_isnormal(gen, H);
 }
 
 static GEN
@@ -1525,11 +1591,11 @@ groupelts_abelian_group(GEN S)
   return gc_GEN(ltop, mkvec2(Qgen, Qord));
 }
 
-GEN
-group_export_GAP(GEN G)
+static GEN
+groupgen_export_GAP(GEN g)
 {
   pari_sp av = avma;
-  GEN s, comma, g = grp_get_gen(G);
+  GEN s, comma;
   long i, k, l = lg(g);
   if (l == 1) return strtoGENstr("Group(())");
   s = cgetg(2*l, t_VEC);
@@ -1544,16 +1610,17 @@ group_export_GAP(GEN G)
   return gc_GEN(av, shallowconcat1(s));
 }
 
-GEN
-group_export_MAGMA(GEN G)
+static GEN
+groupgen_export_MAGMA(GEN g)
 {
   pari_sp av = avma;
-  GEN s, comma, g = grp_get_gen(G);
-  long i, k, l = lg(g);
+  GEN s, comma;
+  long i, k, l = lg(g), d;
   if (l == 1) return strtoGENstr("PermutationGroup<1|>");
+  d = lg(gel(g,1)) - 1;
   s = cgetg(2*l, t_VEC);
   comma = strtoGENstr(", ");
-  gel(s,1) = gsprintf("PermutationGroup<%ld|",group_domain(G));
+  gel(s,1) = gsprintf("PermutationGroup<%ld|",d);
   for (i=1, k=2; i < l; ++i)
   {
     if (i > 1) gel(s,k++) = comma;
@@ -1564,15 +1631,24 @@ group_export_MAGMA(GEN G)
 }
 
 GEN
-group_export(GEN G, long format)
+groupgen_export(GEN g, long format)
 {
   switch(format)
   {
-  case 0: return group_export_GAP(G);
-  case 1: return group_export_MAGMA(G);
+  case 0: return groupgen_export_GAP(g);
+  case 1: return groupgen_export_MAGMA(g);
   }
   pari_err_FLAG("galoisexport");
   return NULL; /*-Wall*/
+}
+
+GEN
+group_export(GEN G, long format)
+{
+  if (group_has_gen(G))
+    return groupgen_export(grp_get_gen(G), format);
+  else
+    return groupgen_export(G, format);
 }
 
 static GEN
@@ -1621,7 +1697,7 @@ groupelts_to_group(GEN G)
     long o = ord[i];
     GEN H = cyclicgroup(p, o);
     if (o == n) return gc_upto(av, H);
-    if (groupelts_subgroup_isnormal(G, H))
+    if (groupgen_subgroup_isnormal(G, H))
     {
       GEN C = groupelts_quotient(G, H);
       GEN Q = quotient_groupelts(C);
@@ -1648,6 +1724,50 @@ groupelts_to_group(GEN G)
       mkvec2(mkvec3(perm_conj(t3, t1), t1, t3), mkvecsmall3(3,3,4)));
   }
   return gc_NULL(av);
+}
+
+static void
+groupelts_cloture(GEN G, GEN V, long k, GEN F)
+{
+  long i, j, cnt, l = lg(G);
+  do {
+    cnt = 0;
+    for (i = 1; i < k; i++)
+    {
+      GEN g = gel(V,i);
+      for (j = 1; j < l; j++)
+      {
+        ulong h = mael(G,j,1);
+        if (F2v_coeff(F, h))
+        {
+          ulong c = g[h];
+          if (!F2v_coeff(F,c))
+          {
+            F2v_set(F,c);
+            cnt = 1;
+          }
+        }
+      }
+    }
+  } while(cnt);
+}
+
+GEN
+groupelts_gen(GEN G)
+{
+  pari_sp av = avma;
+  long i, n = lg(G)-1, k = 1;
+  GEN F = zero_F2v(n);
+  GEN V = cgetg(n+1, t_VEC);
+  F2v_set(F,1);
+  for (i = 1; i <= n; i++)
+  {
+    GEN g = gel(G,i);
+    if (F2v_coeff(F,g[1])) continue;
+    gel(V,k++) = g;
+    groupelts_cloture(G, V, k, F);
+  }
+  setlg(V,k); return gc_GEN(av, V);
 }
 
 static GEN

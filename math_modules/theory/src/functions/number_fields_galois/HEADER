@@ -1,0 +1,167 @@
+Function: _header_number_fields_galois
+Class: header
+Section: number_fields_galois
+Doc:
+ \section{Galois theory and class field theory}
+ We first introduce generic Galois theory over $\Q$ then specialize to
+ abelian extensions of number fields.
+
+ \subsec{Galois theory over $\Q$} %GPHELPskip
+ Functions related to generic Galois theory over $\Q$ share the prefix
+ \kbd{galois}. The \kbd{galoisinit}$(T)$ function computes the Galois group
+ of $K = \Q[X]/(T)$ over $\Q$ and its output allows to compute subgroupgs
+ (\kbd{galoissubgroups}), identify Galois groups and subgroups
+ \kbd{galoisidentify}, compute fixed fields $K^H$, compute character tables
+ (\kbd{galoischartable}) or just check properties (\kbd{galoisisnormal},
+ \kbd{galoisisabelian}). If $K$ is not Galois, \kbd{galoisinit} simply
+ returns $0$.
+
+ If the \kbd{galpol} package is installed, then additional functions
+ \kbd{galoisgetgroup}, \kbd{galoisgetname} and \kbd{galoisgetpol}
+ become available and support all groups of order $\leq 143$. The last one
+ provides defining polynomials $T$ solving the inverse Galois problem for
+ all small groups.
+
+ The function \kbd{nflist} returns all polynomials of given Galois closure
+ and discriminant less than the given bound (see the function help for the
+ list of supported groups). The package \kbd{nflistdata} allows to support
+ the $A_5$ group as well as to obtain regular polynmials in $\Q(t)[x]$ with
+ given Galois group over $\Q(t)$ (for all transitive subgroups of $S_n$,
+ $n\leq 15$).
+
+ \subsec{Finite abelian groups} %GPHELPskip
+
+ A finite abelian group $G$ is given by its Smith
+ Normal Form as a pair $[h,d]$ or triple $[h,d,g]$.
+ Here $h$ is the cardinality of $G$, $(d_{i})$ is the vector of elementary
+ divisors, and $(g_{i})$ is a vector of generators. In short,
+ $G = \oplus_{i\leq n} (\Z/d_{i}\Z) g_{i}$, with
+ $d_{n} \mid \dots \mid d_{2} \mid d_{1}$
+ and $\prod_{i} d_{i} = h$. This information can also be retrieved as
+ $G.\kbd{no}$, $G.\kbd{cyc}$ and $G.\kbd{gen}$.
+
+ \item a \tev{character} on the abelian group $\oplus (\Z/d_{j}\Z) g_{j}$
+ is given by a row vector $\chi = [a_{1},\ldots,a_{n}]$ such that
+ $\chi(\prod_{j} g_{j}^{n_{j}}) = \exp(2\pi i\sum_{j} a_{j} n_{j} / d_{j})$.
+
+ \item given such a structure, a \tev{subgroup} $H$ is input as a square
+ matrix in HNF, whose columns express generators of $H$ on the given generators
+ $g_{i}$. Note that the determinant of that matrix is equal to the index $(G:H)$.
+
+ \subsec{Class field theory}\label{se:CFT} %GPHELPskip
+
+ A $\tev{modulus}$, in the sense of class field theory, is a divisor supported
+ on the real and finite places of $K$. In PARI terms, this means either an
+ ordinary ideal $I$ as above (no Archimedean component), or a pair $[I,a]$,
+ where $a$ is a vector with $r_{1}$ $\{0,1\}$-components, corresponding to the
+ infinite part of the divisor. More precisely, the $i$-th component of $a$
+ corresponds to the real embedding attached to the $i$-th real root of
+ \kbd{K.roots}. (That ordering is not canonical, but well defined once a
+ defining polynomial for $K$ is chosen.) For instance, \kbd{[1, [1,1]]} is a
+ modulus for a real quadratic field, allowing ramification at any of the two
+ places at infinity, and nowhere else.
+
+ A \tev{bid} or ``big ideal'' is a structure output by \kbd{idealstar}
+ needed to compute in $(\Z_{K}/I)^{*}$, where $I$ is a modulus in the above sense.
+ It is a finite abelian group as described above, supplemented by
+ technical data needed to solve discrete log problems.
+
+ Finally we explain how to input ray number fields (or \var{bnr}), using class
+ field theory. These are defined by a triple $A$, $B$, $C$, where the
+ defining set $[A,B,C]$ can have any of the following forms:
+ $[\var{bnr}]$,
+ $[\var{bnr},\var{subgroup}]$,
+ $[\var{bnr},\var{character}]$,
+ $[\var{bnf},\var{mod}]$,
+ $[\var{bnf},\var{mod},\var{subgroup}]$. The last two forms are kept for
+ backward compatibility, but no longer serve any real purpose (see example
+ below); no newly written function will accept them.
+
+ \item $\var{bnf}$ is as output by \kbd{bnfinit}, where units are mandatory
+ unless the modulus is trivial; \var{bnr} is as output by \kbd{bnrinit}. This
+ is the ground field $K$.
+
+ \item \emph{mod} is a modulus $\goth{f}$, as described above.
+
+ \item \emph{subgroup} a subgroup of the ray class group modulo $\goth{f}$ of
+ $K$. As described above, this is input as a square matrix expressing
+ generators of a subgroup of the ray class group \kbd{\var{bnr}.clgp} on the
+ given generators. We also allow a \typ{INT} $n$ for $n \cdot \text{Cl}_{f}$.
+
+ \item \emph{character} is a character $\chi$ of the ray class group modulo
+ $\goth{f}$, representing the subgroup $\text{Ker} \chi$.
+
+ The corresponding \var{bnr} is the subfield of the ray class field of $K$
+ modulo $\goth{f}$, fixed by the given subgroup.
+
+ \bprog
+   ? K = bnfinit(y^2+1);
+   ? bnr = bnrinit(K, 13)
+   ? %.clgp
+   %3 = [36, [12, 3]]
+   ? bnrdisc(bnr); \\ discriminant of the full ray class field
+   ? bnrdisc(bnr, [3,1;0,1]); \\ discriminant of cyclic cubic extension of K
+   ? bnrconductor(bnr, [3,1]); \\ conductor of chi: g1->zeta_12^3, g2->zeta_3
+ @eprog\noindent
+ We could have written directly
+ \bprog
+   ? bnrdisc(K, 13);
+   ? bnrdisc(K, 13, [3,1;0,1]);
+ @eprog\noindent
+ avoiding one \tet{bnrinit}, but this would actually be slower since the
+ \kbd{bnrinit} is called internally anyway. And now twice!
+
+ \subsec{Hecke Grossencharacters}\label{se:GCHAR} %GPHELPskip
+
+ Hecke Grossencharacters are continuous characters of the id\`ele class group;
+ they generalize classical Hecke characters on ray class groups obtained through
+ the $\var{bnr}$ structure.
+
+ Let $K$ be a number field, $\A^{\times}$ its group of id\`eles.
+ Every Grossencharacter
+ $$
+    \chi \colon \A^{\times}/K^{\times} \to \C^{\times}
+ $$
+ can be uniquely written~$\chi = \chi_{0} \|\cdot \|^{s}$ for some~$s\in\C$
+ and some character~$\chi_{0}$ of the compact
+ group~$\A^{\times}/(K^{\times}\cdot\R_{>0})$,
+ where~$\|a\| = \prod_{v} |a_{v}|_{v}$ is the id\`ele norm.
+
+ Let~$\goth{m}$ be a modulus
+ (an integral ideal and a finite set of real places). Let $U(\goth{m})$ be the
+ subgroup of id\`eles congruent to $1$ modulo $\goth{m}$
+ (units outside $\goth{m}$, positive at real places in $\goth{m}$).
+ The Hecke Grossencharacters defined modulo $\goth{m}$ are the characters of
+ the id\`ele class group
+ $$
+  C_{K}(\goth{m}) = \A^{\times}/(K^{\times}\cdot U(\goth{m})),
+ $$
+ that is, combinations of an archimedean
+ character $\chi_{\infty}$ on the connected component
+ $K_{\infty}^{\times \circ}$
+ and a ray class group character $\chi_{f}$ satisfying a compatibility
+ condition $\chi_{\infty}(a)\chi_{f}(a)=1$ for all units $a$ congruent to 1
+ modulo $\goth{m}$.
+
+ \varsidx{gchar} %
+ \item \var{gc} denotes a structure allowing to compute with Hecke
+ Grossencharacters.
+
+ \item \kbd{gcharinit(\var{bnf},\var{mod})} initializes the structure \var{gc}.
+ The underlying number field and modulus can be accessed using
+ \var{gc}\kbd{.bnf} and \var{gc}\kbd{.mod}.
+
+ \item \var{gc}\kbd{.cyc} describes the finite abelian group structure of
+ \var{gc}, the torsion part corresponding to finite order ray class
+ characters, the exact zeros corresponding to a lattice of infinite order
+ Grossencharacters, and the approximate zero being a placeholder for the
+ complex powers of the id\`ele norm.
+
+ \item A Hecke character of modulus~$\goth{m}$ is described as a \typ{COL} of
+ coordinates corresponding to~\var{gc}\kbd{.cyc}: all the coordinates are
+ integers except the last one, which can be an arbitrary complex number, or
+ omitted instead of~$0$.
+
+ \item Hecke Grossencharacters have $L$-functions and can be given to all
+ \kbd{lfun} functions as a 2 components vector \kbd{[\var{gc},\var{chi}]}, see
+ also Section~\ref{se:lfungchar}.

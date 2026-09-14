@@ -240,6 +240,7 @@ new_buffer(void)
   Buffer *b = (Buffer*) pari_malloc(sizeof(Buffer));
   b->len = 1024;
   b->buf = (char*)pari_malloc(b->len);
+  b->buf[0] = 0;
   return b;
 }
 /* delete */
@@ -809,19 +810,19 @@ real0tostr(long ex, char format, char exp_char, long wanted_dec)
 static char *
 absrtostr_width_frac(GEN x, int width_frac)
 {
-  long beta, ls, point, lx, sx = signe(x);
+  long beta, ls, point, px, sx = signe(x);
   char *s, *buf;
   GEN z;
 
   if (!sx) return real0tostr_width_frac(width_frac);
 
   /* x != 0 */
-  lx = realprec(x);
+  px = realprec(x);
   beta = width_frac;
   if (beta) /* >= 0 */
   { /* z = |x| 10^beta, 10^b = 5^b * 2^b, 2^b goes into exponent */
-    if (beta > 4e9) lx++;
-    z = mulrr(x, rpowuu(5UL, (ulong)beta, lx+1));
+    if (beta > 4e9) px += EXTRAPREC64;
+    z = mulrr(x, rpowuu(5UL, (ulong)beta, px + EXTRAPREC64));
     setsigne(z, 1);
     shiftr_inplace(z, beta);
   }
@@ -860,33 +861,24 @@ absrtostr_width_frac(GEN x, int width_frac)
 static char *
 absrtostr(GEN x, int sp, char FORMAT, long wanted_dec)
 {
-  const char format = (char)tolower((unsigned char)FORMAT), exp_char = (format == FORMAT)? 'e': 'E';
-  long beta, ls, point, lx, sx = signe(x), ex = expo(x);
+  const char format = (char)tolower((unsigned char)FORMAT);
+  const char exp_char = (format == FORMAT)? 'e': 'E';
+  long beta, ls, point, px, sx = signe(x), ex = expo(x);
   char *s, *buf, *buf0;
   GEN z;
 
   if (!sx) return real0tostr(ex, format, exp_char, wanted_dec);
-
   /* x != 0 */
-  lx = realprec(x);
-  if (wanted_dec >= 0)
-  { /* reduce precision if possible */
-    long w = ndec2prec(wanted_dec); /* digits -> pari precision in words */
-    if (lx > w) lx = w; /* truncature with guard, no rounding */
-  }
-  beta = ex10(lx - ex);
+  px = realprec(x); /* reduce precision if possible */
+  if (wanted_dec >= 0) px = minss(px, ndec2prec(wanted_dec));
+  beta = ex10(px - ex);
   if (beta)
-  { /* z = |x| 10^beta, 10^b = 5^b * 2^b, 2^b goes into exponent */
+  { /* z = |x| 10^beta, where 2^beta goes into exponent */
+    if (labs(beta) > 18) x = rtor(x, px + EXTRAPREC64);
     if (beta > 0)
-    {
-      if (beta > 18) { lx++; x = rtor(x, lx); }
-      z = mulrr(x, rpowuu(5UL, (ulong)beta, lx+1));
-    }
+      z = mulrr(x, rpowuu(5UL, (ulong)beta, px + EXTRAPREC64));
     else
-    {
-      if (beta < -18) { lx++; x = rtor(x, lx); }
-      z = divrr(x, rpowuu(5UL, (ulong)-beta, lx+1));
-    }
+      z = divrr(x, rpowuu(5UL, (ulong)-beta, px + EXTRAPREC64));
     setsigne(z, 1);
     shiftr_inplace(z, beta);
   }
@@ -1250,7 +1242,7 @@ static long
 get_sigd(GEN gvalue, char ch, int maxwidth)
 {
   long e;
-  if (maxwidth < 0) return nbits2ndec(precreal);
+  if (maxwidth < 0) return prec2ndec(precreal);
   switch(ch)
   {
     case 'E': case 'e': return maxwidth+1;
@@ -2207,11 +2199,11 @@ dbg(GEN x, long nb, long bl)
 void
 dbgGEN(GEN x, long nb) { dbg(x,nb,0); }
 
-static void
-print_entree(entree *ep)
+void
+print_ep_single(entree *ep, ulong mask)
 {
   pari_printf(" %s ",ep->name); dbg_addr((ulong)ep);
-  pari_printf(": hash = %ld [%ld]\n", ep->hash % functions_tblsz, ep->hash);
+  pari_printf(": hash = %ld [%ld]\n", ep->hash & mask, ep->hash);
   pari_printf("   menu = %2ld, code = %-10s",
               ep->menu, ep->code? ep->code: "NULL");
   if (ep->next)
@@ -2224,60 +2216,65 @@ print_entree(entree *ep)
 
 /* s = digit n : list of entrees in functions_hash[n] (s = $: last entry)
  *   = range m-n: functions_hash[m..n]
- *   = identifier: entree for that identifier */
+ *   = -: distribution of bucket sizes */
 void
-print_functions_hash(const char *s)
+print_ep_hash(const char *s, entree **hash, ulong mask)
 {
-  long m, n, Max, Total;
+  long m, n, max, total, which, nbwhich;
   entree *ep;
 
   if (isdigit((unsigned char)*s) || *s == '$')
   {
-    m = functions_tblsz-1; n = atol(s);
+    m = mask; n = atol(s);
     if (*s=='$') n = m;
-    if (m<n) pari_err(e_MISC,"invalid range in print_functions_hash");
+    if (m<n) return;
     while (isdigit((unsigned char)*s)) s++;
 
     if (*s++ != '-') m = n;
     else
     {
       if (*s !='$') m = minss(atol(s),m);
-      if (m<n) pari_err(e_MISC,"invalid range in print_functions_hash");
+      if (m<n) return;
     }
 
     for(; n<=m; n++)
     {
-      pari_printf("*** hashcode = %lu\n",n);
-      for (ep=functions_hash[n]; ep; ep=ep->next) print_entree(ep);
+      int first = 1;
+      for (ep=hash[n]; ep; ep=ep->next)
+      {
+        if (first) { first = 0; pari_printf("*** hashcode = %lu\n",n); }
+        print_ep_single(ep,mask);
+      }
     }
     return;
   }
-  if (is_keyword_char(*s))
-  {
-    ep = is_entry(s);
-    if (!ep) pari_err(e_MISC,"no such function");
-    print_entree(ep); return;
-  }
+  max = total = which = nbwhich = 0;
   if (*s=='-')
   {
-    for (n=0; n<functions_tblsz; n++)
+    pari_puts("   0: ");
+    for (n=0; n<=(long)mask; n++)
     {
-      m=0;
-      for (ep=functions_hash[n]; ep; ep=ep->next) m++;
-      pari_printf("%3ld:%3ld ",n,m);
-      if (n%9 == 8) pari_putc('\n');
+      m = 0;
+      for (ep=hash[n]; ep; ep=ep->next) m++;
+      pari_printf("%1ld ", m);
+      total += m;
+      if (m == max) nbwhich++;
+      if (m > max) { max = m; which = n; nbwhich = 1; }
+      if (n%30 == 29) pari_printf("\n%4ld: ", n+1);
     }
-    pari_putc('\n'); return;
+    pari_putc('\n');
   }
-  Max = Total = 0;
-  for (n=0; n<functions_tblsz; n++)
-  {
-    long cnt = 0;
-    for (ep=functions_hash[n]; ep; ep=ep->next) { print_entree(ep); cnt++; }
-    Total += cnt;
-    if (cnt > Max) Max = cnt;
-  }
-  pari_printf("Total: %ld, Max: %ld\n", Total, Max);
+  else
+    for (n=0; n<=(long)mask; n++)
+    {
+      m = 0;
+      for (ep=hash[n]; ep; ep=ep->next) { print_ep_single(ep,mask); m++; }
+      total += m;
+      if (m == max) nbwhich++;
+      if (m > max) { max = m; which = n; nbwhich = 1; }
+    }
+  pari_printf("%ld entries. Max collisions = %ld (for %ld buckets: %ld, ...)\n",
+              total, max, nbwhich, which);
 }
 
 /********************************************************************/
@@ -3778,7 +3775,9 @@ pari_is_file(const char *name)
 int
 pari_stdin_isatty(void)
 {
-#ifdef HAS_ISATTY
+#ifdef __EMSCRIPTEN__
+  return pari_emscripten_isatty();
+#elif defined(HAS_ISATTY)
   return isatty( fileno(stdin) );
 #else
   return 1;
@@ -4392,7 +4391,7 @@ writebin(const char *name, GEN x)
   {
     entree *ep;
     long i;
-    for (i = 0; i < functions_tblsz; i++)
+    for (i = 0; i <= functions_hash_MASK; i++)
       for (ep = functions_hash[i]; ep; ep = ep->next)
         if (EpVALENCE(ep) == EpVAR) writenamedGEN((GEN)ep->value,ep->name,f);
   }

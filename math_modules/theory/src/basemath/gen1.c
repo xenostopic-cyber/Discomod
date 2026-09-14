@@ -118,7 +118,7 @@ mulRq(GEN x, GEN y) {
 static GEN
 addqf(GEN x, GEN y, long prec) { pari_sp av = avma;
   long i = gexpo(x) - gexpo(y);
-  if (i > 0) prec += nbits2extraprec(i);
+  if (i > 0) prec = nbits2prec(prec + i);
   return gc_upto(av, gadd(y, quadtofp(x, prec)));
 }
 static GEN

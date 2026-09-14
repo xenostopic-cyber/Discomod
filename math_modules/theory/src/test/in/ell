@@ -167,6 +167,16 @@ ellisdivisible(e, [6,3], 2*7^64)
 ellisdivisible(e, [6,3], 5*7^64)
 ellisdivisible(e, [6,3], 5^64)
 
+\\ #2695
+E=ellinit([0,0,1,-6349808647,193146346911036]);
+P=[187796388063326101/2534416240225,-45911010518607668013176526/4034752638194596625];
+\\ divisible for all p <= 31
+if(ellisdivisible(E,P,2), error("#2695/1"));
+E = ellinit([-3, 1]); P = [0, 1];
+if(ellisdivisible(E,P,2), error("#2695/2"));
+
+setrand(2);
+
 e = ellinit([1,2,3,4,5]);
 e.omega
 E = ellchangecurve(e, [2,3,4,5]);

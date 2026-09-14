@@ -36,8 +36,8 @@ testEquals("s2^2", "(-v2)$Complex(rC)")
 dF := DoubleFloat
 z1 := complex(-1$dF, 1.0e-18::dF)
 s1 := sqrt(z1)
-testTrue("real(abs(s1)) >= 1")
-testTrue("real(abs(z1 - s1^2)) < 1.0e-15")
+testTrue("abs(s1) >= 1")
+testTrue("abs(z1 - s1^2) < 1.0e-15")
 r1 := real(s1)
 testTrue("4.9e-19::dF < r1 and r1 < 5.1e-19::dF")
 
@@ -153,5 +153,23 @@ p1 : UP(a1, Fraction(Polynomial(Integer))) := -a1+b1/b2
 p2 : Fraction(Polynomial(Integer)) := (-a1*b2+b1)/b2
 p3 := p1::Fraction(Polynomial(Integer))
 testEquals("p2 - p3", "0")
+
+testcase "^ in AIntervalCategory"
+
+x := interval(-2, 3)$AInterval Fraction Integer
+y := x^(2::NNI)
+z := interval(0, 9)$AInterval Fraction Integer
+testTrue("(y = z)@Boolean")
+
+testcase "division by zero in IR2F"
+
+testTrue("integrate((cos(sin(t)) + cos(t)^2)/(1 + sin(t)*sin(sin(t))), t); true")
+
+testcase "symmetry in subresultantVector"
+
+pa : SUP INT := 2
+pb : SUP INT := x^2 - 2
+PKG ==> SubResultantPackage(INT, SUP INT)
+testEquals("subresultantVector(pa, pb)$PKG", "subresultantVector(pb, pa)$PKG")
 
 statistics()

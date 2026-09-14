@@ -55,7 +55,7 @@ dotestSUF=${dotestSUF:-"sta dyn"}
 for suf in $dotestSUF; do
   if test -s $execdir/gp-$suf$exe_suff; then
     SUF="$SUF $suf"
-    datadir=`echo 'print(default(datadir))' | $RUNTEST $execdir/gp-$suf$exe_suff -q -f`
+    datadir=`echo 'print(default(datadir))' | $RUNTEST $execdir/gp-$suf$exe_suff -q -f -D readline=0 -D prompt=`
   fi
 done
 file_test=gp.out

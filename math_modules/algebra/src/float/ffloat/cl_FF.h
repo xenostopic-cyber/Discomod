@@ -122,14 +122,14 @@ inline const cl_FF make_FF (cl_sint sign, unsigned int exp, cl_uint mant)
 //        uintL mant = Mantisse (>= 2^FF_mant_len, < 2^(FF_mant_len+1))
 #define FF_uexp(x)  (((x) >> FF_mant_len) & (bit(FF_exp_len)-1))
 #define FF_decode(obj, zero_statement, sign_zuweisung,exp_zuweisung,mant_zuweisung)  \
-  { var ffloat _x = cl_ffloat_value(obj);				\
-    var uintL uexp = FF_uexp(_x);					\
-    if (uexp==0)							\
-      { zero_statement } /* e=0 -> Zahl 0.0 */				\
-      else								\
-      { exp_zuweisung (sintL)(uexp - FF_exp_mid); /* Exponent */	\
+  { var ffloat _x = cl_ffloat_value(obj);				  \
+    var uintL uexp = FF_uexp(_x);					  \
+    if (uexp==0)							  \
+      { zero_statement } /* e=0 -> Zahl 0.0 */				  \
+      else								  \
+      { exp_zuweisung (sintL)(uexp - FF_exp_mid); /* Exponent */	  \
         cl_unused (sign_zuweisung sign_of((sint32)(_x))); /* Vorzeichen */\
-        mant_zuweisung (bit(FF_mant_len) | (_x & (bit(FF_mant_len)-1))); \
+        mant_zuweisung (bit(FF_mant_len) | (_x & (bit(FF_mant_len)-1)));  \
   }   }
 
 // Einpacken eines Single-Float:
@@ -184,30 +184,30 @@ inline float FF_to_float (const cl_FF& obj)
 //   maybe_divide_0: Ergebnis unbestimmt, liefert IEEE-Infinity
 //   maybe_nan: Ergebnis unbestimmt, liefert IEEE-NaN
   #define float_to_FF(expr,ergebnis_zuweisung,maybe_overflow,maybe_subnormal,maybe_underflow,maybe_divide_0,maybe_nan)  \
-    { var ffloatjanus _erg; _erg.machine_float = (expr);		\
+    { var ffloatjanus _erg; _erg.machine_float = (expr);		 \
       if ((_erg.eksplicit & ((uint32)bit(FF_exp_len+FF_mant_len)-bit(FF_mant_len))) == 0) /* e=0 ? */\
-        { if ((maybe_underflow						\
-               || (maybe_subnormal && !((_erg.eksplicit << 1) == 0))	\
-              )								\
-              && underflow_allowed()					\
-             )								\
+        { if ((maybe_underflow						 \
+               || (maybe_subnormal && !((_erg.eksplicit << 1) == 0))	 \
+              )								 \
+              && underflow_allowed()					 \
+             )								 \
             { throw floating_point_underflow_exception(); } /* subnormal oder noch kleiner -> Underflow */\
-            else							\
-            { ergebnis_zuweisung cl_FF_0; } /* +/- 0.0 -> 0.0 */	\
-        }								\
-      elif ((maybe_overflow || maybe_divide_0)				\
+            else							 \
+            { ergebnis_zuweisung cl_FF_0; } /* +/- 0.0 -> 0.0 */	 \
+        }								 \
+      elif ((maybe_overflow || maybe_divide_0)				 \
             && (((~_erg.eksplicit) & ((uint32)bit(FF_exp_len+FF_mant_len)-bit(FF_mant_len))) == 0) /* e=255 ? */\
-           )								\
+           )								 \
         { if (maybe_nan && !((_erg.eksplicit << (32-FF_mant_len)) == 0)) \
             { throw division_by_0_exception(); } /* NaN, also Singularität -> "Division durch 0" */\
-          else /* Infinity */						\
-          if (!maybe_overflow || maybe_divide_0)			\
+          else /* Infinity */						 \
+          if (!maybe_overflow || maybe_divide_0)			 \
             { throw division_by_0_exception(); } /* Infinity, Division durch 0 */\
-            else							\
+            else							 \
             { throw floating_point_overflow_exception(); } /* Infinity, Overflow */\
-        }								\
-      else								\
-        { ergebnis_zuweisung allocate_ffloat(_erg.eksplicit); }		\
+        }								 \
+      else								 \
+        { ergebnis_zuweisung allocate_ffloat(_erg.eksplicit); }		 \
     }
 #endif
 

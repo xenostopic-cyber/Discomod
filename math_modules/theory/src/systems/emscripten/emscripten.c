@@ -80,3 +80,9 @@ pari_emscripten_init(long rsize, long vsize)
   gp_embedded_init(rsize, vsize);
   cb_pari_long_help = &pari_emscripten_help;
 }
+
+int
+pari_emscripten_isatty(void)
+{
+  return (int) EM_ASM_INT({ return process.stdout.isTTY; });
+}

@@ -6,6 +6,10 @@ Help: numbpart(n): number of partitions of n.
 Doc: gives the number of unrestricted partitions of
  $n$, usually called $p(n)$ in the literature; in other words the number of
  nonnegative integer solutions to $a+2b+3c+\cdots=n$. $n$ must be of type
- integer and $n<10^{15}$ (with trivial values $p(n) = 0$ for $n < 0$ and
- $p(0) = 1$). The algorithm uses the Hardy-Ramanujan-Rademacher formula.
+ integer and $n<2^{54} \approx 1.8 E16$ (with trivial values $p(n) = 0$
+ for $n < 0$ and $p(0) = 1$). The algorithm uses the
+ Hardy-Ramanujan-Rademacher formula and runs in time $\tilde{O}(n)$, which is
+ roughly quadratic in the output size. Note that a more complicated
+ implementation of the formula would run in time $\tilde{O}(n^{1/2})$.
+
  To explicitly enumerate them, see \tet{partitions}.

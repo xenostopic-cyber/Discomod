@@ -1739,14 +1739,14 @@ ellmaninconstant(GEN E, long flag)
     vS = get_isomat(E);
     if (!vS) pari_err_TYPE("ellmaninconstant",E);
     L = gel(vS,1); lvS = lg(L);
-    M = cgetg(lvS, t_VECSMALL);
+    M = cgetg(lvS, t_VEC);
     for (k = 1; k < lvS; k++)
     {
       GEN e = gel(L,k);
-      uel(M,k) = ellmanintable(e);
+      gel(M,k) = utoi( ellmanintable(e) );
       obj_free(e);
     }
-    return gc_upto(av, zv_to_ZV(M));
+    return gc_upto(av, M);
   }
   if (flag) pari_err_FLAG("ellmaninconstant");
   L = is_ell ? ellisomat(E,0,1): E;

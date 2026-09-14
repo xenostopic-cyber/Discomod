@@ -244,7 +244,7 @@ Legendreroot(long N, double dz, GEN S, long bit)
   for (j = 1; j <= n; j++)
   {
     pr = 2 * pr - e;
-    z = Legendrenext(N, rtor(z, nbits2prec(pr)), S, j == n);
+    z = Legendrenext(N, rtor_lg(z, nbits2lg(pr)), S, j == n);
   }
   return z;
 }
@@ -2386,7 +2386,7 @@ sumlogzeta(GEN ser, GEN s, GEN P, long N, double rs, double lN, long vF,
     GEN t = sdmob(ser, n, gel(v,i));
     if (!gequal0(t))
     { /* (n Re(s) - 1) log2(N) bits cancel in logzetan */
-      long prec2 = prec + nbits2extraprec((n*rs-1) * lN);
+      long prec2 = nbits2prec(prec + (n*rs-1) * lN);
       GEN L = logzetan(gmulsg(n,gprec_wensure(s,prec2)), P, N, prec2);
       z = gc_upto(av, gadd(z, gmul(L, t)));
       z = gprec_wensure(z, prec);
@@ -2396,13 +2396,13 @@ sumlogzeta(GEN ser, GEN s, GEN P, long N, double rs, double lN, long vF,
 }
 
 static GEN
-rfrac_evalfp(GEN F, GEN x, long prec)
+rfrac_evalfp(GEN F, GEN x, long lgprec)
 {
   GEN N = gel(F,1), D = gel(F,2), a, b = poleval(D, x);
   a = (typ(N) == t_POL && varn(N) == varn(D))? poleval(N, x): N;
   if (typ(a) != t_INT || typ(b) != t_INT ||
-      (lg2prec(lgefint(a)) <= prec && lg2prec(lgefint(b)) <= prec)) return gdiv(a, b);
-  return rdivii(a, b, prec + EXTRAPREC64);
+      (lgefint(a) <= lgprec && lgefint(b) <= lgprec)) return gdiv(a, b);
+  return rdivii_lg(a, b, lgprec + EXTRAPREC64 / BITS_IN_LONG);
 }
 
 /* op_p F(p^s): p in P, p >= a, F t_RFRAC */
@@ -2410,6 +2410,7 @@ static GEN
 opFps(GEN(*op)(GEN,GEN), GEN P, long N, long a, GEN F, GEN s, long prec)
 {
   GEN S = op == gadd? gen_0: gen_1;
+  long lgprec = prec2lg(prec);
   pari_sp av = avma;
   if (P)
   {
@@ -2417,7 +2418,7 @@ opFps(GEN(*op)(GEN,GEN), GEN P, long N, long a, GEN F, GEN s, long prec)
     for (i = j = 1; i < l; i++)
     {
       GEN p = gel(P,i); if (cmpiu(p, a) < 0) continue;
-      S = op(S, rfrac_evalfp(F, gpow(p, s, prec), prec));
+      S = op(S, rfrac_evalfp(F, gpow(p, s, prec), lgprec));
       if (gc_needed(av,2)) S = gc_upto(av, S);
     }
   }
@@ -2428,7 +2429,7 @@ opFps(GEN(*op)(GEN,GEN), GEN P, long N, long a, GEN F, GEN s, long prec)
     forprime_init(&T, utoi(a), utoi(N)); av = avma;
     while ((p = forprime_next(&T)))
     {
-      S = op(S, rfrac_evalfp(F, gpow(p, s, prec), prec));
+      S = op(S, rfrac_evalfp(F, gpow(p, s, prec), lgprec));
       if (gc_needed(av,2)) S = gc_upto(av, S);
     }
   }

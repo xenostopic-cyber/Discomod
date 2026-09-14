@@ -46,9 +46,9 @@ AC_PROG_INSTALL
 dnl
 dnl           check for host type
 dnl
-CL_CANONICAL_HOST
+AC_CANONICAL_HOST
                       dnl sets variables host, host_cpu, host_vendor, host_os
-CL_CANONICAL_HOST_CPU
+gl_HOST_CPU_C_ABI
                       dnl DEFS __${host_cpu}__
 case $host_os in
   dnl Shared libraries are not supported on some platforms [yet]

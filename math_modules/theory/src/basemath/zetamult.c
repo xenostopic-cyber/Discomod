@@ -217,13 +217,13 @@ zetamult_Zagier(GEN avec, long bit, long prec)
 {
   pari_sp av;
   GEN ze, z = NULL, b;
-  long h, r, n, s, l, t = lg(avec) - 1;
+  long h, r, n, s, l, lz = nbits2lg(prec), t = lg(avec) - 1;
 
   zparams(&s, &l, bit);
   ze= cgetg(s + 1, t_VEC);
   b = cgetg(l + 1, t_VEC);
-  for (r = 1; r <= s; r++) gel(ze,r) = cgetr(prec);
-  for (r = 1; r <= l; r++) gel(b,r) = utor(0, prec);
+  for (r = 1; r <= s; r++) gel(ze,r) = cgetg(lz, t_REAL);
+  for (r = 1; r <= l; r++) gel(b,r) = utor_lg(0, lz);
   affur(1, gel(b,1)); av = avma;
   for (r = 1, h = -1; r <= t; r++)
   {
@@ -265,7 +265,7 @@ zetamult_interpolate2_i(GEN avec, GEN t, long prec)
   GEN a, b, ze, _1;
   long i, j, n, s, l;
 
-  zparams(&s, &l, prec2nbits(prec));
+  zparams(&s, &l, prec);
   n = lg(avec) - 1;
   a = zeromatcopy(n + 1, l);
   b = zerovec(l + 1);
@@ -468,7 +468,7 @@ fillrec(hashtable *H, GEN evec, long _0, long _1, GEN X, GEN pab, GEN r1,
 static GEN
 aztoe(GEN avec, GEN zvec, long prec)
 {
-  GEN y, E, u = subsr(1, real2n(10-prec2nbits(prec), LOWDEFAULTPREC));
+  GEN y, E, u = subsr(1, real2n(10-prec, LOWDEFAULTPREC));
   long i, l = lg(avec);
 
   E = cgetg(l, t_VEC); if (l == 1) return E;
@@ -523,7 +523,7 @@ findabvgens(GEN evec, GEN *pwmid, GEN *pwini, GEN *pwfin, long *pa, long *pb)
 static GEN
 fillrecs(hashtable *H, GEN evec, GEN pab, long N, long prec)
 {
-  long n, a, b;
+  long n, a, b, lz;
   GEN r, wmid, wini, wfin, mid, ini, fin;
   hashentry *ep = hash_search(H, evec);
 
@@ -532,10 +532,10 @@ fillrecs(hashtable *H, GEN evec, GEN pab, long N, long prec)
   mid = fillrecs(H, wmid, pab, N, prec);
   ini = fillrecs(H, wini, pab, N, prec);
   fin = fillrecs(H, wfin, pab, N, prec); /* t_VECs of t_REAL */
-  r = cgetg(N + 1, t_VEC); gel(r,N) = real_0(prec);
+  r = cgetg(N + 1, t_VEC); gel(r,N) = real_0(prec); lz = nbits2lg(prec);
   for (n = N-1; n > 1; n--)
   {
-    GEN z = cgetr(prec);
+    GEN z = cgetg(lz, t_REAL);
     pari_sp av = avma;
     GEN t = mulri(gel(ini, n+1), gmael(pab, n, a));
     GEN u = addrr(mulri(gel(fin, n+1), gmael(pab, n, b)), gel(mid,n+1));
@@ -543,7 +543,7 @@ fillrecs(hashtable *H, GEN evec, GEN pab, long N, long prec)
     affrr(addrr(v, gel(r, n+1)), z); set_avma(av); gel(r,n) = z;
   }
   { /* n = 1 */
-    GEN z = cgetr(prec);
+    GEN z = cgetg(lz, t_REAL);
     pari_sp av = avma;
     GEN t = gel(ini,2), u = addrr(gel(fin,2), gel(mid,2)), v = addrr(t, u);
     affrr(addrr(gel(r, 2), v), z); set_avma(av); gel(r,1) = z;
@@ -600,12 +600,12 @@ zetamult_hash(long _0, long _1, GEN ibin, GEN ibin1)
   hash_insert(H, (void*)mkvecsmall(_1), (void*)ibin1); return H;
 }
 /* Akhilesh recursive algorithm, #a > 1;
- * e t_VECSMALL, prec final precision, bit required bitprecision */
+ * prec final precision, bit required bitprecision */
 static GEN
-zetamult_Akhilesh(GEN e, long bit, long prec)
+zetamult_Akhilesh(GEN a, long bit, long prec)
 {
+  GEN r, pab, ibin, ibin1, e = atoe(a);
   long k = lg(e) - 1, N = 1 + bit/2, prec2 = nbits2prec(bit);
-  GEN r, pab, ibin, ibin1;
   hashtable *H;
 
   get_ibin(&ibin, &ibin1, N, prec2);
@@ -649,7 +649,7 @@ zetamultevec(GEN evec, long prec)
   hashtable *H;
 
   if (k == 0) return gen_1;
-  evec = vec_round(evec, 3 - prec2nbits(prec));
+  evec = vec_round(evec, 3 - prec);
   v = vec_equiv(evec); l = lg(v);
   Evec = cgetg(k+1, t_VECSMALL);
   X = cgetg(l + 2, t_VEC); /* our alphabet */
@@ -686,7 +686,7 @@ zetamultevec(GEN evec, long prec)
   }
   set_avma(av);
   if (z >= 2) pari_err_IMPL("polylogmult in this range");
-  bitprec = prec2nbits(prec) + 64*(1 + (k >> 5));
+  bitprec = prec + 64*(1 + (k >> 5));
   N = 1 + bitprec / (2 - z);
   bitprec += z * N;
   prec2 = nbits2prec(bitprec + b);
@@ -703,21 +703,24 @@ zetamultevec(GEN evec, long prec)
   return gprec_wtrunc(gel(r,1), prec);
 }
 
+static int
+use_Zagier(GEN a, long r, long prec)
+{
+  long k;
+  if (prec <= 128) return 1;
+  k = zv_sum(a);
+  return (((double)r) / (k*k) * prec / log((double)10*prec) < 0.5);
+}
 /* a t_VECSMALL */
 static GEN
 zetamult_i(GEN a, long prec)
 {
-  long r = lg(a)-1, k, bit;
+  long r = lg(a)-1;
   if (r == 0) return gen_1;
   if (r == 1) return szeta(a[1], prec);
-  bit = prec2nbits(prec);
-  if (bit <= 128)
-    return zetamult_Zagier(a, bit, prec + EXTRAPREC64);
-  k = zv_sum(a);
-  if (((double)r) / (k*k) * bit / log((double)10*bit) < 0.5)
-    return zetamult_Zagier(a, bit, prec + EXTRAPREC64);
-  bit += maxss(log2zeta_bound(a), 64);
-  return zetamult_Akhilesh(atoe(a), bit, prec);
+  if (use_Zagier(a, r, prec))
+    return zetamult_Zagier(a, prec, prec + EXTRAPREC64);
+  return zetamult_Akhilesh(a, prec + maxss(log2zeta_bound(a), 64), prec);
 }
 GEN
 zetamult(GEN s, long prec)
@@ -735,14 +738,13 @@ GEN
 zetamult_interpolate(GEN s, GEN t, long prec)
 {
   pari_sp av = avma, av2;
-  long i, k, l, la, bit;
+  long i, k, l, la;
   GEN avec, v, V;
 
   if (lg(s) == 1) return gen_1;
   if (!t) return zetamult(s, prec);
   avec = zetamultconvert_i(s, 1); k = zv_sum(avec);
-  bit = prec2nbits(prec);
-  if (bit <= 128 || k > 20 || (bit >> k) < 4)
+  if (prec <= 128 || k > 20 || (prec >> k) < 4)
     return zetamult_interpolate2_i(vecsmall_reverse(avec), t, prec);
   v = allstar(avec); l = lg(v); la = lg(avec);
   V = cgetg(la, t_VEC);
@@ -852,8 +854,8 @@ static GEN
 veccgetr(long l, long prec)
 {
   GEN v = cgetg(l, t_VEC);
-  long i;
-  for (i = 1; i < l; i++) gel(v, i) = cgetr(prec);
+  long i, lz = nbits2lg(prec);
+  for (i = 1; i < l; i++) gel(v, i) = cgetg(lz, t_REAL);
   return v;
 }
 static GEN
@@ -938,7 +940,7 @@ fillL(long k, GEN *pdual, long bitprec)
 static GEN
 zetamultall_i(long k, long flag, long prec)
 {
-  GEN res, ind, dual, L = fillL(k, &dual, prec2nbits(prec) + 32);
+  GEN res, ind, dual, L = fillL(k, &dual, prec + 32);
   long c, m, K2 = 1 << (k-2), n = lg(L) - 1, m0 = (flag & 4L) ? K2 : 1;
 
   if (!(flag & 2L))

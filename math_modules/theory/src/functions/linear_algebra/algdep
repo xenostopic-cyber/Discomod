@@ -3,7 +3,7 @@ Section: linear_algebra
 C-Name: algdep0
 Prototype: GLD0,L,
 Help: algdep(z,k,{flag=0}): algebraic relations up to degree k of z, using
- lindep([1,z,...,z^(k-1)], flag).
+ lindep([1,z,...,z^k], flag).
 Doc: \sidx{algebraic dependence}
  $z$ being real/complex, or $p$-adic, finds a polynomial (in the variable
  \kbd{'x}) of degree at most
@@ -24,23 +24,23 @@ Doc: \sidx{algebraic dependence}
  \bprog
  ? \p200
  ? z = 2^(1/6)+3^(1/5);
- ? algdep(z, 30);      \\ right in 63ms
- ? algdep(z, 30, 100); \\ wrong in 39ms
- ? algdep(z, 30, 170); \\ right in 61ms
- ? algdep(z, 30, 200); \\ wrong in 146ms
+ ? algdep(z, 30);      \\ 119ms
+ ? algdep(z, 30, 100); \\ WRONG in 56ms
+ ? algdep(z, 30, 170); \\ 67ms
+ ? algdep(z, 30, 200); \\ 70ms
  ? \p250
  ? z = 2^(1/6)+3^(1/5); \\ recompute to new, higher, accuracy !
- ? algdep(z, 30);      \\ right in 68ms
- ? algdep(z, 30, 200); \\ right in 68ms
+ ? algdep(z, 30);      \\ 71ms
+ ? algdep(z, 30, 200); \\ 71ms
  ? \p500
- ? algdep(2^(1/6)+3^(1/5), 30); \\ right in 138ms
+ ? algdep(2^(1/6)+3^(1/5), 30); \\ 112ms
  ? \p1000
- ? algdep(2^(1/6)+3^(1/5), 30); \\ right in 276s
- @eprog\noindent
+ ? algdep(2^(1/6)+3^(1/5), 30); \\ 196ms
+ @eprog\noindent All answers are correct except the second one.
  The changes in \kbd{realprecision} only affect the quality of the
  initial approximation to $2^{1/6} + 3^{1/5}$, \kbd{algdep} itself uses
- exact operations. The size of its operands depend on the accuracy of the
- input of course: a more accurate input means slower operations.
+ exact operations. If the bit accuracy is $b$, the heuristic complexity
+ of \kbd{algdep} is roughly proportional to $k^3 (k + b)$.
 
  Proceeding by increments of 5 digits of accuracy, \kbd{algdep} with default
  flag produces its first correct result at 195 digits, and from then on a
@@ -57,7 +57,7 @@ Doc: \sidx{algebraic dependence}
  succeeded reliably from precision 265 on, in about 1000 as much time as the
  current version (on slower hardware of course).
 
- Note that this function does not work if $z$ is a power series. The function
+ Note that this function cannot handle power series. The function
  \kbd{seralgdep} can be used in this case to find linear relations wich
  polynomial coefficients between powers of $z$.
 

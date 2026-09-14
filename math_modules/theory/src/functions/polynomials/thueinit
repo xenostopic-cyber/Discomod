@@ -62,7 +62,7 @@ Doc: initializes the \var{tnf} corresponding to $P$, a nonconstant
  @eprog\noindent The last 2 commands use less than 20ms.
 
  \misctitle{Note} When $P$ is irreducible without a real root, the equation
- can be solved unconditionnally in time $|a|^{1/\deg P}$. When this
+ can be solved unconditionally in time $|a|^{1/\deg P}$. When this
  latter quantity is huge and the equation has no solutions, this fact
  may still be ascertained via arithmetic conditions but this now implies
  solving norm equations, computing a \var{bnf} and possibly assuming the GRH.

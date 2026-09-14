@@ -13,6 +13,10 @@ if platform.python_implementation() == 'PyPy':
     pytest.skip("Don't run CLI tests on PyPy.",
                 allow_module_level=True)
 
+if platform.python_implementation() == 'GraalVM':
+    pytest.skip("Don't run CLI tests on GraalPy.",
+                allow_module_level=True)
+
 
 if sys.version_info >= (3, 15):
     pytestmark = pytest.mark.filterwarnings("ignore:.*:DeprecationWarning")
@@ -44,6 +48,14 @@ def test_bare_console_bare_division():
     assert c.expect_exact('>>> ') == 0
     assert c.send('1/2\r\n') == 5
     assert c.expect_exact('0.5\r\n>>> ') == 0
+
+
+def test_bare_console_shortest_str():
+    c = Console(f'{sys.executable} -m mpmath --no-ipython --shortest-str')
+
+    assert c.expect_exact('>>> ') == 0
+    assert c.send('0.1\r\n') == 5
+    assert c.expect_exact('0.1\r\n>>> ') == 0
 
 
 def test_bare_console_without_ipython():

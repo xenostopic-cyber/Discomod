@@ -113,10 +113,9 @@ nfembedlog(GEN *pnf, GEN x, long prec)
   }
   if (DEBUGLEVEL>3)
     err_printf("  nfembedlog: prec=%d extrabit=%d nfprec=%d extralogprec=%d\n",
-               prec, nbits2extraprec(extrabit + extranfbit), nfprec0,
-               nbits2extraprec(extrabit));
-  nfprec = prec + nbits2extraprec(extrabit + extranfbit);
-  logprec = prec + nbits2extraprec(extrabit);
+               prec, extrabit + extranfbit, nfprec0, nbits2prec(extrabit));
+  nfprec = nbits2prec(prec + extrabit + extranfbit);
+  logprec = nbits2prec(prec + extrabit);
   if (nfprec0 < nfprec)
   {
     if (DEBUGLEVEL)
@@ -130,8 +129,7 @@ nfembedlog(GEN *pnf, GEN x, long prec)
   for (k = 1; k <= r1+r2; k++) gel(logs,k) = real_i(gel(cxlogs,k));
   for (     ; k <= n; k++) gel(logs,k) = gmul2n(imag_i(gel(cxlogs,k-r2)), -1);
   extrabit = gexpo(logs);
-  if (extrabit < 0) extrabit = 0;
-  prec += nbits2extraprec(extrabit);
+  if (extrabit > 0) prec = nbits2prec(prec + extrabit);
   return gc_upto(av, gdiv(logs, Pi2n(1,prec)));
 }
 
@@ -200,7 +198,7 @@ embedcol(GEN v, long size, long shift)
 static void
 shallow_clean_rat(GEN v, long k0, long k1, GEN den, long prec)
 {
-  long k, e, bit = -prec2nbits(prec)/2;
+  long k, e, bit = - prec/2;
   for (k = k0; k <= k1; k++)
   {
     GEN t = gel(v,k);
@@ -600,7 +598,7 @@ gchar_hnfreduce_shallow(GEN gc, GEN cm)
   if (!gequal0(cm))
   {
     GEN v, Nargs;
-    long bit = - prec2nbits(mprec) + 16 + expu(order);
+    long bit = - mprec + 16 + expu(order);
     /* reduce on Norm arguments */
     v = cm_select(nf, cm, gchar_get_nfprec(gc));
     if (DEBUGLEVEL>2) err_printf("cm_select -> %Ps\n", v);
@@ -701,11 +699,8 @@ gchar_snfbasis_shallow(GEN gc, GEN rel)
 }
 
 static long
-mextraprec(GEN m_inv, GEN m, GEN gc)
-{
-  return nbits2extraprec(2*maxss(gexpo(m_inv),1) + expu(lg(m))
-          + gexpo(gchar_get_u0(gc)) + 10);
-}
+mextrabit(GEN m_inv, GEN m, GEN gc)
+{ return 2*maxss(gexpo(m_inv),1) + expu(lg(m)) + gexpo(gchar_get_u0(gc)) + 10; }
 
 /* c) transpose inverse + clean rationals.
  * prec = target prec for m^-1,
@@ -714,7 +709,7 @@ static void
 gcharmat_tinverse(GEN gc, GEN m, long prec)
 {
   GEN m_inv;
-  long k, r1, r2, ns, nc, nalg, nm, mprec, bitprec = prec2nbits(prec);
+  long k, r1, r2, ns, nc, nalg, nm, mprec;
 
   nf_get_sign(gchar_get_nf(gc), &r1, &r2);
   ns = gchar_get_ns(gc);
@@ -744,10 +739,10 @@ gcharmat_tinverse(GEN gc, GEN m, long prec)
       /* enough precision? */
       /* |B - A^(-1)| << |B|.|Id-B*A| */
       if (gexpo(m_inv) + gexpo(gsub(RgM_mul(m_inv, m), gen_1)) + expu(lg(m))
-          <= -bitprec)
+          <= -prec)
       {
         /* |A^(-1) - (A+H)^(-1)| << |H|.|A^(-1)|^2 */
-        targetmprec = prec + mextraprec(m_inv,m,gc);
+        targetmprec = nbits2prec(prec + mextrabit(m_inv,m,gc));
         if (mprec >= targetmprec) break;
       }
       else targetmprec = 0;
@@ -888,7 +883,7 @@ gcharnewprec_i(GEN gc, long newprec)
     GEN cyc, m, m0 = gchar_get_m0(gc);
     if (DEBUGLEVEL) pari_warn(warnprec,"gcharnewprec (minv)", prec);
     gchar_set_m0(gc2, shallowcopy(m0));
-    mprec = prec + mextraprec(gchar_get_basis(gc), m0, gc);
+    mprec = nbits2prec(prec + mextrabit(gchar_get_basis(gc), m0, gc));
     m = gcharmatnewprec_shallow(gc2, mprec);
     if (DEBUGLEVEL>2) err_printf("m0*u0 recomputed -> %Ps\n", m);
     gcharmat_tinverse(gc2, m, prec);
@@ -1443,7 +1438,7 @@ gchar_log(GEN gc, GEN x, GEN logchi, long prec)
     long e, bit = expu(nf_get_degree(nf) + lg(zm_log)-1) + 3;
     e = gexpo(logchi); if (e > 0) bit += e;
     e = gexpo(gel(alpha,1)); if (e > 0) bit += e;
-    prec += nbits2extraprec(bit);
+    prec = nbits2prec(prec + bit);
   }
   for(;;)
   {
@@ -1484,7 +1479,7 @@ gchari_eval(GEN gc, GEN chi, GEN x, long flag, GEN logchi, GEN s, long prec)
   {
     long e, precgc = prec, prec0 = gchar_get_prec(gc);
     logchi = gchari_duallog(gc, chi);
-    e = gexpo(logchi); if (e > 0) precgc += nbits2extraprec(e);
+    e = gexpo(logchi); if (e > 0) precgc = nbits2prec(precgc + e);
     if (precgc > prec0)
     {
       gc = gcharnewprec(gc, precgc);
@@ -1539,7 +1534,7 @@ gchar_identify_init(GEN gc, GEN Lv, long prec)
   nchi = lg(cyc)-2; /* ignore norm */
   d = r1 + 2*r2;
   mult = (nchi >= d)? gel(cyc,1): gen_1;
-  s = (8*prec2nbits(prec))/10; mult = shifti(mult, s);
+  s = 0.8*prec; mult = shifti(mult, s);
   beps = -(7*s) / 16; eps = real2n(beps, prec);
   l = lg(Lv);
   if (lg(gen_sort_uniq(Lv, (void*)cmp_universal, cmp_nodata)) != l)
@@ -1765,8 +1760,8 @@ vecan_gchar(GEN an, long n, long prec)
 
   /* prec increase: 1/n*log(N(pmax)) < log(pmax) */
   if (DEBUGLEVEL > 1)
-    err_printf("vecan_gchar: need extra prec %ld\n", nbits2extraprec(expu(n)));
-  gc = gcharnewprec(gc, prec + nbits2extraprec(expu(n)));
+    err_printf("vecan_gchar: need extra bitprec %ld\n", expu(n));
+  gc = gcharnewprec(gc, nbits2prec(prec + expu(n)));
   chilog = gchari_duallog(gc, check_gchari(gc, chi, &s));
 
   nf = gchar_get_nf(gc);
@@ -1824,8 +1819,8 @@ eulerf_gchar(GEN an, GEN p, long prec)
 
   /* prec increase: 1/n*log(N(pmax)) < log(pmax) */
   if (DEBUGLEVEL > 1)
-    err_printf("vecan_gchar: need extra prec %ld\n", nbits2extraprec(expi(p)));
-  gc = gcharnewprec(gc, prec + nbits2extraprec(expi(p)));
+    err_printf("vecan_gchar: need extra bitprec %ld\n", expi(p));
+  gc = gcharnewprec(gc, nbits2prec(prec + expi(p)));
   chilog = gchari_duallog(gc, check_gchari(gc, chi, &s));
 
   nf = gchar_get_nf(gc);
@@ -1847,15 +1842,14 @@ static GEN
 cleanup_vga(GEN vga, long prec)
 {
   GEN ind;
-  long bitprec, i, l;
+  long i, l;
   if (!prec) return vga; /* already exact */
-  bitprec = prec2nbits(prec);
   vga = shallowcopy(vga); l = lg(vga);
   for (i = 1; i < l; i++)
   {
     GEN z = gel(vga,i);
     if (typ(z) != t_COMPLEX) continue;
-    if (gexpo(gel(z,2)) < -bitprec+20) gel(vga,i) = gel(z,1);
+    if (gexpo(gel(z,2)) < 20 - prec) gel(vga,i) = gel(z,1);
   }
   ind = indexsort(imag_i(vga));
   for (i = 2; i < l; i++)
@@ -1863,14 +1857,14 @@ cleanup_vga(GEN vga, long prec)
     GEN z = gel(vga,ind[i]), t;
     if (typ(z) != t_COMPLEX) continue;
     t = imag_i(gel(vga, ind[i-1]));
-    if (gexpo(gsub(gel(z,2), t)) < -bitprec+20)
+    if (gexpo(gsub(gel(z,2), t)) < 20 - prec)
       gel(vga, ind[i]) = mkcomplex(gel(z,1), t);
    }
   for (i = 1; i < l; i++)
   {
     GEN z = gel(vga,i);
     if (typ(z) != t_COMPLEX) continue;
-    gel(vga, i) = mkcomplex(gel(z,1), bestappr(gel(z,2), int2n(bitprec/2)));
+    gel(vga, i) = mkcomplex(gel(z,1), bestappr(gel(z,2), int2n(prec/2)));
   }
   return vga;
 }
@@ -1898,10 +1892,10 @@ gchari_lfun(GEN gc, GEN chi, GEN s0)
   cond_oo =  gcharlog_conductor_oo(gc, chilog);
 
   NN = mulii(idealnorm(nf, cond_f), absi_shallow(nf_get_disc(nf)));
-  if (equali1(NN)) return lfunshift(lfuncreate(gen_1), gneg(s), 0,
-      prec2nbits(gchar_get_evalprec(gc)));
-  if (ZV_equal0(chi)) return lfunshift(lfuncreate(nf), gneg(s), 0,
-      prec2nbits(gchar_get_evalprec(gc)));
+  if (equali1(NN))
+    return lfunshift(lfuncreate(gen_1), gneg(s), 0, gchar_get_evalprec(gc));
+  if (ZV_equal0(chi))
+    return lfunshift(lfuncreate(nf), gneg(s), 0, gchar_get_evalprec(gc));
 
   /* vga_r = vector(r1,k,I*c[ns+nc+k]-s + cond_oo[k]);
    * vga_c = vector(r2,k,I*c[ns+nc+r1+k]+abs(c[ns+nc+r1+r2+k])/2-s) */

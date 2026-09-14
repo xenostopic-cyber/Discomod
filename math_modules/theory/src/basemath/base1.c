@@ -1487,31 +1487,10 @@ typedef struct {
   GEN M, G; /* possibly NULL = irrelevant or not computed */
 } nffp_t;
 
-static GEN
-get_roots(GEN x, long r1, long prec)
-{
-  long i, ru;
-  GEN z;
-  if (typ(x) != t_POL)
-  {
-    z = leafcopy(x);
-    ru = (lg(z)-1 + r1) >> 1;
-  }
-  else
-  {
-    long n = degpol(x);
-    z = (r1 == n)? ZX_realroots_irred(x, prec): QX_complex_roots(x,prec);
-    ru = (n+r1)>>1;
-  }
-  for (i=r1+1; i<=ru; i++) gel(z,i) = gel(z, (i<<1)-r1);
-  z[0]=evaltyp(t_VEC)|_evallg(ru+1); return z;
-}
-
+/* Unused */
 GEN
 nf_get_allroots(GEN nf)
-{
-  return embed_roots(nf_get_roots(nf), nf_get_r1(nf));
-}
+{ return embed_roots(nf_get_roots(nf), nf_get_r1(nf)); }
 
 /* For internal use. compute trace(x mod pol), sym=polsym(pol,deg(pol)-1) */
 static GEN
@@ -1734,28 +1713,45 @@ prec_fix(long prec)
 {
 #ifndef LONG_IS_64BIT
   /* make sure that default accuracy is the same on 32/64bit */
-  if (odd(prec2lg(prec))) prec+=EXTRAPRECWORD;
+  if (odd(prec2lg(prec))) prec += BITS_IN_LONG;
 #endif
   return prec;
+}
+
+/* complex roots of ZX T up to complex conjugation (nf.roots) */
+GEN
+ZX_nf_roots(GEN T, long r1, long prec)
+{
+  long n = degpol(T);
+  GEN R;
+  if (r1 == n) /* don't assume that T is irreducible */
+  { R = ZX_realroots(T, prec); settyp(R, t_VEC); }
+  else
+  {
+    long i, j;
+    R = QX_complex_roots(T,prec);
+    for (i = r1+1, j=r1+2; j <= n; i++, j+=2) gel(R,i) = gel(R,j);
+    R[0] = evaltyp(t_VEC)|_evallg(i);
+  }
+  return R;
 }
 static void
 make_M_G(nffp_t *F, int trunc)
 {
-  long n, eBD, prec;
+  GEN x = F->T, R = F->ro;
+  long prec, n = degpol(x);
+
   if (F->extraprec < 0)
   { /* not initialized yet; compute roots so that absolute accuracy
      * of M & G >= prec */
     double er;
-    n = degpol(F->T);
-    eBD = 1 + gexpo(gel(F->basden,1));
-    er  = F->ro? (1+gexpo(F->ro)): fujiwara_bound(F->T);
+    long eBD = 1 + gexpo(gel(F->basden,1));
+    er  = R? (1+gexpo(R)): fujiwara_bound(x);
     if (er < 0) er = 0;
-    F->extraprec = nbits2extraprec(n*er + eBD + log2(n));
+    F->extraprec = n*er + eBD + log2(n);
   }
-  prec = prec_fix(F->prec + F->extraprec);
-  if (!F->ro || gprecision(gel(F->ro,1)) < prec)
-    F->ro = get_roots(F->T, F->r1, prec);
-
+  prec = prec_fix(nbits2prec(F->prec + F->extraprec));
+  if (!R || gprecision(gel(R,1)) < prec) F->ro = ZX_nf_roots(x, F->r1, prec);
   make_M(F, trunc);
   make_G(F);
 }
@@ -1808,7 +1804,7 @@ get_nfindex(GEN bas)
   }
   return gc_INT(av, D);
 }
-/* make sure all components of S are initialized */
+/* S->T irreducible monic ZX; make sure all components of S are initialized */
 static void
 nfmaxord_complete(nfmaxord_t *S)
 {
@@ -1825,6 +1821,7 @@ nfmaxord_complete(nfmaxord_t *S)
   if (!S->basden) S->basden = get_bas_den(S->basis);
 }
 
+/* S->T irreducible monic ZX */
 GEN
 nfmaxord_to_nf(nfmaxord_t *S, GEN ro, long prec)
 {
@@ -1933,7 +1930,7 @@ get_red_G(nfmaxord_t *S, GEN *pro)
       if (u0) u0 = gc_upto(av, RgM_mul(u0,u));
       else    u0 = gc_GEN(av, u);
     }
-    prec = precdbl(prec) + nbits2extraprec(gexpo(u0));
+    prec = nbits2prec((prec << 1) + gexpo(u0));
     F.ro = NULL;
     if (DEBUGLEVEL) pari_warn(warnprec,"get_red_G", prec);
   }
@@ -1941,8 +1938,9 @@ get_red_G(nfmaxord_t *S, GEN *pro)
   *pro = F.ro; return u;
 }
 
-/* Compute an LLL-reduced basis for the integer basis of nf(T).
- * set *pro = roots of x if computed [NULL if not computed] */
+/* Compute an LLL-reduced basis for the integer basis of nf(T); T monic
+ * ZX, without rational roots if S->r1 < 0.
+ * Set *pro = roots of x if computed [NULL if not computed] */
 static void
 set_LLL_basis(nfmaxord_t *S, GEN *pro, long flag, double DELTA)
 {
@@ -1997,8 +1995,8 @@ ZX_is_better(GEN y, GEN x, GEN *dx)
 }
 
 static void polredbest_aux(nfmaxord_t *S, GEN *pro, GEN *px, GEN *pdx, GEN *pa);
-/* Seek a simpler, polynomial pol defining the same number field as
- * x (assumed to be monic at this point) */
+/* Seek a simpler, polynomial pol defining the same number field as x
+ * (assumed to be monic and irreducible) */
 static GEN
 nfpolred(nfmaxord_t *S, GEN *pro)
 {
@@ -2478,6 +2476,8 @@ polred_init(nfmaxord_t *S, nffp_t *F, CG_data *d)
   long e, prec, n = degpol(S->T);
   double log2rho;
   GEN ro;
+  /* ZX_sturm_irred incorrect if S->T has a rational root */
+  if (S->r1 < 0) S->r1 = ZX_sturm(S->T);
   set_LLL_basis(S, &ro, 0, 0.9999);
   /* || polchar ||_oo < 2^e ~ 2 (n * rho)^n, rho = max modulus of root */
   log2rho = ro ? (double)gexpo(ro): fujiwara_bound(S->T);
@@ -2656,6 +2656,7 @@ polredbest_i(GEN T, long flag)
   nfmaxord_t S;
   GEN a;
   nfinit_basic_partial(&S, T);
+  if (S.r1 < 0) S.r1 = ZX_sturm(S.T);
   polredbest_aux(&S, NULL, &T, NULL, flag? &a: NULL);
   if (flag == 2)
     T = mkvec2(T, a);

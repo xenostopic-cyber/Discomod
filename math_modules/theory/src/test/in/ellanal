@@ -13,9 +13,17 @@ he([-157^2,0])
 he([0,0,-9/484,0,-27/234256])
 he([1,-1,1,4,6])
 getheap()[1]
+het(x,D)=x=ellinit(x);ellheegnertwist(x,D);
+het([0,-1,1,-10,-20],101)
+het([0,-1,0,-4,24],-103)
+het([0,-1,1,-10,-20],2684)
 
 E=ellinit([0,-1437004800,0,458885065605120000,0]);
 ellglobalred(E); ellheegner(E)
+ellheegnertwist(E)
+
+F = ellinit([-1,126,-101,-1478640101,7748009047466]);
+ellheegnertwist(F,,3)
 
 L = ellinit([0,0,1,7,6]);
 ellL1(L)

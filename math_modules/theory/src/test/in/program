@@ -1,4 +1,4 @@
-HEAP=[47, if(sizebyte(0)==16,2097,3531)];
+HEAP=[47, if(sizebyte(0)==16,2097,3532)];
 STACK=if(sizebyte(0)==16, 232, 128);
 STACK == getstack
 \e

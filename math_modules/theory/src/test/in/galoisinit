@@ -1,4 +1,4 @@
-default(parisize,"16M"); \\ 14M overflows
+default(parisize,"38M"); \\ 36M overflows
 do(p)=galoisidentify(galoisinit(p));
 
 do(algdep(I,3))
@@ -61,6 +61,7 @@ galoisexport(G)
 galoisexport(G, 1)
 G=galoisinit(x^12-24*x^10-10*x^9+216*x^8+180*x^7-844*x^6-1080*x^5+1056*x^4+2200*x^3+720*x^2-240*x-80);
 L=galoissubgroups(G)
+apply(H->galoisorder(H),L)
 apply(H->galoisisnormal(G,H),L)
 apply(H->galoisisabelian(H),L)
 apply(H->galoisisabelian(H,1),L)
@@ -72,9 +73,28 @@ apply(permsign,G.group)
 vector(#G.group, i, galoisfixedfield(G,G.group[i],1))
 galoisfixedfield(G,G.group[2])
 galoisfixedfield(G,G.group[2],2,y)
+
+G=galoissplittinginit(x^5-x^4+2*x^2-2*x+2);
+L=galoissubgroups(G);
+apply(H->galoisorder(H),L)
+apply(H->galoisisnormal(G,H),L)
+apply(H->galoisisabelian(H),L)
+apply(H->galoisisabelian(H,1),L)
+apply(H->galoisisabelian(H,2),L)
+
 \\ #2253
 G=galoisinit(x^9-5*x^8-70*x^7+269*x^6+1591*x^5-4531*x^4-11255*x^3+29326*x^2+7688*x-29791);
 galoisfixedfield(G,G.gen,2)
+
+G=galoisinit(x^60-140*x^58+8962*x^56-349004*x^54+9281997*x^52-179459940*x^50+2622109990*x^48-29719781716*x^46+266207543682*x^44-1910319109676*x^42+11095474620692*x^40-52563954956400*x^38+204281424710227*x^36-653986614195780*x^34+1729455296656102*x^32-3783628490800600*x^30+6850229089190124*x^28-10254491774064432*x^26+12664664730760114*x^24-12858160682270580*x^22+10675125664367888*x^20-7194140516124584*x^18+3896171024913456*x^16-1672708439727652*x^14+558669565282993*x^12-141344127824520*x^10+26042366139708*x^8-3282605673664*x^6+253209600496*x^4-9311200896*x^2+50353216); [G.gen,G.orders]
+galoisidentify(G)
+galoischartable(G)
+galoisisabelian(G)
+#galoisconjclasses(G)
+S=galoissubgroups(G); #S
+matreduce([galoisisabelian(H,2)|H<-S])
+matreduce([galoisidentify(H)|H<-S])
+galoisexport(G)
 
 galoissubcyclo(17,2)
 galoissubcyclo(1,1)

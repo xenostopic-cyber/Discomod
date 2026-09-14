@@ -536,7 +536,7 @@ GEN
 FpX_digits(GEN x, GEN T, GEN p)
 {
   struct _FpX D;
-  long d = degpol(T), n = (lgpol(x)+d-1)/d;
+  long d = get_FpX_degree(T), n = (lgpol(x)+d-1)/d;
   D.p = p;
   return gen_digits(x,T,n,(void *)&D, &FpX_ring, _FpX_divrem);
 }
@@ -2360,7 +2360,7 @@ FpXQ_autpow(GEN x, ulong n, GEN T, GEN p)
   if (n==0) return FpX_rem(pol_x(varn(x)), T, p);
   if (n==1) return FpX_rem(x, T, p);
   D.T = FpX_get_red(T, p); D.p = p;
-  d = brent_kung_optpow(degpol(T), hammingu(n)-1, 1);
+  d = brent_kung_optpow(get_FpX_degree(T), hammingu(n)-1, 1);
   D.aut = FpXQ_powers(x, d, T, p);
   x = gen_powu_fold(x,n,(void*)&D,FpXQ_autpow_sqr,FpXQ_autpow_msqr);
   return gc_GEN(av, x);
@@ -2890,9 +2890,9 @@ FpXQ_sqrtn(GEN a, GEN n, GEN T, GEN p, GEN *zeta)
   {
     void *E;
     const struct bb_group *S = get_FpXQ_star(&E,T,p);
-    GEN o = subiu(powiu(p,get_FpX_degree(T)),1);
+    long i, s, d = get_FpX_degree(T);
+    GEN o = subiu(powiu(p,d),1);
     GEN m, u1, u2, l, zeta2, F, n2;
-    long i, s, d = degpol(T);
 
     m = bezout(n,o,&u1,&u2);
     F = Z_factor(m);
@@ -3454,11 +3454,17 @@ Rg_to_FpXk(GEN x, GEN p)
 }
 
 static GEN
-RgXXk_modXn(GEN z, long n, long v)
+to_FpXXk(GEN x, long v)
+{ return typ(x)==t_INT ? scalarpol_shallow(x, v): x; }
+
+static GEN
+FpXXk_simplify(GEN x, long v)
+{ return to_FpXXk(simplify_shallow(x), v); }
+
+static GEN
+FpXXk_modXn(GEN z, long n, long v)
 {
-  if (typ(z) == t_INT)
-    return z;
-  else if (varn(z) == v)
+  if (varn(z) == v)
     return RgXn_red_shallow(z, n);
   else
   {
@@ -3466,17 +3472,15 @@ RgXXk_modXn(GEN z, long n, long v)
     GEN x = cgetg_copy(z, &l);
     x[1] = z[1];
     for (i = 2; i < l; i++)
-      gel(x,i) = RgXXk_modXn(gel(z,i), n, v);
+      gel(x,i) = FpXXk_modXn(to_FpXXk(gel(z,i), v), n, v);
     return RgX_renormalize_lg(x, l);
   }
 }
 
 static GEN
-RgXXk_shift(GEN z, long n, long v)
+FpXXk_shift(GEN z, long n, long v)
 {
-  if (typ(z) == t_INT)
-    return n < 0 ? gen_0: monomial(z, n, v);
-  else if (varn(z) == v)
+  if (varn(z) == v)
     return RgX_shift_shallow(z, n);
   else
   {
@@ -3484,7 +3488,7 @@ RgXXk_shift(GEN z, long n, long v)
     GEN x = cgetg_copy(z, &l);
     x[1] = z[1];
     for (i = 2; i < l; i++)
-      gel(x,i) = RgXXk_shift(gel(z,i), n, v);
+      gel(x,i) = FpXXk_shift(to_FpXXk(gel(z,i), v), n, v);
     return RgX_renormalize_lg(x, l);
   }
 }
@@ -3495,14 +3499,14 @@ FpXXk_content(GEN x, GEN p, long v)
 {
   long i, l = lg(x);
   GEN c;
-  if (typ(x)==t_INT || varn(x)==v) return x;
-  if (!signe(x)) return gen_0;
-  c = gel(x,2);
-  if (gequal1(c)) return gen_1;
+  if (varn(x)==v) return gcopy(x);
+  if (!signe(x)) return pol_0(v);
+  c = to_FpXXk(gel(x,2), v);
+  if (degpol(c)==0) return pol_1(v);
   for (i = 3; i < l; i++)
   {
-    c = simplify_shallow(FpXXk_gcd_i(c, gel(x,i), p, v));
-    if (gequal1(c)) return pol_1(v);
+    c = FpXXk_simplify(FpXXk_gcd_i(c, to_FpXXk(gel(x,i), v), p, v), v);
+    if (degpol(c)==0) return pol_1(v);
   }
   return c;
 }
@@ -3519,7 +3523,7 @@ FpXXk_content_FpX(GEN x, GEN p, long v)
   if (degpol(c)==0) return pol_1(v);
   for (i = 3; i < l; i++)
   {
-    c = FpX_gcd(c, FpXXk_content_FpX(gel(x,i), p, v), p);
+    c = FpX_gcd(c, FpXXk_content_FpX(to_FpXXk(gel(x,i), v), p, v), p);
     if (degpol(c)==0) return pol_1(v);
   }
   return c;
@@ -3548,7 +3552,7 @@ static GEN
 FpXXk_primpart_FpX(GEN x, GEN p, long v)
 {
   GEN c = FpXXk_content_FpX(x, p, v);
-  return degpol(c) == 0 ? x : FpXXk_FpX_div(x, c, p);
+  return degpol(c) == 0 ? gcopy(x) : FpXXk_FpX_div(x, c, p);
 }
 
 static long
@@ -3561,17 +3565,17 @@ RgXk_var_lowest(GEN x)
   return c;
 }
 
-static GEN FpXXk_divexact_s(GEN A, GEN B, GEN p, long v);
+static GEN FpXk_divexact_FpXXk(GEN A, GEN B, GEN p, long v);
 
 static GEN
-FpXXkX_FpXXk_divexact_s(GEN x, GEN B, GEN p, long v)
-{ pari_APPLY_ZX(FpXXk_divexact_s(gel(x,i), B, p, v)); }
+FpXkX_FpXk_divexact_FpXXk(GEN x, GEN B, GEN p, long v)
+{ pari_APPLY_ZX(FpXk_divexact_FpXXk(gel(x,i), B, p, v)) }
 
 static GEN
 FpXXkX_FpXXk_divexact(GEN A, GEN B, GEN p, long v)
 {
   pari_sp av = avma;
-  return gc_upto(av, FpXXkX_FpXXk_divexact_s(A, simplify_shallow(B), p, v));
+  return gc_upto(av, FpXkX_FpXk_divexact_FpXXk(A, simplify_shallow(B), p, v));
 }
 
 static GEN
@@ -3580,31 +3584,37 @@ FpXXk_divexact_i(GEN x, GEN y, GEN p, long v)
   long dx = degpol(x), dy = degpol(y), dz, i, j;
   GEN z, y_lead = gel(y,dy+2);
   if (dx < dy)
-    return gen_0;
+    return pol_0(v);
   dz = dx-dy;
   z = cgetg(dz+3,t_POL); z[1] = x[1];
-  gel(z,dz+2) = FpXXk_divexact_s(gel(x,dx+2), y_lead, p, v);
+  gel(z,dz+2) = FpXk_divexact_FpXXk(gel(x,dx+2), y_lead, p, v);
   for (i=dx-1; i>=dy; i--)
   {
     pari_sp btop = avma;
     GEN p1=gel(x,2+i);
     for (j=i-dy+1; j<=i && j<=dz; j++)
       p1 = FpXk_sub(p1, gmul(gel(z,2+j), gel(y,2+i-j)), p);
-    gel(z,2+i-dy) = gc_upto(btop, FpXXk_divexact_s(p1, y_lead, p, v));
+    gel(z,2+i-dy) = gc_upto(btop, FpXk_divexact_FpXXk(p1, y_lead, p, v));
   }
   return z;
 }
 
 static GEN
-FpXXk_divexact_s(GEN A, GEN B, GEN p, long v)
+FpXk_divexact_FpXXk(GEN A, GEN B, GEN p, long v)
 {
-  if (!signe(A)) return gen_0;
-  if (typ(A)==t_INT && typ(B)==t_INT)
-    return Fp_div(A, B, p);
-  else if (typ(B)==t_INT || varn(A)!=varn(B))
-    return FpXXkX_FpXXk_divexact_s(A, B, p, v);
-  else if (varn(A)==v)
+  if (!signe(B)) pari_err_INV("gcd", gmodulo(B,p));
+  if (!signe(A)) return pol_0(v);
+  if (typ(A)==t_INT)
+  {
+    if (typ(B)==t_INT)
+      return to_FpXXk(Fp_div(A, B, p), v);
+    A = to_FpXXk(A, v);
+  } else if (typ(B)==t_INT)
+    B = to_FpXXk(B, v);
+  if (varn(A)==v && varn(B)==v)
     return FpX_div(A, B, p);
+  else if (varncmp(varn(A),varn(B)) < 0)
+    return FpXkX_FpXk_divexact_FpXXk(A, B, p, v);
   else
     return FpXXk_divexact_i(A, B, p, v);
 }
@@ -3614,11 +3624,11 @@ static GEN
 FpXXk_divexact(GEN A, GEN B, GEN p, long v)
 {
   pari_sp av = avma;
-  return gc_upto(av, FpXXk_divexact_s(A, simplify_shallow(B)));
+  return gc_upto(av, FpXXk_divexact_s(A, FpXXk_simplify(B)));
 }
 #endif
 
-static GEN FpXXk_divides_s(GEN A, GEN B, GEN p, long v);
+static GEN FpXk_divides_FpXXk(GEN A, GEN B, GEN p, long v);
 
 static GEN
 FpXXk_divides_i(pari_sp av, GEN x, GEN y, GEN p, long v)
@@ -3630,7 +3640,7 @@ FpXXk_divides_i(pari_sp av, GEN x, GEN y, GEN p, long v)
     return NULL;
   dz = dx-dy;
   z = cgetg(dz+3,t_POL); z[1] = x[1];
-  gel(z,dz+2) = FpXXk_divides_s(gel(x,dx+2), y_lead, p, v);
+  gel(z,dz+2) = FpXk_divides_FpXXk(gel(x,dx+2), y_lead, p, v);
   if (!gel(z,dz+2)) return gc_NULL(av);
   for (i=dx-1; i>=dy; i--)
   {
@@ -3638,17 +3648,17 @@ FpXXk_divides_i(pari_sp av, GEN x, GEN y, GEN p, long v)
     GEN p1 = gel(x,2+i), c;
     for (j=i-dy+1; j<=i && j<=dz; j++)
       p1 = FpXk_sub(p1, gmul(gel(z,2+j), gel(y,2+i-j)), p);
-    c = FpXXk_divides_s(p1, y_lead, p, v);
+    c = FpXk_divides_FpXXk(p1, y_lead, p, v);
     if (!c) return gc_NULL(av);
     gel(z,2+i-dy) = gc_upto(btop, c);
   }
   av2 = avma;
   s = gc_long(av2,signe(FpXk_sub(gmul(z,y),x,p)));
-  return s ? gc_NULL(av): z;
+  return s ? gc_NULL(av): gc_GEN(av, z);
 }
 
 static GEN
-FpXXkX_FpXXk_divides_s(GEN x, GEN B, GEN p, long v)
+FpXXkX_FpXk_divides_FpXXk(GEN x, GEN B, GEN p, long v)
 {
   pari_sp av = avma;
   long i, l;
@@ -3656,7 +3666,7 @@ FpXXkX_FpXXk_divides_s(GEN x, GEN B, GEN p, long v)
   if (l == 2) return y;
   for (i=2; i<l; i++)
   {
-    GEN c = FpXXk_divides_s(gel(x,i), B, p, v);
+    GEN c = FpXk_divides_FpXXk(gel(x,i), B, p, v);
     if (!c) return gc_NULL(av);
     gel(y, i) = c;
   }
@@ -3664,31 +3674,31 @@ FpXXkX_FpXXk_divides_s(GEN x, GEN B, GEN p, long v)
 }
 
 static GEN
-FpXXk_divides_s(GEN A, GEN B, GEN p, long v)
+FpXk_divides_FpXXk(GEN A, GEN B, GEN p, long v)
 {
   pari_sp av = avma;
-  if (!signe(A)) return gen_0;
-  if (typ(B)==t_INT)
-    return typ(A)==t_INT ? Fp_div(A, B, p)
-                         : FpXXkX_FpXXk_divides_s(A, B, p, v);
-  else if (typ(A)==t_INT) return NULL;
-  else
+  if (!signe(B)) pari_err_INV("gcd", gmodulo(B,p));
+  if (!signe(A)) return pol_0(v);
+  if (typ(A)==t_INT)
   {
-    long c = varncmp(varn(A),varn(B));
-    if (c < 0)
-      return FpXXkX_FpXXk_divides_s(A, B, p, v);
-    else if (c>0)
-      return NULL;
-    else
-      return FpXXk_divides_i(av, A, B, p, v);
-  }
+    if (typ(B)==t_INT)
+      return to_FpXXk(Fp_div(A, B, p), v);
+    A = to_FpXXk(A, v);
+  } else if (typ(B)==t_INT)
+    B = to_FpXXk(B, v);
+  if (varn(A)==v && varn(B)==v)
+    return FpX_div(A, B, p);
+  else if (varncmp(varn(A),varn(B)) < 0)
+    return FpXXkX_FpXk_divides_FpXXk(A, B, p, v);
+  else
+    return FpXXk_divides_i(av, A, B, p, v);
 }
 
 static GEN
 FpXXk_divides(GEN A, GEN B, GEN p, long v)
 {
   pari_sp av = avma;
-  GEN z = FpXXk_divides_s(A, simplify_shallow(B), p, v);
+  GEN z = FpXk_divides_FpXXk(A, simplify_shallow(B), p, v);
   return z ? gc_upto(av, z): z;
 }
 
@@ -3701,9 +3711,9 @@ FpXXk_rec(GEN g, long e, long v, long w)
   s[1] = evalvarn(v);
   for (i = 0; i <= d; i++)
   {
-    GEN c = RgXXk_modXn(g, e, w);
+    GEN c = FpXXk_modXn(g, e, w);
     gel(s,i+2) = c;
-    g = RgXXk_shift(g,-e,w);
+    g = FpXXk_shift(g,-e,w);
     if (!signe(g)) break;
   }
   s = RgX_renormalize_lg(s,i+3);
@@ -3718,7 +3728,7 @@ FpXXk_gcd_i(GEN A, GEN B, GEN p, long v)
   GEN c, cA, cB;
   if (signe(A)==0) return gcopy(B);
   if (signe(B)==0) return gcopy(A);
-  if (typ(A) == t_INT || typ(B) == t_INT) return pol_1(v);
+  if (degpol(A) == 0 || degpol(B) == 0) return pol_1(v);
   va = varn(A); vc = varncmp(va, varn(B));
   if (vc < 0) return FpXXk_gcd_i(FpXXk_content(A, p, v), B, p, v);
   if (vc > 0) return FpXXk_gcd_i(A, FpXXk_content(B, p, v), p, v);

@@ -51,7 +51,7 @@ static int
 islong(GEN a, long *m, long prec)
 {
   *m = itos(ground(real_i(a)));
-  if (is0(gsubgs(a, *m), prec2nbits(prec) - 5)) return 1;
+  if (is0(gsubgs(a, *m), prec - 5)) return 1;
   return 0;
 }
 
@@ -59,7 +59,7 @@ static GEN
 F01(GEN a, GEN z, long prec)
 {
   GEN A, B, al, sz;
-  if (is0(z, prec2nbits(prec)-5)) return real_1(prec);
+  if (is0(z, prec - 5)) return real_1(prec);
   sz = gsqrt(z, prec); al = gsubgs(a, 1);
   A = gmul(ggamma(a, prec), gpow(sz, gneg(al), prec));
   B = ibessel(al, gmul2n(sz,1), prec);
@@ -70,10 +70,10 @@ F01(GEN a, GEN z, long prec)
 static GEN
 airy_i(GEN x, long prec)
 {
-  long bit = prec2nbits(prec), tx = typ(x), prec2;
+  long bit, tx = typ(x), prec2;
   GEN a, b, A, B, z, z2;
   if (!is_scalar_t(tx)) pari_err_TYPE("airy",x);
-  if (is0(x, bit))
+  if (is0(x, prec))
   {
     GEN s = sqrtnr_abs(utor(3,prec), 6), s3 = powrs(s,3), s4 = mulrr(s,s3);
     A = invr(mulrr(s4, ggamma(uutoQ(2,3), prec)));
@@ -95,7 +95,7 @@ airy_i(GEN x, long prec)
   A = gdivgu(gsub(a,b), 3);
   B = gdiv(gadd(a,b), sqrtr_abs(utor(3, prec)));
 
-  bit -= gexpo(a) + 16;
+  bit = prec - (gexpo(a) + 16);
   if (!is0(A, bit) && !is0(B, bit)) return mkvec2(A, B);
   prec = precdbl(prec); x = gprec_wensure(x, prec); return airy_i(x, prec);
 }
@@ -139,8 +139,7 @@ hyperu_F11(GEN a, GEN b, GEN z, long prec0, long prec)
     S2 = gmul(S2, gpow(z, b1, prec));
   }
   S1 = gadd(S1, S2);
-  if (gexpo(S1)-gexpo(S2) >= prec2nbits(prec0) - prec2nbits(prec))
-    return S1;
+  if (gexpo(S1)-gexpo(S2) >= prec0 - prec) return S1;
   prec = precdbl(prec);
   a = gprec_wensure(a, prec);
   b = gprec_wensure(b, prec);
@@ -154,53 +153,52 @@ static GEN
 hyperu_i(GEN a, GEN b, GEN x, long prec)
 {
   GEN u, S, P, T, zf, a1;
-  long k, n, bit, l, bigx;
+  long k, n, bit, l, bigx, prec2;
 
   if (gequal0(imag_i(x))) x = real_i(x);
-  l = precision(x); if (!l) l = prec;
-  prec = l;
+  l = precision(x); if (l) prec = l;
   a1 = gaddsg(1, gsub(a,b));
   P = gmul(a1, a);
   S = gadd(a1, a);
-  n = (long)(prec2nbits_mul(l, M_LN2) + M_PI*sqrt(dblmodulus(P)));
+  n = (long)(prec * M_LN2 + M_PI * sqrt(dblmodulus(P)));
   bigx = dbllog2(x) >= log2((double)n);
   if (!bigx && (!isint(b,&b) || typ(x) == t_COMPLEX || gsigne(x) <= 0))
   {
     if (typ(b) == t_INT)
     {
-      bit = prec2nbits(l); l = precdbl(l);
-      b = gadd(b, real2n(-bit, l));
-      a = gprec_wensure(a, l);
-      x = gprec_wensure(x, l);
+      bit = prec; prec = precdbl(prec);
+      b = gadd(b, real2n(-bit, prec));
+      a = gprec_wensure(a, prec);
+      x = gprec_wensure(x, prec);
     }
-    return hyperu_F11(a, b, x, l, l);
+    return hyperu_F11(a, b, x, prec, prec);
   }
-  bit = prec2nbits(l)-1;
-  l += EXTRAPREC64;
+  bit = prec - 1;
+  prec2 = prec + EXTRAPREC64;
   T = gadd(gadd(P, gmulsg(n-1, S)), sqru(n-1));
-  x = gtofp(x, l);
+  x = gtofp(x, prec2);
   if (!bigx)
   { /* this part only works if x is real and positive; only used with b t_INT */
     pari_sp av2 = avma;
-    GEN q, v, c, s = real_1(l), t = real_0(l);
+    GEN q, v, c, s = real_1(prec2), t = real_0(prec2);
     for (k = n-1; k >= 0; k--)
     { /* T = (a+k)*(a1+k) = a*a1 + k(a+a1) + k^2 = previous(T) - S - 2k + 1 */
       GEN p1 = gdiv(T, mulss(-n, k+1));
-      s = gprec_wtrunc(gaddgs(gmul(p1,s), 1), l);
-      t = gprec_wtrunc(gadd(gmul(p1,t), gaddgs(a,k)), l);
+      s = gprec_wtrunc(gaddgs(gmul(p1,s), 1), prec2);
+      t = gprec_wtrunc(gadd(gmul(p1,t), gaddgs(a,k)), prec2);
       if (!k) break;
       T = gsubgs(gsub(T, S), 2*k-1);
       if (gc_needed(av2,3)) (void)gc_all(av2, 3, &s,&t,&T);
     }
-    q = utor(n, l);
-    zf = gpow(utoi(n), gneg_i(a), l);
-    u = gprec_wensure(gmul(zf, s), l);
-    v = gprec_wensure(gmul(zf, gdivgs(t,-n)), l);
+    q = utor(n, prec2);
+    zf = gpow(utoi(n), gneg_i(a), prec2);
+    u = gprec_wensure(gmul(zf, s), prec2);
+    v = gprec_wensure(gmul(zf, gdivgs(t,-n)), prec2);
     for(;;)
     {
-      GEN p1, e, f, d = real_1(l), qmb = gsub(q,b);
+      GEN p1, e, f, d = real_1(prec2), qmb = gsub(q,b);
       pari_sp av3;
-      c = divur(5,q); if (expo(c) >= -1) c = real2n(-1, l);
+      c = divur(5,q); if (expo(c) >= -1) c = real2n(-1, prec2);
       p1 = subsr(1, divrr(x,q)); if (cmprr(c,p1) > 0) c = p1;
       togglesign(c); av3 = avma;
       e = u;
@@ -213,8 +211,7 @@ hyperu_i(GEN a, GEN b, GEN x, long prec)
         d = mulrr(d, c);
         e = gadd(e, gmul(d,u));
         f = gadd(f, p1 = gmul(d,v));
-        if (gequal0(p1) || gexpo(p1) - gexpo(f) <= 1-prec2nbits(precision(p1)))
-          break;
+        if (gequal0(p1) || gexpo(p1) - gexpo(f) <= 1-precision(p1)) break;
         if (gc_needed(av3,3)) (void)gc_all(av3,5,&u,&v,&d,&e,&f);
       }
       u = e;
@@ -227,7 +224,7 @@ hyperu_i(GEN a, GEN b, GEN x, long prec)
   else
   { /* this part works for large complex x */
     GEN zz = gneg_i(ginv(x)), s = gen_1;
-    zf = gpow(x, gneg_i(a), l);
+    zf = gpow(x, gneg_i(a), prec2);
     for (k = n-1; k >= 0; k--)
     {
       s = gaddsg(1, gmul(gmul(T, gdivgu(zz,k+1)), s));
@@ -391,7 +388,7 @@ vnormpol2(GEN v)
   return P;
 }
 
-/* return an 'extraprec' */
+/* extra bitprec needed for Ftaylor(N,D,z) */
 static long
 precFtaylor(GEN N, GEN D, GEN z, long *pmi)
 {
@@ -429,7 +426,7 @@ precFtaylor(GEN N, GEN D, GEN z, long *pmi)
   }
   /* make up for exponential decrease in exp() */
   if (gsigne(real_i(z)) < 0) wma -= gtodouble(real_i(z)) / M_LN2;
-  *pmi = maxss(v[lv-1],1); return nbits2extraprec(wma+BITS_IN_LONG);
+  *pmi = maxss(v[lv-1],1); return wma + EXTRAPREC64;
 }
 
 static GEN
@@ -437,16 +434,16 @@ Ftaylor(GEN N, GEN D, GEN z, long prec)
 {
   pari_sp av;
   GEN C, S;
-  long i, j, ct, lN = lg(N), lD = lg(D), pradd, mi, bitmin, tol;
-  pradd = precFtaylor(N, D, z, &mi);
-  if (pradd > 0)
+  long i, j, ct, lN = lg(N), lD = lg(D), bit, mi, bitmin, tol;
+  bit = precFtaylor(N, D, z, &mi);
+  if (bit > 0)
   {
-    prec += pradd;
+    prec = nbits2prec(prec + bit);
     N = gprec_wensure(N, prec);
     D = gprec_wensure(D, prec);
     z = gprec_wensure(z, prec);
   }
-  bitmin = -(prec2nbits(prec) + 10);
+  bitmin = -(prec + 10);
   S = C = real_1(prec); ct = 0; j = 0; tol = 0;
   av = avma;
   for(;;)
@@ -547,17 +544,17 @@ F21finitetaylor(long m, GEN b, GEN c, GEN z, long prec)
 {
   pari_sp av;
   GEN C, P, S;
-  long j, ct, pradd, mi, bitmin;
+  long j, ct, bit, mi, bitmin;
   if (isnegint2(b, &j) && j < m) { b = stoi(-m); m = j; }
-  pradd = precFtaylor(mkvec2(stoi(-m), b), mkvec(c), z, &mi);
-  if (pradd > 0)
+  bit = precFtaylor(mkvec2(stoi(-m), b), mkvec(c), z, &mi);
+  if (bit > 0)
   {
-    prec += pradd;
+    prec = nbits2prec(prec + bit);
     b = gprec_wensure(b, prec);
     c = gprec_wensure(c, prec);
     z = gprec_wensure(z, prec);
   }
-  bitmin = -(prec2nbits(prec) + 10);
+  bitmin = -(prec + 10);
   C = vecbinomial(m);
   P = real_1(prec); S = P; ct = 0;
   av = avma;
@@ -583,7 +580,7 @@ static GEN
 F21finite(long m, GEN b, GEN c, GEN z, long prec)
 {
   GEN a = stoi(-m), b1, c1, z1, F;
-  long ind = F21ind(a, b, c, z, prec2nbits(prec));
+  long ind = F21ind(a, b, c, z, prec);
 
   if (ind > 0 || ind == -3) return F21finitetaylor(m, b, c, z, prec);
   ind = labs(ind);
@@ -656,9 +653,9 @@ static GEN
 F21_i(GEN a, GEN b, GEN c, GEN z, long prec)
 {
   GEN res, p = NULL, T = NULL;
-  long m, ind, prec2, bitprec = prec2nbits(prec);
-  if (is0(imag_i(z), bitprec)) z = real_i(z);
-  if (is0(z, bitprec)) return real_1(prec);
+  long m, ind, prec2;
+  if (is0(imag_i(z), prec)) z = real_i(z);
+  if (is0(z, prec)) return real_1(prec);
   if (gequal1(z))
   {
     GEN x = gsub(c, gadd(a, b)); check_hyp1(x);
@@ -675,7 +672,7 @@ F21_i(GEN a, GEN b, GEN c, GEN z, long prec)
   }
   /* None of a, b, c, c-a, c-b is a nonpositive integer.
    * Try Kummer transforms */
-  ind = F21ind(a, b, c, z, bitprec);
+  ind = F21ind(a, b, c, z, prec);
   prec2 = prec + EXTRAPREC64;
   a = gprec_wensure(a,prec2);
   b = gprec_wensure(b,prec2);
@@ -723,10 +720,10 @@ static GEN
 F21(GEN a, GEN b, GEN c, GEN z, long prec)
 {
   GEN res = F21_i(a, b, c, z, prec);
-  long ex = labs(gexpo(res)), bitprec = prec2nbits(prec);
-  if (ex > bitprec)
+  long ex = labs(gexpo(res));
+  if (ex > prec)
   {
-    prec = nbits2prec(ex + bitprec);
+    prec = nbits2prec(prec + ex);
     res = F21_i(gprec_wensure(a,prec), gprec_wensure(b,prec),
                 gprec_wensure(c,prec), gprec_wensure(z,prec), prec);
   }
@@ -746,17 +743,17 @@ F21taylorlim(GEN N, long m, GEN z, GEN Z, long ind, long prec)
 {
   pari_sp av;
   GEN C, P, S, a, b;
-  long j, ct, pradd, mi, fl, bitmin, tol, si = (ind == 5 || ind == 6)? -1: 1;
-  pradd = precFtaylor(N, mkvec(stoi(m + 1)), z, &mi);
-  if (pradd)
+  long j, ct, bit, mi, fl, bitmin, tol, si = (ind == 5 || ind == 6)? -1: 1;
+  bit = precFtaylor(N, mkvec(stoi(m + 1)), z, &mi);
+  if (bit > 0)
   {
-    prec += pradd;
+    prec = nbits2prec(prec + bit);
     N = gprec_wensure(N, prec);
     z = gprec_wensure(z, prec);
     Z = gprec_wensure(Z, prec);
   }
   av = avma; a = gel(N,1); b = gel(N,2);
-  bitmin = -(prec2nbits(prec) + 10);
+  bitmin = -(prec + 10);
   P = glog(Z, prec); if (ind == 4 || ind == 5) P = gneg(P);
   P = gadd(P, gsub(gpsi(stoi(m+1), prec), mpeuler(prec)));
   P = gsub(P, gadd(gpsi(a, prec), gpsi(si == -1? gsubsg(1, b): b, prec)));
@@ -806,8 +803,7 @@ OK_gadd(GEN x, GEN y, long prec0, long *pprec,
 {
   long prec = *pprec;
   GEN z = gadd(x,y);
-  if (!gequal0(z) && gexpo(z)-gexpo(x) >= prec2nbits(prec0) - prec2nbits(prec))
-    return z;
+  if (!gequal0(z) && gexpo(z)-gexpo(x) >= prec0 - prec) return z;
   *pprec = prec = precdbl(prec);
   *d1 = gprec_wensure(*d1, prec); *d2 = gprec_wensure(*d2, prec);
   *d3 = gprec_wensure(*d3, prec); *d4 = gprec_wensure(*d4, prec);
@@ -1116,7 +1112,7 @@ hypergeom_i(GEN N, GEN D, GEN z, long prec)
     GEN d = gsubsg(1, gabs(z,LOWDEFAULTPREC));
     long ed = gexpo(d);
     /* z in unit disc but "away" from unit circle */
-    if (gsigne(d) > 0 && ed > -prec2nbits(prec)/4
+    if (gsigne(d) > 0 && ed > -prec/4
         && (nN != 3 || ed > -15)) /* For 3F2 we can use integral */
       return Ftaylor(N, D, z, prec);
     if (gequal1(z))  return sumz(N, D, 1, prec);

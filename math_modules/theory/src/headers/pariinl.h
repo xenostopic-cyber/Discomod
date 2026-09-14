@@ -259,7 +259,11 @@ mkcomplex(GEN x, GEN y) { retmkcomplex(x,y); }
 INLINE GEN
 gen_I(void) { return mkcomplex(gen_0, gen_1); }
 INLINE GEN
-cgetc(long l) { retmkcomplex(cgetr(l), cgetr(l)); }
+cgetc(long prec)
+{
+  long l = nbits2lg(prec);
+  retmkcomplex(cgetg(l, t_REAL), cgetg(l, t_REAL));
+}
 INLINE GEN
 mkquad(GEN n, GEN x, GEN y) { GEN v = cgetg(4, t_QUAD);
   gel(v,1) = n; gel(v,2) = x; gel(v,3) = y; return v; }
@@ -1497,7 +1501,7 @@ gtofp(GEN z, long prec)
       if (isintzero(a)) {
         GEN y = cgetg(3, t_COMPLEX);
         b = cxcompotor(b, prec);
-        gel(y,1) = real_0_bit(expo(b) - prec);
+        gel(y,1) = real_0_expo(expo(b) - prec);
         gel(y,2) = b; return y;
       }
       return cxtofp(z, prec);
@@ -1585,14 +1589,13 @@ affc_fixlg(GEN x, GEN res)
   {
     affrr_fixlg(gel(x,1), gel(res,1));
     affrr_fixlg(gel(x,2), gel(res,2));
+    return res;
   }
   else
   {
     set_avma((pari_sp)(res+3));
-    res = cgetr(realprec(gel(res,1)));
-    affrr_fixlg(x, res);
+    return rtor_lg(x, lg(gel(res,1)));
   }
-  return res;
 }
 
 INLINE GEN
@@ -1636,26 +1639,30 @@ INLINE long
 nchar2nlong(long x) {
   return (long)(((ulong)x+sizeof(long)-1) >> (TWOPOTBITS_IN_LONG-3L));
 }
+
+/* convert an lg to a bit accuracy */
 INLINE long
-prec2nbits(long x) { return x; }
+bit_accuracy(long l) { return (l-2) * BITS_IN_LONG; }
 INLINE double
-bit_accuracy_mul(long x, double y) { return (x-2) * (BITS_IN_LONG*y); }
-INLINE double
-prec2nbits_mul(long x, double y) { return x * y; }
-INLINE long
-bit_prec(GEN x) { return realprec(x); }
-INLINE long
-bit_accuracy(long x) { return (x-2) * BITS_IN_LONG; }
+bit_accuracy_mul(long l, double y) { return (l-2) * (BITS_IN_LONG*y); }
 INLINE long
 prec2ndec(long x) { return (long)(x * LOG10_2); }
-INLINE long
-nbits2ndec(long x) { return prec2ndec(x); }
 INLINE long
 precdbl(long x) {return x << 1;}
 INLINE long
 divsBIL(long n) { return n >> TWOPOTBITS_IN_LONG; }
 INLINE long
 remsBIL(long n) { return n & (BITS_IN_LONG-1); }
+
+/* compatibility, to be deprecated */
+INLINE long
+prec2nbits(long x) { return x; }
+INLINE double
+prec2nbits_mul(long x, double y) { return x * y; }
+INLINE long
+bit_prec(GEN x) { return realprec(x); }
+INLINE long
+nbits2ndec(long x) { return prec2ndec(x); }
 
 /*********************************************************************/
 /**                                                                 **/
@@ -2056,7 +2063,7 @@ qfb_is_qfi(GEN q) { return signe(gel(q,4)) < 0; }
 INLINE GEN
 sqrtr(GEN x) {
   long s = signe(x);
-  if (s == 0) return real_0_bit(expo(x) >> 1);
+  if (s == 0) return real_0_expo(expo(x) >> 1);
   if (s >= 0) return sqrtr_abs(x);
   retmkcomplex(gen_0, sqrtr_abs(x));
 }
@@ -2066,7 +2073,7 @@ INLINE GEN
 cbrtr(GEN x) {
   long s = signe(x);
   GEN r;
-  if (s == 0) return real_0_bit(expo(x) / 3);
+  if (s == 0) return real_0_expo(expo(x) / 3);
   r = cbrtr_abs(x);
   if (s < 0) togglesign(r);
   return r;
@@ -2075,7 +2082,7 @@ INLINE GEN
 sqrtnr(GEN x, long n) {
   long s = signe(x);
   GEN r;
-  if (s == 0) return real_0_bit(expo(x) / n);
+  if (s == 0) return real_0_expo(expo(x) / n);
   r = sqrtnr_abs(x, n);
   if (s < 0) pari_err_IMPL("sqrtnr for x < 0");
   return r;

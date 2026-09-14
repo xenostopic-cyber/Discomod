@@ -362,7 +362,7 @@ CplxModulus(GEN data, long *newprec)
   {
     GEN cpl, pol = AllStark(data, 1, dprec);
     cpl = RgX_fpnorml2(pol, LOWDEFAULTPREC);
-    dprec = maxss(dprec, nbits2extraprec(gexpo(pol))) + EXTRAPREC64;
+    dprec = maxss(dprec, nbits2prec(gexpo(pol))) + EXTRAPREC64;
     if (!gequal0(cpl)) { *newprec = dprec; return gexpo(cpl); }
     set_avma(av);
     if (DEBUGLEVEL>1) pari_warn(warnprec, "CplxModulus", dprec);
@@ -1337,10 +1337,15 @@ ppgamma(ST_t *T, long prec)
   T->bij = bij = cgetg(i0+1, t_VEC);
   for (i = 1; i <= i0; i++)
   {
-    GEN p1, p2;
-    gel(aij,i) = p1 = cgetg(r+1, t_VEC);
-    gel(bij,i) = p2 = cgetg(r+1, t_VEC);
-    for (j=1; j<=r; j++) { gel(p1,j) = cgetr(prec); gel(p2,j) = cgetr(prec); }
+    long l = prec2lg(prec);
+    GEN a, b;
+    gel(aij,i) = a = cgetg(r+1, t_VEC);
+    gel(bij,i) = b = cgetg(r+1, t_VEC);
+    for (j=1; j<=r; j++)
+    {
+      gel(a,j) = cgetg(l, t_REAL);
+      gel(b,j) = cgetg(l, t_REAL);
+    }
   }
   av = avma; x = pol_x(0);
   sqpi = sqrtr_abs(mppi(prec)); /* Gamma(1/2) */
@@ -1499,8 +1504,7 @@ RecCoeff3(GEN nf, RC_data *d, long prec)
   Bd  = grndtoi(gmin_shallow(B, tB), &e);
   if (e > 0) return NULL; /* failure */
   Bd = addiu(Bd, 1);
-  prec2 = nbits2prec( expi(Bd) + 192 );
-  prec2 = maxss(precdbl(prec), prec2);
+  prec2 = maxss(prec << 1, nbits2prec(expi(Bd) + 192));
   B2 = sqri(Bd);
   C2 = shifti(B2, BIG<<1);
 
@@ -1773,7 +1777,7 @@ static void
 QuadGetST(GEN bnr, GEN *pS, GEN *pT, GEN CR, long prec)
 {
   pari_sp av, av1, av2;
-  long ncond, n, j, k, n0;
+  long ncond, n, j, k, n0, r1 = nf_get_r1(bnr_get_nf(bnr));
   GEN vChar = gel(CR,1), dataCR = gel(CR,2), S, T, an, cs, N0, C;
   LISTray LIST;
 
@@ -1863,8 +1867,16 @@ QuadGetST(GEN bnr, GEN *pS, GEN *pT, GEN CR, long prec)
           t = gadd(t, gmul(an, gel(vf1,n)));
           if (++c == 256) { (void)gc_all(av2,2, &s,&t); c = 0; }
         }
-      affgc(gmul(cf0, s), gel(S,u));
-      affgc(gmul(cf1, conj_i(t)), gel(T,u));
+      if (r1 == 2)
+      {
+        affgc(gmul(cf0, s), gel(S,u));
+        affgc(gmul(cf1, conj_i(t)), gel(T,u));
+      }
+      else
+      {
+        affgc(conj_i(gmul(cf0, s)), gel(T,u));
+        affgc(gmul(conj_i(cf1), t), gel(S,u));
+      }
       FreeMat(matan,NN); set_avma(av2);
     }
     if (DEBUGLEVEL>1) err_printf("\n");
@@ -1961,7 +1973,7 @@ get_cS_cT(ST_t *T, long n)
 
 /* set lg to 2 for "unused" entry */
 static GEN
-_cgetr(long prec) { GEN z = cgetr(prec); setlg(z,2); return z; }
+cgetr_lg(long l) { GEN z = cgetg(l, t_REAL); setlg(z,2); return z; }
 static void
 init_cScT(ST_t *T, GEN dtcr, long N, long prec)
 {
@@ -2078,8 +2090,8 @@ GetST0(GEN bnr, GEN *pS, GEN *pT, GEN CR, long prec)
   cScT.cT = cgetg(n0+1, t_VEC);
   for (j=1; j<=n0; j++)
   {
-    gel(cScT.cS,j) = _cgetr(prec2);
-    gel(cScT.cT,j) = _cgetr(prec2);
+    gel(cScT.cS,j) = cgetr_lg(cScT.lgprec);
+    gel(cScT.cT,j) = cgetr_lg(cScT.lgprec);
   }
 
   av1 = avma;
@@ -2332,13 +2344,12 @@ LABDOUB:
   }
   if (!polrel) /* FAILED */
   {
-    const long EXTRA_BITS = 64;
     long incr_pr;
     if (++cpt >= 3) pari_err_PREC( "stark (computation impossible)");
     /* estimate needed precision */
     incr_pr = gprecision(polrelnum) - gexpo(polrelnum);
-    if (incr_pr < 0) incr_pr = -incr_pr + EXTRA_BITS;
-    newprec += nbits2extraprec(maxss(3*EXTRA_BITS, cpt*incr_pr));
+    if (incr_pr < 0) incr_pr = -incr_pr + EXTRAPREC64;
+    newprec = nbits2prec(newprec + maxss(3*EXTRAPREC64, cpt*incr_pr));
     if (DEBUGLEVEL) pari_warn(warnprec, "AllStark", newprec);
     CharNewPrec(data, newprec);
     nf = bnr_get_nf(ch_bnr(gel(dataCR,1)));
@@ -2925,7 +2936,7 @@ quadhilbertimag(GEN D)
     P = grndtoi(P,&exmax);
     if (DEBUGLEVEL>1) timer_printf(&ti,"product, error bits = %ld",exmax);
     if (exmax <= -10) break;
-    set_avma(av0); prec += nbits2extraprec(DEFAULTPREC + exmax);
+    set_avma(av0); prec = nbits2prec(prec + EXTRAPREC64 + exmax);
     if (DEBUGLEVEL) pari_warn(warnprec,"quadhilbertimag",prec);
   }
   return P;

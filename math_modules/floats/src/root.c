@@ -304,7 +304,7 @@ mpfr_rootn_si (mpfr_ptr y, mpfr_srcptr x, long k, mpfr_rnd_t rnd_mode)
   MPFR_SAVE_EXPO_DECL (expo);
 
   MPFR_LOG_FUNC
-    (("x[%Pd]=%.*Rg k=%lu rnd=%d",
+    (("x[%Pd]=%.*Rg k=%ld rnd=%d",
       mpfr_get_prec (x), mpfr_log_prec, x, k, rnd_mode),
      ("y[%Pd]=%.*Rg", mpfr_get_prec (y), mpfr_log_prec, y));
 
@@ -402,23 +402,22 @@ mpfr_rootn_si (mpfr_ptr y, mpfr_srcptr x, long k, mpfr_rnd_t rnd_mode)
     MPFR_ZIV_INIT (loop, Nt);
     for (;;)
       {
+        unsigned int inex2;
+
         /* Compute the root before the division, in particular to avoid
            overflows and underflows.
            Moreover, midpoints are impossible. And an exact case implies
-           that |x| is a power of 2; such a case is not the most common
-           one, so that we detect it only after MPFR_CAN_ROUND. */
-
-        /* Let's use MPFR_RNDF to avoid the potentially costly detection
-           of exact cases in mpfr_rootn_ui (we just lose one bit in the
-           final approximation). */
-        mpfr_rootn_ui (t, x, - (unsigned long) k, MPFR_RNDF);
-        inexact = mpfr_ui_div (t, 1, t, rnd_mode);
+           that both x and the result are powers of 2 in magnitude.
+           So such a case occurs if and only if the whole computation is
+           exact. */
+        inex2 = mpfr_rootn_ui (t, x, - (unsigned long) k, MPFR_RNDN);
+        inex2 |= mpfr_ui_div (t, 1, t, rnd_mode);
 
         /* The final error is bounded by 5 ulp (see algorithms.tex,
            "Generic error of inverse"), which is <= 2^3 ulp. */
         MPFR_ASSERTD (! MPFR_IS_SINGULAR (t));
-        if (MPFR_LIKELY (MPFR_CAN_ROUND (t, Nt - 3, Ny, rnd_mode) ||
-                         (inexact == 0 && mpfr_powerof2_raw (x))))
+        if (MPFR_LIKELY (inex2 == 0 /* exact */ ||
+                         MPFR_CAN_ROUND (t, Nt - 3, Ny, rnd_mode)))
           break;
 
         MPFR_ZIV_NEXT (loop, Nt);

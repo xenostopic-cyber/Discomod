@@ -2,6 +2,10 @@
 
 #include <omp.h>       /* Include OpenMP headers */
 
+#ifndef ENABLE_TLS
+#error "this example requires Configure --enable-tls or --mt=ptread"
+#endif
+
 #define MAXTHREADS 3  /* Max number of parallel threads */
 
 int

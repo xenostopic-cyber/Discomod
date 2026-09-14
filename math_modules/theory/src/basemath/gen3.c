@@ -144,49 +144,39 @@ precREAL(GEN x) { return signe(x) ? realprec(x): prec0(expo(x)); }
 static long
 precrealexact(GEN x, GEN y)
 {
-  long lx, ey = gexpo(y), ex, e;
+  long px, ey = gexpo(y), ex, e;
   if (ey == -(long)HIGHEXPOBIT) return precREAL(x);
-  ex = expo(x);
-  e = ey - ex;
+  ex = expo(x); e = ey - ex;
   if (!signe(x)) return prec0((e >= 0)? -e: ex);
-  lx = realprec(x);
-  return (e > 0)? lx + nbits2extraprec(e): lx;
+  px = realprec(x);
+  return (e > 0)? nbits2prec(px + e): px;
 }
 static long
 precCOMPLEX(GEN z)
 { /* ~ precision(|x| + |y|) */
   GEN x = gel(z,1), y = gel(z,2);
-  long e, ex, ey, lz, lx, ly;
+  long e, ex, ey, px, py;
+
   if (typ(x) != t_REAL) {
     if (typ(y) != t_REAL) return 0;
     return precrealexact(y, x);
   }
   if (typ(y) != t_REAL) return precrealexact(x, y);
   /* x, y are t_REALs, cf addrr_sign */
-  ex = expo(x);
-  ey = expo(y);
-  e = ey - ex;
+  ex = expo(x); ey = expo(y); e = ey - ex;
   if (!signe(x)) {
     if (!signe(y)) return prec0( minss(ex,ey) );
     if (e <= 0) return prec0(ex);
-    lz = nbits2prec(e);
-    ly = realprec(y); if (lz > ly) lz = ly;
-    return lz;
+    return minss(realprec(y), nbits2prec(e));
   }
   if (!signe(y)) {
     if (e >= 0) return prec0(ey);
-    lz = nbits2prec(-e);
-    lx = realprec(x); if (lz > lx) lz = lx;
-    return lz;
+    return minss(realprec(x), nbits2prec(-e));
   }
   if (e < 0) { swap(x, y); e = -e; }
-  lx = realprec(x);
-  ly = realprec(y);
-  if (e) {
-    long d = nbits2extraprec(e), l = ly-d;
-    return (l > lx)? lx + d: ly;
-  }
-  return minss(lx, ly);
+  px = realprec(x);
+  py = realprec(y);
+  return minss(py, e ? nbits2prec(px + e): px);
 }
 long
 precision(GEN z)
@@ -2659,7 +2649,7 @@ gcvtoi(GEN x, long *e)
   if (tx == t_REAL)
   {
     long ex = expo(x); if (ex < 0) { *e = ex; return gen_0; }
-    e1 = ex - bit_prec(x) + 1;
+    e1 = ex - realprec(x) + 1;
     y = mantissa2nr(x, e1);
     if (e1 <= 0) { pari_sp av = avma; e1 = expo(subri(x,y)); set_avma(av); }
     *e = e1; return y;

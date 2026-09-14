@@ -1,0 +1,11 @@
+{
+  "providers": {
+    "openai":   { "source": "openai", "api_style": "native" },
+    "claude":   { "source": "anthropic", "api_style": "native" },
+    "gemini":   { "source": "gemini", "api_style": "native" },
+    "groq":     { "source": "groq", "api_style": "native" },
+    "mistral":  { "source": "mistral", "api_style": "native" },
+    "grok":     { "source": "xai", "api_style": "native" },
+    "deepseek": { "source": "deepseek", "api_style": "openai-compatible" }
+  }
+}

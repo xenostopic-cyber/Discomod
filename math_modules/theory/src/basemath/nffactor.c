@@ -833,12 +833,26 @@ nf_root_bounds(GEN nf, GEN P)
 GEN
 nf_L2_bound(GEN nf, GEN den, GEN *pL)
 {
-  GEN M, L, prep, T = nf_get_pol(nf), tozk = nf_get_invzk(nf);
-  long prec = ZM_max_lg(tozk) + ZX_max_lg(T) + nbits2prec(degpol(T));
-  (void)initgaloisborne(nf, den? den: gen_1, prec, &L, &prep, NULL);
-  M = vandermondeinverse(L, RgX_gtofp(T,prec), den, prep);
+  GEN B, M, L, V, T = nf_get_pol(nf), tozk = nf_get_invzk(nf);
+  long r1, prec, n = degpol(T);
+
+  prec = bit_accuracy(ZM_max_lg(tozk)) + bit_accuracy(ZX_max_lg(T))
+         + nbits2prec(n);
+  (void)initgaloisborne(nf, den? den: gen_1, prec, &r1, &L, &V, NULL);
+  M = vandermondeinverse(L, RgX_gtofp(T,prec), den, V);
   if (pL) *pL = L;
-  return RgM_fpnorml2(RgM_mul(tozk,M), DEFAULTPREC);
+  M = RgM_mul(tozk, M); B = NULL;
+  if (r1 != n)
+  {
+    B = RgM_fpnorml2(r1? vecslice(M,r1+1,lg(L)-1): M, DEFAULTPREC);
+    B = gmul2n(B, 1);
+  }
+  if (r1 != 0)
+  {
+    GEN B1 = RgM_fpnorml2(r1 != n? vecslice(M,1,r1): M, DEFAULTPREC);
+    B = B? gadd(B, B1): B1;
+  }
+  return B;
 }
 
 /* sum_i L[i]^p */
@@ -2237,17 +2251,39 @@ rnffrobeniuslift(GEN nf, GEN P, GEN Tp, GEN p, GEN bound, GEN den, GEN iden, GEN
   return gdiv(QXQX_QXQ_mul(P, iden, T), L.topowden);
 }
 
-static GEN
-RgX_galconj_bound(GEN T, long prec)
+static long
+roots_up_to_conjugation(GEN L)
 {
-  GEN L = QX_complex_roots(T, prec);
-  GEN prep = vandermondeinverseinit(L);
-  GEN M = vandermondeinverse(L, RgX_gtofp(T, prec), gen_1, prep);
-  return gmul(matrixnorm(M, prec), gsupnorm(L, prec));
+  long i, j, r1 = 0, l = lg(L);
+  for (i = j = 1; i < l; i++)
+  {
+    gel(L,j++) = gel(L,i);
+    /* skip conjugate root */
+    if (typ(gel(L,i)) == t_COMPLEX) i++; else r1++;
+  }
+  setlg(L, j); return r1;
 }
 
 static GEN
-rnfgaloisconj_bound(GEN P, GEN z, GEN den, long prec)
+RgX_galconj_bound(GEN T, int real, long prec)
+{
+  GEN V, M, L = cleanroots(T, prec);
+  long r1;
+  T = RgX_gtofp(T, prec);
+  if (real)
+  {
+    r1 = roots_up_to_conjugation(L);
+    V = vandermondeinverseinit_real(L, r1);
+  }
+  else
+    V = vandermondeinverseinit(L);
+  M = vandermondeinverse(L, T, gen_1, V);
+  M = real? matrixnorm_real(M, r1, prec): matrixnorm(M, prec);
+  return gmul(M, gsupnorm(L, prec));
+}
+
+static GEN
+rnfgaloisconj_bound(GEN P, GEN z, long r1, GEN den, long prec)
 {
   pari_sp av = avma;
   long i, l = lg(z);
@@ -2255,7 +2291,7 @@ rnfgaloisconj_bound(GEN P, GEN z, GEN den, long prec)
   for (i = 1; i < l; i++)
   {
     GEN a = gabs(RgX_cxeval(den, gel(z,i), NULL),prec);
-    GEN b = RgX_galconj_bound(RgXY_cxevalx(P, gel(z,i), NULL), prec);
+    GEN b = RgX_galconj_bound(RgXY_cxevalx(P, gel(z,i), NULL), i <= r1, prec);
     s = gc_upto(av, gadd(s, gsqr(gmul(a,b))));
   }
   return gc_upto(av, ceil_safe(s));
@@ -2350,10 +2386,10 @@ rnfabelianconjgen_i(GEN nf, GEN P)
   P = RgX_nffix("rnfgaloisconj", T, P, 1);
   P = Q_remove_denom(P, &d);
   Pr = RgX_to_nfX(nf, P);
-  prec = DEFAULTPREC + nbits2extraprec(gexpo(Pr) * degpol(T));
+  prec = nbits2prec(DEFAULTPREC + gexpo(Pr) * degpol(T));
   nf = nfnewprec_shallow(nf, prec);
   den = nfX_disc(nf, P);
-  bnd = rnfgaloisconj_bound(P, nf_get_roots(nf), den, prec);
+  bnd = rnfgaloisconj_bound(P, nf_get_roots(nf), nf_get_r1(nf), den, prec);
   iden = QXQ_inv(den, T);
   den = nf_to_scalar_or_basis(nf, den);
   m = degpol(P); l = expu(m) + 1;

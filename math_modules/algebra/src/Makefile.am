@@ -970,15 +970,14 @@ base/digitseq/cl_asm_sparc64_.cc \
 base/digitseq/cl_asm_sparc_.cc
 
 base/digitseq/cl_asm.S: $(ASMFILES)
-	$(MKDIR_P) base/digitseq; cp $< $@
+	$(MKDIR_P) base/digitseq; cp $(srcdir)/base/digitseq/cl_asm_.cc $@
 
 MORE_ASMFILES = \
 polynomial/elem/cl_asm_GF2.cc \
 polynomial/elem/cl_asm_sparc_GF2.cc
 
-
 polynomial/elem/cl_asm_GF2.S: $(MORE_ASMFILES)
-	$(MKDIR_P) polynomial/elem; cp $< $@
+	$(MKDIR_P) polynomial/elem; cp $(srcdir)/polynomial/elem/cl_asm_GF2.cc $@
 
 EXTRA_DIST = $(ASMFILES) $(MORE_ASMFILES)
 

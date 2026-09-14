@@ -14,7 +14,7 @@ from scipy.interpolate import (
     approximate_taylor_polynomial, CubicHermiteSpline, pchip,
     PchipInterpolator, pchip_interpolate, Akima1DInterpolator, CubicSpline,
     make_interp_spline)
-from scipy._lib._testutils import _run_concurrent_barrier
+from scipy._lib._testutils import _run_concurrent_barrier, IS_WASM
 
 skip_xp_backends = pytest.mark.skip_xp_backends
 xfail_xp_backends = pytest.mark.xfail_xp_backends
@@ -321,6 +321,7 @@ class TestKrogh:
         with pytest.warns(UserWarning, match="40 degrees provided,"):
             KroghInterpolator(np.arange(40), np.ones(40))
 
+    @pytest.mark.xfail(IS_WASM, reason="cannot start new thread in Pyodide/WASM")
     def test_concurrency(self):
         P = KroghInterpolator(self.xs, self.ys)
 
@@ -336,9 +337,9 @@ class TestTaylor:
         with pytest.warns(DeprecationWarning, match="`approximate_taylor_polynomial`"):
             p = approximate_taylor_polynomial(np.exp, 0, degree, 1, 15)
         for i in range(degree+1):
-            assert_almost_equal(p(0),1)
+            assert np.isclose(p(0), 1, atol=0)
             p = p.deriv()
-        assert_almost_equal(p(0),0)
+        assert np.isclose(p(0), 0, atol=0)
 
 
 class TestBarycentric:
@@ -530,6 +531,7 @@ class TestBarycentric:
                            match="Interpolation points xi must be distinct."):
             BarycentricInterpolator(xis, ys)
 
+    @pytest.mark.xfail(IS_WASM, reason="cannot start new thread in Pyodide/WASM")
     def test_concurrency(self):
         P = BarycentricInterpolator(self.xs, self.ys)
 

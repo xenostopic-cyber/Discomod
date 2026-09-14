@@ -19,10 +19,10 @@ addhelp(addii,"test6")
 ?echo
 ?new
 ?does_not_exist
-?
+?*
 ?.
 ?\
-?2
+?1
 ?addii
 \t
 g()=0;

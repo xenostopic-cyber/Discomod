@@ -40,7 +40,7 @@ mycharinit(GEN C, long bit)
   GEN L, LVC, LE, LGA;
   long F = 0, i, j, lc = lg(C), prec;
 
-  bit += 64; prec = nbits2prec(bit);
+  bit += EXTRAPREC64; prec = nbits2prec(bit);
   L = cgetg(lc, t_VEC);
   LE = cgetg(lc, t_VECSMALL);
   LGA = cgetg(lc, t_VEC);
@@ -379,9 +379,11 @@ set_q_value(GEN sel, GEN s, GEN VCALL, long prec)
 {
   struct fun_q_t E;
   GEN al = m_al(sel), lq;
-  long md = get_modulus(VCALL), LD = DEFAULTPREC;
-  E.sel = sel; E.s = s; E.VCALL = VCALL, E.B = mulur(prec, mplog2(LD));
-  lq = gdiv(gsqrt(gdiv(gmulsg(md, E.B), Pi2n(1, LD)), LD), al);
+  long md = get_modulus(VCALL);
+  E.sel = sel; E.s = s; E.VCALL = VCALL;
+  /* FIXME: + EXTRAPREC64 shouldn't be necessary here */
+  E.B = mulur(prec + EXTRAPREC64, mplog2(DEFAULTPREC));
+  lq = gdiv(sqrtr_abs(divrr(mulur(md, E.B), Pi2n(1, DEFAULTPREC))), al);
   return findq((void*)&E, &fun_q, lq, prec);
 }
 

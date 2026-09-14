@@ -82,7 +82,7 @@ from sympy.utilities.iterables import iterable
 from sympy.utilities.exceptions import SymPyDeprecationWarning
 
 from sympy.testing.pytest import (
-    raises, warns_deprecated_sympy, warns, slow, tooslow, XFAIL
+    raises, warns_deprecated_sympy, warns, slow, tooslow
 )
 
 from sympy.abc import a, b, c, d, p, q, t, w, x, y, z, s
@@ -323,7 +323,6 @@ def test_Poly_rootof_extension_primitive_element():
     assert Poly(r1*y + r2, y, extension=True) == Poly(r1*y + r2, y, domain=K12)
 
 
-@XFAIL
 def test_Poly_rootof_same_symbol_issue_26808():
     # XXX: This fails because r1 contains x.
     r1 = rootof(x**3 + x + 3, 0)
@@ -3935,6 +3934,10 @@ def test_poly():
     assert poly(expr1).as_expr() == expr1.expand()
     expr2 = y*(y+1) + S(1)/3
     assert poly(expr2).as_expr() == expr2.expand()
+
+    # https://github.com/sympy/sympy/issues/25341
+    num = 2*x**2 - x*(x + 1) - (x + 1)**2/4
+    assert poly(num, x).as_expr() == num.expand()
 
 
 def test_keep_coeff():

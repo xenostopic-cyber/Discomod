@@ -33,11 +33,11 @@ Watkins 3.7 & 6.1
 c of infinity type (2,0)
 -591844/788369 + 205142/310529*I
 -104200/529593 - 185083/188773*I
-412230/435083 + 141948/443821*I
+412230/435083 + 276829/865546*I
 -1
 -1
 -1
-300863/829918 + 11851/12716*I
+300863/829918 + 931516/999507*I
 480891/768376 - 342287/438863*I
 -164008/165937 - 60802/399921*I
 1
@@ -142,4 +142,4 @@ bad inputs
   ***   at top-level: lfuncreate([gc,[1,0,0,0,I]~])
   ***                 ^-----------------------------
   *** lfuncreate: sorry, lfun for gchar with imaginary norm component is not yet implemented.
-Total time spent: 12299
+Total time spent: 11306

@@ -640,7 +640,7 @@ divrr(GEN x, GEN y)
 
   if (!sy) pari_err_INV("divrr",y);
   e = expo(x) - expo(y);
-  if (!sx) return real_0_bit(e);
+  if (!sx) return real_0_expo(e);
   if (sy<0) sx = -sx;
 
   lx=lg(x); ly=lg(y);
@@ -752,14 +752,15 @@ divri(GEN x, GEN y)
   GEN z;
 
   if (!s) pari_err_INV("divri",y);
-  if (!signe(x)) return real_0_bit(expo(x) - expi(y));
+  if (!signe(x)) return real_0_expo(expo(x) - expi(y));
   if (!is_bigint(y)) {
     GEN z = divru(x, y[2]);
     if (s < 0) togglesign(z);
     return z;
   }
+  if (Z_ispow2(y)) return shiftr(x, -expi(y)); /* important special case */
   lx = lg(x); z = cgetg(lx, t_REAL); av = avma;
-  affrr(divrr(x, itor(y, lg2prec(lx+1))), z);
+  affrr(divrr(x, itor_lg(y, lx + EXTRAPREC64 / BITS_IN_LONG)), z);
   return gc_const(av, z);
 }
 
@@ -2124,32 +2125,33 @@ sqrtu2_1(ulong *a) { return dblmantissa( sqrt(2. * a[0]) ); }
 GEN
 sqrtr_abs(GEN x)
 {
-  long l1, i, l = lg(x), ex = expo(x);
+  long ltrunc, i, l2, l = lg(x), ex = expo(x);
   GEN a, t, y = cgetg(l, t_REAL);
   pari_sp av, av0 = avma;
 
-  a = rtor(x, lg2prec(l+1));
-  t = cgetg(l+1, t_REAL);
-  if (ex & 1) { /* odd exponent */
+  l2 = l + EXTRAPREC64 / BITS_IN_LONG;
+  a = rtor_lg(x, l2);
+  t = cgetg(l2, t_REAL);
+  t[1] = evalsigne(1) | _evalexpo(0);
+  if (odd(ex)) {
     a[1] = evalsigne(1) | _evalexpo(1);
     t[2] = (long)sqrtu2((ulong*)a + 2);
-  } else { /* even exponent */
+  } else {
     a[1] = evalsigne(1) | _evalexpo(0);
     t[2] = (long)sqrtu2_1((ulong*)a + 2);
   }
-  t[1] = evalsigne(1) | _evalexpo(0);
-  for (i = 3; i <= l; i++) t[i] = 0;
+  for (i = 3; i < l2; i++) t[i] = 0;
 
   /* |x| = 2^(ex/2) a, t ~ sqrt(a) */
-  l--; l1 = 1; av = avma;
-  while (l1 < l) { /* let t := (t + a/t)/2 */
-    l1 <<= 1; if (l1 > l) l1 = l;
-    setlg(a, l1 + 2);
-    setlg(t, l1 + 2);
+  l--; ltrunc = 1; av = avma;
+  while (ltrunc < l) { /* let t := (t + a/t)/2 */
+    ltrunc <<= 1; if (ltrunc > l) ltrunc = l;
+    setlg(a, ltrunc + 2);
+    setlg(t, ltrunc + 2);
     affrr(addrr(t, divrr(a,t)), t); shiftr_inplace(t, -1);
     set_avma(av);
   }
-  affrr(t,y); shiftr_inplace(y, (ex>>1));
+  affrr(t,y); shiftr_inplace(y, ex >> 1);
   return gc_const(av0, y);
 }
 

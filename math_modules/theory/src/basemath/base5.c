@@ -1365,7 +1365,7 @@ zero_nfbezout(GEN nf,GEN bB, GEN b, GEN A,GEN B,GEN *u,GEN *v,GEN *w,GEN *di)
   *u = gen_0; return d;
 }
 
-/* Given elements a,b and ideals A, B, outputs d = a.A+b.B and gives
+/* Given elements a,b and ideals A, B in HNF, outputs d = a.A+b.B and gives
  * di=d^-1, w=A.B.di, u, v such that au+bv=1 and u in A.di, v in B.di.
  * Assume A, B nonzero, but a or b can be zero (not both) */
 static GEN
@@ -1382,7 +1382,7 @@ nfbezout(GEN nf,GEN a,GEN b, GEN A,GEN B, GEN *pu,GEN *pv,GEN *pw,GEN *pdi,
     a = nf_to_scalar_or_basis(nf,a);
     if (isint1(a)) a = gen_1;
   }
-  aA = (a == gen_1)? idealhnf_shallow(nf,A): idealmul(nf,a,A);
+  aA = (a == gen_1)? A: idealmul(nf,a,A);
   bB = idealmul(nf,b,B);
   d = idealadd(nf,aA,bB);
   if (gequal(aA, d)) return zero_nfbezout(nf,d, a,B,A,pv,pu,pw,pdi);
@@ -1436,6 +1436,13 @@ nfhnf0(GEN nf, GEN x, long flag)
   av = avma;
   A = RgM_to_nfM(nf,A);
   I = leafcopy(I);
+  for (i = 1; i <= n; i++)
+  {
+    GEN B = gel(I,i);
+    idealtyp(&B, NULL);
+    if (typ(B) != t_MAT) B = idealhnf_shallow(nf, B);
+    gel(I,i) = B;
+  }
   J = zerovec(n); def = n;
   for (i=m; i>idef; i--)
   {
@@ -1557,6 +1564,13 @@ nfsnf0(GEN nf, GEN x, long flag)
   }
   A = RgM_to_nfM(nf, A);
   I = leafcopy(I);
+  for (i = 1; i <= n; i++)
+  {
+    GEN B = gel(I,i);
+    idealtyp(&B, NULL);
+    if (typ(B) != t_MAT) B = idealhnf_shallow(nf, B);
+    gel(I,i) = B;
+  }
   J = leafcopy(J);
   for (i = 1; i <= n; i++) gel(J,i) = idealinv(nf, gel(J,i));
   z = zerovec(n);
@@ -1807,6 +1821,13 @@ nfhnfmod(GEN nf, GEN x, GEN D)
   A = RgM_to_nfM(nf, A);
   A = Q_remove_denom(A, &dA);
   I = Q_remove_denom(leafcopy(I), &dI);
+  for (i = 1; i < co; i++)
+  {
+    GEN B = gel(I,i);
+    idealtyp(&B, NULL);
+    if (typ(B) != t_MAT) B = idealhnf_shallow(nf, B);
+    gel(I,i) = B;
+  }
   dA = mul_denom(dA,dI);
   if (dA) D = ZM_Z_mul(D, powiu(dA, minss(li,co)));
 

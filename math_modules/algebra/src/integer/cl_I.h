@@ -613,7 +613,7 @@ inline sintD FN_MSD (cl_uint word)
     { var const cl_I& obj_from_I_to_NDS_nocopy = (obj);			\
       if (fixnump(obj_from_I_to_NDS_nocopy))				\
         { FN_to_NDS(arrayLSDptr(CONCAT(FN_store_,__LINE__),FN_maxlength), cl_FN_word(obj_from_I_to_NDS_nocopy), MSDptr_zuweisung,len_zuweisung,LSDptr_zuweisung, check_for_0,zero_statement); } \
-        else								\
+      else								\
         { BN_to_NDS_nocopy(obj_from_I_to_NDS_nocopy,MSDptr_zuweisung,len_zuweisung, LSDptr_zuweisung); } \
     }
 
@@ -627,7 +627,7 @@ inline sintD FN_MSD (cl_uint word)
     { var const cl_I& obj_from_I_to_NDS = (obj);			\
       if (fixnump(obj_from_I_to_NDS))					\
         { FN_to_NDS(arrayLSDptr(CONCAT(FN_store_,__LINE__),FN_maxlength), cl_FN_word(obj_from_I_to_NDS), MSDptr_zuweisung,len_zuweisung,LSDptr_zuweisung, true,); } \
-        else                                                              \
+      else                                                              \
         { BN_to_NDS(obj_from_I_to_NDS,MSDptr_zuweisung,len_zuweisung, LSDptr_zuweisung); } \
     }
 
@@ -642,7 +642,7 @@ inline sintD FN_MSD (cl_uint word)
     { var const cl_I& obj_from_I_to_NDS = (obj);			\
       if (fixnump(obj_from_I_to_NDS))					\
         { FN_to_NDS(arrayLSDptr(CONCAT(FN_store_,__LINE__),1+FN_maxlength), cl_FN_word(obj_from_I_to_NDS), MSDptr_zuweisung,len_zuweisung,LSDptr_zuweisung, true,); } \
-        else                                                              \
+      else                                                              \
         { BN_to_NDS_1(obj_from_I_to_NDS,MSDptr_zuweisung,len_zuweisung, LSDptr_zuweisung); } \
     }
 

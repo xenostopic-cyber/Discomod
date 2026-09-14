@@ -43,14 +43,15 @@ mfrom = mp.mfrom
 kfrom = mp.kfrom
 taufrom = mp.taufrom
 qbarfrom = mp.qbarfrom
+g2g3from = mp.g2g3from
+omega1omega2from = mp.omega1omega2from
 ellipfun = mp.ellipfun
 jtheta = mp.jtheta
 kleinj = mp.kleinj
+kleinjinv = mp.kleinjinv
 eta = mp.eta
 
 # Weierstrass elliptic functions
-weierinvariants = mp.weierinvariants
-weierhalfperiods = mp.weierhalfperiods
 weierp = mp.weierp
 weierpprime = mp.weierpprime
 weiersigma = mp.weiersigma
@@ -221,6 +222,7 @@ mertens = mp.mertens
 
 ldexp = mp.ldexp
 frexp = mp.frexp
+ulp = mp.ulp
 
 fsum = mp.fsum
 fdot = mp.fdot
@@ -450,6 +452,8 @@ trianglew = mp.trianglew
 sawtoothw = mp.sawtoothw
 unit_triangle = mp.unit_triangle
 sigmoid = mp.sigmoid
+fft = mp.fft
+invfft = mp.invfft
 
 
 # Hack to guard against setting module properties instead of 'mp', Issue #657

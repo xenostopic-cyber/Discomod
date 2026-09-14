@@ -132,21 +132,26 @@ vec_mulid(GEN nf, GEN x)
   v = cgetg(l, t_VEC);
   for (i = j = 1; i < l; i++)
   {
-    GEN m, d;
-    if (D && ZV_Z_dvd(gel(x,i), D)) l--;
-    gel(v,j++) = m = zk_multable(nf, gel(x,i));
+    GEN m, d, a = gel(x,i);
+    if (D && ZV_Z_dvd(a, D)) { l--; continue; }
+    gel(v,j++) = m = zk_multable(nf, a);
     d = zkmultable_capZ(m);
     D = D? gcdii(D, d): d;
     if (is_pm1(D)) return matid(lg(m)-1);
   }
-  setlg(v, l); if (l == 1) return cgetg(1, t_MAT);
+  setlg(v, j); if (j == 1) return cgetg(1, t_MAT);
   return ZM_hnfmodid(shallowconcat1(v), D);
 }
+
+static GEN
+nfV_to_ZM(GEN nf, GEN x)
+{ pari_APPLY_type(t_MAT, algtobasis(nf, gel(x,i))) }
+
 
 GEN
 nfV_idealhnf(GEN nf, GEN v, GEN *pden)
 {
-  GEN H = ZM_hnf(Q_remove_denom(matalgtobasis(nf, v), pden));
+  GEN H = ZM_hnf(Q_remove_denom(nfV_to_ZM(nf, v), pden));
   return vec_mulid(nf, H);
 }
 
@@ -185,9 +190,10 @@ idealhnf_shallow(GEN nf, GEN x)
       N = nf_get_degree(nf);
       if (nx == 0) return cgetg(1, t_MAT);
       if (nbrows(x) != N) pari_err_TYPE("idealhnf [wrong dimension]",x);
-      if (nx == 1) return idealhnf_principal(nf, gel(x,1));
+      if (nx == 1) return idealhnf_principal(nf, gel(x,1)); /* deprecated */
 
-      if (nx == N && RgM_is_ZM(x) && ZM_ishnf(x)) return x;
+      if (nx == N && RgM_is_QM(x) && QM_ishnf(x)) return x;
+      /* deprecated */
       x = Q_primitive_part(x, &cx);
       if (nx < N)
         x = vec_mulid(nf, x); /* build ZK-module generated from cols */
@@ -1822,7 +1828,11 @@ idealmulelt(GEN nf, GEN x, GEN A)
   if (lg(A) == 1) return cgetg(1, t_MAT);
   x = nf_to_scalar_or_basis(nf,x);
   if (typ(x) != t_COL)
-    return isintzero(x)? cgetg(1,t_MAT): RgM_Rg_mul(A, Q_abs_shallow(x));
+  {
+    if (isintzero(x)) return cgetg(1,t_MAT);
+    x = Q_abs_shallow(x);
+    return isint1(x)? gcopy(A): RgM_Rg_mul(A, x);
+  }
   x = Q_remove_denom(x, &dx);
   A = Q_remove_denom(A, &dA);
   x = zk_multable(nf, x);
@@ -2500,14 +2510,14 @@ err_divexact(GEN x, GEN y)
 { pari_err_DOMAIN("idealdivexact","denominator(x/y)", "!=",
                   gen_1,mkvec2(x,y)); }
 GEN
-idealdivexact(GEN nf, GEN x0, GEN y0)
+idealdivexact(GEN nf, GEN x, GEN y0)
 {
   pari_sp av = avma;
-  GEN x, y, xZ, yZ, Nx, Ny, Nz, cy, q, r;
+  GEN y = y0, xZ, yZ, Nx, Ny, Nz, cy, q, r;
 
   nf = checknf(nf);
-  x = idealhnf_shallow(nf, x0);
-  y = idealhnf_shallow(nf, y0);
+  idealtyp(&x, NULL); if (typ(x) != t_MAT) x = idealhnf_shallow(nf, x);
+  idealtyp(&y, NULL); if (typ(y) != t_MAT) y = idealhnf_shallow(nf, y);
   if (lg(y) == 1) pari_err_INV("idealdivexact", y0);
   if (lg(x) == 1) retgc_const(av, cgetg(1, t_MAT)); /* numerator is zero */
   y = Q_primitive_part(y, &cy);
@@ -2550,8 +2560,8 @@ idealintersect(GEN nf, GEN x, GEN y)
   GEN z, dx, dy;
 
   nf = checknf(nf);
-  x = idealhnf_shallow(nf,x);
-  y = idealhnf_shallow(nf,y);
+  idealtyp(&x, NULL); if (typ(x) != t_MAT) x = idealhnf_shallow(nf,x);
+  idealtyp(&y, NULL); if (typ(y) != t_MAT) y = idealhnf_shallow(nf,y);
   if (lg(x) == 1 || lg(y) == 1) retgc_const(av, cgetg(1, t_MAT));
   x = Q_remove_denom(x, &dx);
   y = Q_remove_denom(y, &dy);
@@ -3207,8 +3217,8 @@ idealtwoelt2(GEN nf, GEN x, GEN a)
   GEN cx, b;
 
   nf = checknf(nf);
+  idealtyp(&x, NULL); if (typ(x) != t_MAT) x = idealhnf_shallow(nf, x);
   a = nf_to_scalar_or_basis(nf, a);
-  x = idealhnf_shallow(nf,x);
   if (lg(x) == 1)
   {
     if (!isintzero(a)) not_in_ideal(a);

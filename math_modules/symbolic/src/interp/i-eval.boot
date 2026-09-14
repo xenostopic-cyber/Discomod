@@ -39,11 +39,17 @@ $genValue := false
 -- For use from compiled code
 
 quoteNontypeArgs(t) ==
+    STRINGP(t) => t
     t is [.] => t
     op := opOf t
-    loadIfNecessary op
     args := rest t
+    op = "Record" or isTaggedUnion(t) =>
+        [op, :[[":", ["QUOTE", n], quoteNontypeArgs(a)]
+               for [":", n, a] in args]]
+    op = "Union" or op = "Mapping" =>
+        [op, :[quoteNontypeArgs(a) for a in args]]
     cs := rest(get_database(op, 'COSIG))
+    op = "Enumeration" => [op, :[["QUOTE", a] for a in args]]
     nargs := [if c then quoteNontypeArgs(a) else ["QUOTE", a]
                 for a in args for c in cs]
     [op, :nargs]
@@ -69,7 +75,6 @@ mkEvalable form ==
     op="Union"  => mkEvalableUnion  form
     op="Mapping"=> mkEvalableMapping form
     op="Enumeration" => form
-    loadIfNecessary op
     kind := get_database(op, 'CONSTRUCTORKIND)
     cosig := get_database(op, 'COSIG) =>
       [op,:[val for x in argl for typeFlag in rest cosig]] where val ==

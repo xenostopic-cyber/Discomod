@@ -36,12 +36,14 @@ $printLoadMsgs := false
 $spadLibFT := '"NRLIB"
 $LISPLIB := false
 $libFile := nil
+$no_lisp_compile := false
 
 $lisplibForm := nil
 $lisplibKind := nil
 $lisplibModemapAlist := []
 $lisplibModemap := nil
 $lisplibOperationAlist := []
+$lisplibMissingFunctions := []
 
 --% Standard Library Creation Functions
 
@@ -80,33 +82,12 @@ loadLibNoUpdate1(cname, fullLibName) ==
     say_msg("S2IL0002", '"Loading %1 for %2 %3b", [fullLibName, kind, cname])
   load_quietly(fullLibName)
   clearConstructorCache cname
-  installConstructor(cname)
   MAKEPROP(cname,'LOADED,fullLibName)
 
 loadLibNoUpdate(cname, fullLibName) ==
     startTimingProcess 'load
     loadLibNoUpdate1(cname, fullLibName)
     stopTimingProcess 'load
-
-loadIfNecessary u == loadLibIfNecessary(u,true)
-
-loadIfNecessaryAndExists u == loadLibIfNecessary(u,nil)
-
-loadLibIfNecessary(u,mustExist) ==
-  u = '$EmptyMode => u
-  null atom u => loadLibIfNecessary(first u,mustExist)
-  value:=
-    functionp(u) or macrop(u) => u
-    GET(u, 'LOADED) => u
-    loadLib u => u
-  null $InteractiveMode and ((null (y:= getProplist(u,$CategoryFrame)))
-    or (null LASSOC('isFunctor,y)) and (null LASSOC('isCategory,y))) =>
-      y:= get_database(u, 'CONSTRUCTORKIND) =>
-         y = 'category =>
-            updateCategoryFrameForCategory u
-         updateCategoryFrameForConstructor u
-      throw_msg("S2IL0005", '"%1bp is not a known type.", [u])
-  value
 
 convertOpAlist2compilerInfo(opalist) ==
    "append"/[[formatSig(op,sig) for sig in siglist]
@@ -124,14 +105,6 @@ updateCategoryFrameForConstructor(constructor) ==
        convertOpAlist2compilerInfo(opAlist),
        addModemap(constructor, dc, sig, pred, impl,
            put(constructor, 'mode, ['Mapping,:sig], $CategoryFrame)))
-
-updateCategoryFrameForCategory(category) ==
-   di := get_database(category, 'CONSTRUCTORMODEMAP)
-   if di then
-       [[dc,:sig],[pred,impl]] := di
-       $CategoryFrame :=
-           addModemap(category, dc, sig, pred, impl, $CategoryFrame)
-   $CategoryFrame := put(category, 'isCategory, 'T, $CategoryFrame)
 
 loadFunctor u ==
   null atom u => loadFunctor first u
@@ -196,13 +169,14 @@ compDefineLisplib(df:=["DEF",[op,:.],:.],m,e,prefix,fal,fn) ==
       PROGN(if $compiler_output_stream then CLOSE($compiler_output_stream),
             kaf_close($libFile)))
   lisplibDoRename(name)
-  compile_lib(make_filename2(name, $spadLibFT))
+  if not($no_lisp_compile) then
+      compile_lib(make_filename2(name, $spadLibFT))
   FRESH_-LINE(get_algebra_stream())
   sayMSG(filler_chars(72, '"-"))
-  merge_info_from_objects([get_database(op, 'ABBREVIATION)], [], false)
-  if $lisplibKind = 'category
-    then updateCategoryFrameForCategory op
-     else updateCategoryFrameForConstructor op
+  if $bootstrap_db then
+      merge_constructor_info()
+  else
+      merge_info_from_objects([get_database(op, 'ABBREVIATION)], [], false)
   res
 
 initializeLisplib libName ==
@@ -264,7 +238,7 @@ getFunctorOps(form) ==
 transformOperationAlist operationAlist ==
   --  this transforms the operationAlist which is written out onto LISPLIBs.
   --  The original form of this list is a list of items of the form:
-  --        ((<op> <signature>) (<condition> (ELT $ n)))
+  --        ((<op> <signature>) <condition> (ELT $ n))
   --  The new form is an op-Alist which has entries (<op> . signature-Alist)
   --      where signature-Alist has entries (<signature> . item)
   --        where item has form (<slotNumber> <condition> <kind>)
@@ -272,7 +246,7 @@ transformOperationAlist operationAlist ==
   --             NIL  => function
   --             CONST => constant ... and others
   newAlist:= nil
-  for [[op,sig,:.],condition,implementation] in operationAlist repeat
+  for [[op, sig], condition, implementation] in operationAlist repeat
     kind:=
       implementation is [eltEtc,.,n] and eltEtc in '(CONST ELT) => eltEtc
       implementation is [impOp,:.] =>
@@ -343,18 +317,18 @@ isDomainConstructorForm(D,e) ==
     u is [.,["Mapping",target,:.],:.] and
       isCategoryForm(EQSUBSTLIST(argl, $FormalMapVariableList, target))
 
-isFunctor x ==
-  op:= opOf x
-  not IDENTP op => false
-  $InteractiveMode =>
-    MEMQ(op,'(Union SubDomain Mapping Record)) => true
-    MEMQ(get_database(op, 'CONSTRUCTORKIND),'(domain package))
-  u:= get(op,'isFunctor,$CategoryFrame)
-    or MEMQ(op,'(SubDomain Union Record)) => u
-  constructor? op =>
-    prop := get(op,'isFunctor,$CategoryFrame) => prop
-    if get_database(op, 'CONSTRUCTORKIND) = 'category
-      then updateCategoryFrameForCategory op
-      else updateCategoryFrameForConstructor op
-    get(op,'isFunctor,$CategoryFrame)
-  nil
+-- getOperationAlist in modemap.boot and previously funfind in trace.boot
+-- depend on return value, otherwise it is treated as a boolean.
+isFunctor(x) ==
+    op := opOf(x)
+    not(IDENTP(op)) => false
+    -- logically wrong, but the compiler expects this
+    op = "Mapping" => false
+    MEMQ(op, '(Record SubDomain Union)) => true
+    $InteractiveMode =>
+        MEMQ(get_database(op, 'CONSTRUCTORKIND), '(domain package))
+    not(MEMQ(get_database(op, 'CONSTRUCTORKIND), '(domain package))) => false
+    u := get(op,'isFunctor,$CategoryFrame) => u
+    updateCategoryFrameForConstructor(op)
+    get(op, 'isFunctor, $CategoryFrame)
+

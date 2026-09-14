@@ -35,7 +35,7 @@ bnfinit(x^4+2*x^2+5),
 Z(2),
 \\25
 lfunqf(matid(4)),
-lfunqf(matdiagonal([1,2,3,4])),
+lfunqf([1,2,3,4]),
 lfunartin(N,G,[2,0,-y^3-y^2-1,y^3+y^2],5),
 lfunartin(N,G,[['a,0;0,'a^4],[0,1;1,0]],5),
   if(1,my(E1=ellinit([0,0,1,-1,0]),E2=ellinit([0,1,1,-23,-50]));

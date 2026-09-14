@@ -166,24 +166,31 @@ print_fun_list(char **list, long nbli)
 }
 
 static const char *help_sections[] = {
-  "user-defined functions (aliases, installed and user functions)",
-  "PROGRAMMING under GP",
-  "Standard monadic or dyadic OPERATORS",
-  "CONVERSIONS and similar elementary functions",
-  "functions related to COMBINATORICS",
+  "User-defined functions (aliases, installed and user functions)",
+  "Programming in GP: control statements",
+  "Programming in GP: other specific functions",
+  "Parallel programming in GP",
+  "GRAPHIC functions",
+  "Extra OPERATORS",
+  "CONVERSIONS, extracting information",
+  "COMBINATORICS",
   "basic NUMBER THEORY",
+  "(Z/NZ)^* and abelian CHARACTERS",
   "POLYNOMIALS and power series",
-  "Vectors, matrices, LINEAR ALGEBRA and sets",
+  "LINEAR ALGEBRA, vectors and sets",
   "TRANSCENDENTAL functions",
-  "SUMS, products, integrals and similar functions",
+  "SUMS, products, integrals",
+  "QUADRATIC fields and binary quadratic forms",
   "General NUMBER FIELDS",
+  "GALOIS theory and class field theory",
+  "RELATIVE number field extensions and Z_K-modules",
   "Associative and central simple ALGEBRAS",
-  "ELLIPTIC and HYPERELLIPTIC curves",
+  "ELLIPTIC curves",
+  "HYPERELLIPTIC curves",
   "L-FUNCTIONS",
   "HYPERGEOMETRIC MOTIVES",
   "MODULAR FORMS",
   "MODULAR SYMBOLS",
-  "GRAPHIC functions"
 };
 
 static const long MAX_SECTION = numberof(help_sections) - 1;
@@ -197,7 +204,7 @@ commands(long n)
   pari_stack s_L;
 
   pari_stack_init(&s_L, sizeof(*t_L), (void**)&t_L);
-  for (i = 0; i < functions_tblsz; i++)
+  for (i = 0; i <= functions_hash_MASK; i++)
     for (ep = functions_hash[i]; ep; ep = ep->next)
     {
       long m;
@@ -232,25 +239,26 @@ pari_center(const char *s)
   pari_puts(buf); set_avma(av);
 }
 
+static const char *
+pari_docdir(void)
+{
+#if defined(_WIN32)
+  /* the documentation on windows is not in datadir */
+  if (paricfg_datadir[0]=='@' && paricfg_datadir[1]==0) return win32_basedir();
+#endif
+  return pari_datadir;
+}
+
 static void
 community(void)
 {
-  const char *pari_docdir;
-#if defined(_WIN32)
-  /* for some reason, the documentation on windows is not in datadir */
-  if (paricfg_datadir[0]=='@' && paricfg_datadir[1]==0)
-    pari_docdir = win32_basedir();
-  else
-#endif
-    pari_docdir = pari_datadir;
-
   print_text("The PARI/GP distribution includes a reference manual, a \
 tutorial, a reference card and quite a few examples. They have been installed \
 in the directory ");
   pari_puts("  ");
-  pari_puts(pari_docdir);
+  pari_puts(pari_docdir());
   pari_puts("\nYou can also download them from http://pari.math.u-bordeaux.fr/.\
-\n\nThree mailing lists are devoted to PARI:\n\
+\n\nThree mailing lists are devoted to PARI/GP:\n\
   - pari-announce (moderated) to announce major version changes.\n\
   - pari-dev for everything related to the development of PARI, including\n\
     suggestions, technical questions, bug reports and patch submissions.\n\
@@ -292,24 +300,50 @@ gentypes(void)
 }
 
 static void
+topics_list(void)
+{
+  long i;
+  pari_puts("PARI/GP functions sorted by topic: type ?n for n in\n\n");
+  for (i = 0; i <= MAX_SECTION; i++)
+    pari_printf("  %2ld: %s\n", i, help_sections[i]);
+  if (has_ext_help())
+    pari_puts("\nA double question question mark ??n prints a short introduction.\n");
+  pari_puts("\nYou may also be interested in\n");
+  pari_printf("  %2lu: The PARI community\n", i);
+
+}
+
+static void
 menu_commands(void)
 {
-  ulong i;
-  pari_puts("Help topics: for a list of relevant subtopics, type ?n for n in\n");
-  for (i = 0; i <= MAX_SECTION; i++)
-    pari_printf("  %2lu: %s\n", i, help_sections[i]);
-  pari_printf("  %2lu: The PARI community\n", i);
-  pari_puts("Also:\n\
-  ? functionname (short on-line help)\n\
-  ?\\             (keyboard shortcuts)\n\
-  ?.             (member functions)\n");
+  pari_puts(
+"The gp calculator accepts input in the GP language, as well as metacommands\n\
+starting with \\ or ?. Use z = val to assign a value to a variable. GP has\n\
+unary and binary operators, among them\n\
+  +, -, *, /, %, ^, <<, >>,    (arithmetic)\n\
+  &&, ||, !,                   (boolean)\n\
+  ==, !=, ===, <, >, <=, >=    (comparison)\n\
+and compound assignments such as +=. The statement separator is the\n\
+semicolon ';'. In addition, a semicolon prevents output when it ends a line.\
+\n\nFURTHER HELP ON PARI FUNCTIONS: type ? *\n\n");
+  print_text("The PARI/GP distribution includes a reference manual, a \
+tutorial, a reference card and quite a few examples. They have been installed \
+in the directory ");
+  pari_puts("  ");
+  pari_puts(pari_docdir());
+  pari_puts("\nYou can also find them at http://pari.math.u-bordeaux.fr/.\n\n");
+  pari_puts("See also\n\
+  ? functionname  (short help for that function)\n\
+  ? .             (member functions)\n\
+  ? \\             (keyboard shortcuts)\n");
   if (has_ext_help()) pari_puts("\
-Extended help (if available):\n\
-  ??             (opens the full user's manual in a dvi previewer)\n\
+Extended help:\n\
+  ??             (opens the full user's manual in a previewer)\n\
+  ??  readline   (line editing in the calculator)\n\
   ??  tutorial / refcard / libpari (tutorial/reference card/libpari manual)\n\
-  ??  refcard-ell (or -lfun/-mf/-nf: specialized reference card)\n\
+  ??  refcard-nf (or -ell/-lfun/-mf: specialized reference cards)\n\
   ??  keyword    (long help text about \"keyword\" from the user's manual)\n\
-  ??? keyword    (a propos: list of related functions).");
+  ??? keyword    (a propos: list of related functions).\n");
 }
 
 static void
@@ -320,13 +354,13 @@ slash_commands(void)
 \\\\      : comment up to end of line\n\
 \\a {n}  : print result in raw format (readable by PARI)\n\
 \\B {n}  : print result in beautified format\n\
-\\c      : list all commands (same effect as ?*)\n\
+\\c      : list all builtin functions\n\
 \\d      : print all defaults\n\
 \\e {n}  : enable/disable echo (set echo=n)\n\
 \\g {n}  : set debugging level\n\
 \\gf{n}  : set file debugging level\n\
 \\gm{n}  : set memory debugging level\n\
-\\h {m-n}: hashtable information\n\
+\\h {m-n}: information on parser hashtables\n\
 \\l {f}  : enable/disable logfile (set logfile=f)\n\
 \\m {n}  : print result in prettymatrix format\n\
 \\o {n}  : set output method (0=raw, 1=prettymatrix, 2=prettyprint, 3=2-dim)\n\
@@ -610,7 +644,7 @@ help(const char *s0, int flag)
   if (long_help && (n = ok_external_help(&s))) { external_help(s,n); return; }
   switch (*s)
   {
-    case '*' : commands(-1); return;
+    case '*' : topics_list(); return;
     case '\0': menu_commands(); return;
     case '\\': slash_commands(); return;
     case '.' : member_commands(); return;
@@ -1842,13 +1876,13 @@ cmp_epname(void *E, GEN e, GEN f)
 /* if fun is set print only closures, else only non-closures
  * if member is set print only member functions, else only non-members */
 static void
-print_all_user_obj(int fun, int member)
+print_all_user_obj(int fun, int member, ulong mask)
 {
   pari_sp av = avma;
   long i, iL = 0, lL = 1024;
   GEN L = cgetg(lL+1, t_VECSMALL);
   entree *ep;
-  for (i = 0; i < functions_tblsz; i++)
+  for (i = 0; i <= (long)mask; i++)
     for (ep = functions_hash[i]; ep; ep = ep->next)
       if (EpVALENCE(ep) == EpVAR && fun == (typ((GEN)ep->value) == t_CLOSURE))
       {
@@ -1968,7 +2002,26 @@ escape(const char *tch, int ismain)
         }
         (void)sd_debug(*s? s: NULL,d_ACKNOWLEDGE); break;
       break;
-    case 'h': print_functions_hash(s); break;
+    case 'h':
+      if (!isdigit(*s) && is_keyword_char(*s))
+      {
+        entree *ep;
+        if ((ep = is_entry(s)))
+        {
+          pari_puts("IDENTIFIERS.\n");
+          print_ep_single(ep, functions_hash_MASK);
+        }
+        if ((ep = pari_is_default(s)))
+        {
+          pari_puts("DEFAULTS.\n");
+          print_ep_single(ep, defaults_hash_MASK);
+        }
+        return;
+      }
+      pari_puts("IDENTIFIERS.\n");
+      print_ep_hash(s, functions_hash, functions_hash_MASK);
+      pari_puts("DEFAULTS.\n");
+      print_ep_hash(s, defaults_hash, defaults_hash_MASK); break;
     case 'l':
       s = get_name(s);
       if (*s)
@@ -2018,12 +2071,12 @@ escape(const char *tch, int ismain)
       {
         case 'v':
           if (*++s) break;
-          print_all_user_obj(0, 0); return;
+          print_all_user_obj(0, 0, functions_hash_MASK); return;
         case 'm':
           if (*++s) break;
-          print_all_user_obj(1, 1); return;
+          print_all_user_obj(1, 1, functions_hash_MASK); return;
         case '\0':
-          print_all_user_obj(1, 0); return;
+          print_all_user_obj(1, 0, functions_hash_MASK); return;
       }
       pari_err(e_SYNTAX,"unexpected character", s,tch-1); break;
     case 'v':

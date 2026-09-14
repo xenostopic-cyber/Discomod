@@ -675,37 +675,37 @@ gprec(GEN x, long d)
 
 /* not GC-safe */
 GEN
-gprec_w(GEN x, long pr)
+gprec_w(GEN x, long prec)
 {
   switch(typ(x))
   {
     case t_REAL:
-      if (signe(x)) return realprec(x) != pr? rtor(x,pr): x;
-      return real_0_bit(minss(-prec2nbits(pr), expo(x)));
+      if (signe(x)) return realprec(x) != prec? rtor(x,prec): x;
+      return real_0_expo(minss(-prec, expo(x)));
     case t_COMPLEX:
-      retmkcomplex(gprec_w(gel(x,1),pr), gprec_w(gel(x,2),pr));
-    case t_POL: pari_APPLY_pol_normalized(gprec_w(gel(x,i),pr));
-    case t_SER: pari_APPLY_ser_normalized(gprec_w(gel(x,i),pr));
+      retmkcomplex(gprec_w(gel(x,1),prec), gprec_w(gel(x,2),prec));
+    case t_POL: pari_APPLY_pol_normalized(gprec_w(gel(x,i),prec));
+    case t_SER: pari_APPLY_ser_normalized(gprec_w(gel(x,i),prec));
     case t_POLMOD: case t_RFRAC: case t_VEC: case t_COL: case t_MAT:
-      pari_APPLY_same(gprec_w(gel(x,i), pr));
+      pari_APPLY_same(gprec_w(gel(x,i), prec));
   }
   return x;
 }
 /* not GC-safe */
 GEN
-gprec_wensure(GEN x, long pr)
+gprec_wensure(GEN x, long prec)
 {
   switch(typ(x))
   {
     case t_REAL:
-      if (signe(x)) return realprec(x) < pr? rtor(x,pr): x;
-      return real_0_bit(minss(-prec2nbits(pr), expo(x)));
+      if (signe(x)) return realprec(x) < prec? rtor(x,prec): x;
+      return real_0_expo(minss(-prec, expo(x)));
     case t_COMPLEX:
-      retmkcomplex(gprec_wensure(gel(x,1),pr), gprec_wensure(gel(x,2),pr));
-   case t_POL: pari_APPLY_pol_normalized(gprec_wensure(gel(x,i),pr));
-   case t_SER: pari_APPLY_ser_normalized(gprec_wensure(gel(x,i),pr));
+      retmkcomplex(gprec_wensure(gel(x,1),prec), gprec_wensure(gel(x,2),prec));
+   case t_POL: pari_APPLY_pol_normalized(gprec_wensure(gel(x,i),prec));
+   case t_SER: pari_APPLY_ser_normalized(gprec_wensure(gel(x,i),prec));
     case t_POLMOD: case t_RFRAC: case t_VEC: case t_COL: case t_MAT:
-      pari_APPLY_same(gprec_wensure(gel(x,i), pr));
+      pari_APPLY_same(gprec_wensure(gel(x,i), prec));
   }
   return x;
 }
@@ -1050,7 +1050,7 @@ binomial(GEN n, long k)
     return gcopy(n);
   }
   prec = precision(n);
-  if (prec && k > 200 + 0.8*prec2nbits(prec)) {
+  if (prec && k > 200 + 0.8*prec) {
     GEN A = mpfactr(k, prec), B = ggamma(gsubgs(n,k-1), prec);
     return gc_upto(av, gdiv(ggamma(gaddgs(n,1), prec), gmul(A,B)));
   }
@@ -1196,7 +1196,7 @@ polrecip(GEN x)
 /**                                                                **/
 /********************************************************************/
 /* given complex roots L[i], i <= n of some monic T in C[X], return
- * the T'(L[i]), computed stably via products of differences */
+ * the T'(L[i]), computed stably as prod_{j != i} (L[i] - L[j]) */
 GEN
 vandermondeinverseinit(GEN L)
 {
@@ -1213,21 +1213,66 @@ vandermondeinverseinit(GEN L)
   }
   return V;
 }
+/* Assume T in R[X] and roots given up to complex conjugation (r1 t_REAL
+ * roots followed by r2 representatives of t_COMPLEX root pairs). */
+GEN
+vandermondeinverseinit_real(GEN L, long r1)
+{
+  long i, j, l = lg(L), n = l-1;
+  GEN V = cgetg(l, t_VEC);
+  for (i = 1; i <= r1; i++) /* T'(x), x real */
+  {
+    pari_sp av = avma;
+    GEN W = cgetg(n,t_VEC), x = gel(L,i);
+    long k = 1;
+    for (j = 1; j <= r1; j++)
+      if (i != j) gel(W, k++) = gsub(x, gel(L,j));
+    if (j != l)
+    {
+      GEN xx = gsqr(x), x2 = gmul2n(x,1);
+      for (; j < l; j++)
+      {
+        GEN y = gel(L,j);
+        gel(W, k++) = gadd(gsub(xx, gmul(x2, gel(y,1))), cxnorm(y));
+      }
+    }
+    gel(V,i) = gc_upto(av, RgV_prod(W));
+  }
+  for (; i < l; i++) /* T'(x), x non-real */
+  {
+    pari_sp av = avma;
+    GEN W = cgetg(n,t_VEC), x = gel(L,i), xx = gsqr(x), x2 = gmul2n(x,1);
+    long k = 1;
+    for (j = 1; j <= r1; j++)
+      gel(W, k++) = gsub(x, gel(L,j));
+    for (; j < l; j++)
+      if (i != j)
+      {
+        GEN y = gel(L,j);
+        gel(W, k++) = gadd(gsub(xx, gmul(x2, gel(y,1))), cxnorm(y));
+      }
+    /* multiply by x - conj(x) */
+    gel(V,i) = gc_upto(av, gmul(gel(x2,2), mulcxI(RgV_prod(W))));
+  }
+  return V;
+}
 
-/* Compute the inverse of the van der Monde matrix of T multiplied by den */
+/* Compute the inverse of the van der Monde matrix of T multiplied by den.
+ * Also works with L = complex roots up to conjugation and V != NULL
+ * from vandermondeinverseinit_real */
 GEN
 vandermondeinverse(GEN L, GEN T, GEN den, GEN V)
 {
   pari_sp av = avma;
-  long i, n = lg(L)-1;
-  GEN M = cgetg(n+1, t_MAT);
+  long i, l = lg(L), n = degpol(T);
+  GEN M = cgetg(l, t_MAT);
 
   if (!V) V = vandermondeinverseinit(L);
   if (den && equali1(den)) den = NULL;
-  for (i = 1; i <= n; i++)
+  for (i = 1; i < l; i++)
   {
-    GEN d = gel(V,i), P = RgX_Rg_mul(RgX_div_by_X_x(T, gel(L,i), NULL),
-                                     den? gdiv(den,d): ginv(d));
+    GEN d = den? gdiv(den, gel(V,i)): ginv(gel(V,i));
+    GEN P = RgX_Rg_mul(RgX_div_by_X_x(T, gel(L,i), NULL), d);
     gel(M,i) = RgX_to_RgC(P, n);
   }
   return gc_GEN(av, M);
@@ -1465,11 +1510,25 @@ static int
 veccmp(void *data, GEN x, GEN y)
 {
   GEN k = (GEN)data;
-  long i, s, lk = lg(k), lx = minss(lg(x), lg(y));
+  long i, s, tx = typ(x), ty = typ(y), lk = lg(k), lx = minss(lg(x), lg(y));
 
-  if (!is_vec_t(typ(x))) pari_err_TYPE("lexicographic vecsort",x);
-  if (!is_vec_t(typ(y))) pari_err_TYPE("lexicographic vecsort",y);
-  for (i=1; i<lk; i++)
+  if (tx == t_VECSMALL)
+  {
+    if (ty != t_VECSMALL) pari_err_TYPE("lexicographic vecsort",x);
+    for (i = 1; i < lk; i++)
+    {
+      long c = k[i];
+      if (c >= lx)
+        pari_err_TYPE("lexicographic vecsort, index too large", stoi(c));
+      s = cmpss(x[c], y[c]);
+      if (s) return s;
+    }
+    return 0;
+  }
+  if (ty == t_VECSMALL) pari_err_TYPE("lexicographic vecsort",x);
+  if (!is_vec_t(tx)) pari_err_TYPE("lexicographic vecsort",x);
+  if (!is_vec_t(ty)) pari_err_TYPE("lexicographic vecsort",y);
+  for (i = 1; i < lk; i++)
   {
     long c = k[i];
     if (c >= lx)

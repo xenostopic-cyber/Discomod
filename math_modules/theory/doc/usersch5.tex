@@ -569,61 +569,82 @@ for all elements of the vector $y$.
 
 \subsec{Length conversions}
 
-These routines convert a nonnegative length to different units. Their
-behavior is undefined at negative integers.
+These routines convert nonnegative lengths (often attached to floating point
+numbers) between different units. Their behavior is undefined at negative
+integers. Strictly speaking the \emph{length} of $x$ is the output of
+\kbd{lg}$(x)$ and counts a number of words, themselves comprising $\B$ bits.
+By extension, lengths are also expressed in bits or even in decimal digits
+but we will not call these ``length'' in this document.
+
+A \emph{precision} is restricted to floating point numbers and the \typ{REAL}
+type; it is the output of \kbd{realprec}$(x)$, usually called \kbd{prec}, and
+counts the number of bits in the mantissa. For historical and practical
+reasons, \kbd{prec}s are multiple of $\B$. More general bit counts are called
+``number of bits'' (\kbd{nbits}) or ``bit precision''.
+
+We can convert a length to a bit precision without losing information, and
+the result is a \kbd{prec}. In the other direction, the conversion from bits
+to length rounds to the next multiple of $\B$ and loses information: the
+original bit count can only be recovered with an error in $[0,B-1[$. There is
+no error involved if the bit count is known to be a \kbd{prec}.
 
 \fun{long}{ndec2nlong}{long x} converts a number of decimal digits to a number
-of words. Returns $ 1 + \kbd{floor}(x \times \B \log_2 10)$.
+of words. Returns $ 1 + \kbd{floor}(x \log_2 10 / \B)$.
 
-\fun{long}{ndec2prec}{long x} converts a number of decimal digits to a number
-of bits.
+\fun{long}{ndec2nbits}{long x} converts a number of decimal digits to a
+number of bits. This is \kbd{ndec2nlong}$(x)$ times $\B$.
 
-\fun{long}{ndec2nbits}{long x} convers a number of decimal digits to a
-number of bits.
-
-\fun{long}{prec2ndec}{long x} converts a number of bits to a
-number of decimal digits.
-
-\fun{long}{nbits2nlong}{long x} converts a number of bits to a number of
-words. Returns the smallest word count containing $x$ bits, i.e $
-\kbd{ceil}(x / \B)$.
+\fun{long}{ndec2prec}{long x} converts a number of decimal digits to a
+precision. This is an alias for \kbd{ndec2nbits}.
 
 \fun{long}{nbits2ndec}{long x} converts a number of bits to a number of
-decimal digits.
+decimal digits. Returns \kbd{floor}$(x \log_{10} 2)$.
+
+\fun{long}{nbits2nlong}{long x} converts a number of bits to a number of
+words. Returns the smallest word count containing $x$ bits, i.e.,
+$\kbd{ceil}(x / \B)$.
 
 \fun{long}{nbits2lg}{long x} converts a number of bits to a length
-in code words. Currently  an alias for \kbd{nbits2nlong}.
-
-\fun{long}{prec2lg}{long x} return the length of a \typ{REAL} of precision
-\kbd{x}.
+in code words.
 
 \fun{long}{lg2prec}{long x} return the maximal precision of a \typ{REAL}
-of length \kbd{x}.
+of length \kbd{x}. Currently an alias for \kbd{bit\_accuracy}.
 
 \fun{long}{nbits2prec}{long x} convert $x$ to a valid precision.
-
-\fun{long}{nbits2extraprec}{long x} convert $x$ to a valid precision.
 
 \fun{long}{nchar2nlong}{long x} converts a number of bytes to number of
 words. Returns the smallest word count containing $x$ bytes, i.e
 $\kbd{ceil}(x / \kbd{sizeof(long)})$.
 
-\fun{long}{prec2nbits}{long x} return $x$. For backward compatibility.
-
-\fun{double}{prec2nbits_mul}{long x, double y} returns
-$x\times y$. For backward compatibility.
-
 \fun{long}{bit_accuracy}{long x} converts a length into a number
-of significant bits;
+of significant bits.
 
 \fun{double}{bit_accuracy_mul}{long x, double y} returns
 \kbd{bit\_accuracy}$(x)\times y$.
 
 \fun{long}{realprec}{GEN x} precision of a \typ{REAL} in bits.
 
-\fun{long}{bit_prec}{GEN x} precision of a \typ{REAL} in bits.
-
 \fun{long}{precdbl}{long x} return $2*x$.
+
+The following functions are deprecated and will be removed in a future
+version:
+
+\fun{long}{bit_prec}{GEN x} deprecated alias for \kbd{realprec}.
+
+\fun{long}{nbits2extraprec}{long x} convert $x$ to a valid precision. For
+backward compatibility.
+
+\fun{long}{prec2nbits}{long x} return $x$. For backward compatibility.
+
+\fun{long}{prec2ndec}{long x} converts a number of bits to a
+number of decimal digits. This is an alias for \kbd{nbits2ndec}.
+
+\fun{long}{prec2lg}{long x} return the length of a \typ{REAL} of precision
+\kbd{x}. This is an alias for \kbd{nbits2lg}).
+
+\fun{double}{prec2nbits_mul}{long x, double y} returns
+$x\times y$. For backward compatibility.
+
 
 \subsec{Read type-dependent information}
 
@@ -712,11 +733,10 @@ the coefficients of a \typ{POL} in the following situation:
 \fun{long}{precision}{GEN x} If \kbd{x} is of type \typ{REAL}, returns the
 precision of~\kbd{x}, namely
 
-\item if \kbd{x} is not zero: the mantissa length of \kbd{x} in bits;
+\item if \kbd{x} is not zero: the bit size of its mantissa;
 
 \item if \kbd{x} is numerically equal to $0$, of exponent $e$:
-the absolute accuracy \kbd{nbits2prec}$(e)$ if $e < 0$ and
-\kbd{LOWDEFAULTPREC} if $e \geq 0$.
+\kbd{nbits2prec}$(-e)$ if $e < 0$ and \kbd{LOWDEFAULTPREC} if $e \geq 0$.
 
 If \kbd{x} is of type \typ{COMPLEX}, returns the minimum of the precisions of
 the real and imaginary part. Otherwise, returns~0 (which stands for infinite
@@ -973,13 +993,13 @@ $2$.
 
 \noindent \kbd{ulong} \tet{ULONG_MAX}: the largest \kbd{ulong}.
 
-\noindent \kbd{long} \tet{DEFAULTPREC}:    the length (\kbd{lg}) of a
+\noindent \kbd{long} \tet{DEFAULTPREC}:    the precision (\kbd{realprec}) of a
 \typ{REAL} with 64 bits of accuracy
 
-\noindent \kbd{long} \tet{MEDDEFAULTPREC}: the length (\kbd{lg}) of a
+\noindent \kbd{long} \tet{MEDDEFAULTPREC}: the precision (\kbd{realprec}) of a
 \typ{REAL} with 128 bits of accuracy
 
-\noindent \kbd{long} \tet{BIGDEFAULTPREC}: the length (\kbd{lg}) of a
+\noindent \kbd{long} \tet{BIGDEFAULTPREC}: the precision (\kbd{realprec}) of a
 \typ{REAL} with 192 bits of accuracy
 
 \noindent \kbd{ulong} \tet{HIGHBIT}: the largest power of $2$ fitting in an
@@ -1115,11 +1135,11 @@ about the non-existing $0$-th prime is disregarded.
 
 \fun{void}{maxprime_check}{ulong B} raise an error if \kbd{maxprime()} is $< B$.
 
-\fun{void}{initprimetable}{ulong maxprime, ulong factorlimit} computes
-the prime table \kbd{pari\_PRIMES} (of all primes $p < \kbd{maxprime}$);
-time complexity is softly linear in \kbd{maxprime}. We don't recommend values
+\fun{void}{initprimetable}{ulong maxp, ulong factorlimit} computes
+the prime table \kbd{pari\_PRIMES} (of all primes $p < \kbd{maxp}$);
+time complexity is softly linear in \kbd{maxp}. We don't recommend values
 greater than $2^{32}$: prime iterators produce fast primes up to
-$\kbd{maxprime}^2$.
+$\kbd{maxp}^2$.
 
 This function also caches data allowing fast trial division up to
 \kbd{factorlimit}; time complexity is also softly linear in \kbd{factorlimit}
@@ -1127,13 +1147,12 @@ with much larger implied constants. Value greater than $2^{32}$ will not
 generally be useful: for such values, expect to increase startup time by 15s
 and memory use by 10GB.
 
-We recommend to set $\kbd{factorlimit} \leq \kbd{maxprime}$; otherwise, the
-parameter \kbd{factorlimit} is silently decreased to match \kbd{maxprime}.
-Using \kbd{factorlimit}. A common value of $2^{20}$ is quite sensible. Only
-increase \kbd{factorlimit} if your own code will impose \emph{many} trial
-divisions up to the given limit: PARI itself uses other algorithms to detect
-factors larger than $2^{20}$. Using lower values may save up to 50ms startup
-time.
+We recommend to set $\kbd{factorlimit} \leq \kbd{maxp}$; otherwise, the
+parameter \kbd{factorlimit} is silently decreased to match \kbd{maxp}.
+A generic value of $2^{20}$ is quite sensible for \kbd{factorlimit}, for a
+negligible cost at startup (less than 50ms). Only increase this if your own
+code will impose \emph{many} trial divisions up to the given limit: PARI
+itself uses other algorithms to detect factors larger than $2^{20}$.
 
 \section{Handling the PARI stack}
 
@@ -1147,13 +1166,13 @@ codeword.
 of length~\kbd{n}, and initializes its first codeword. Identical to
 \kbd{cgetg(n,\typ{INT})}.
 
-\fun{GEN}{cgetr}{long n} allocates memory on the stack for a \typ{REAL}
-of length~\kbd{n}, and initializes its first codeword. Identical to
-\kbd{cgetg(n,\typ{REAL})}.
+\fun{GEN}{cgetr}{long b} allocates memory on the stack for a \typ{REAL}
+with~\kbd{b} bits of accuracy, and initializes its first codeword. Identical to
+\kbd{cgetg(nbits2lg(b),\typ{REAL})}.
 
-\fun{GEN}{cgetc}{long n} allocates memory on the stack for a
+\fun{GEN}{cgetc}{long b} allocates memory on the stack for a
 \typ{COMPLEX}, whose real and imaginary parts are \typ{REAL}s
-of length~\kbd{n}.
+allocated with \kbd{cgetr(b)}.
 
 \fun{GEN}{new_chunk}{size_t n} allocates a \kbd{GEN} with $n$ components,
 \emph{without} filling the required code words. This is the low-level
@@ -2400,27 +2419,26 @@ of \kbd{n} is set to $1$.
 \typ{INT} of length~\kbd{n}, and initializes its two codewords. The sign
 of \kbd{n} is set to $-1$.
 
-\fun{GEN}{cgetr}{long n} allocates memory on the PARI stack for a \typ{REAL}
-of length~\kbd{n}, and initializes its first codeword. Identical to
-\kbd{cgetg(n,\typ{REAL})}.
+\fun{GEN}{cgetr}{long prec} allocates memory on the PARI stack for a \typ{REAL}
+of precision~\kbd{prec}, and initializes its first codeword. Identical to
+\kbd{cgetg(prec2lg(prec), \typ{REAL})}.
 
-\fun{GEN}{cgetc}{long n} allocates memory on the PARI stack for a
+\fun{GEN}{cgetc}{long prec} allocates memory on the PARI stack for a
 \typ{COMPLEX}, whose real and imaginary parts are \typ{REAL}s
-of length~\kbd{n}.
+of precision~\kbd{prec}.
 
-\fun{GEN}{real_1}{long prec} create a \typ{REAL} equal to $1$ to \kbd{prec}
-words of accuracy.
-
-\fun{GEN}{real_1_bit}{long bitprec} create a \typ{REAL} equal to $1$ to
-\kbd{bitprec} bits of accuracy.
+\fun{GEN}{real_1}{long prec} create a \typ{REAL} equal to $1$ with
+precision \kbd{prec}.
 
 \fun{GEN}{real_m1}{long prec} create a \typ{REAL} equal to $-1$ to \kbd{prec}
 words of accuracy.
 
-\fun{GEN}{real_0_bit}{long bit} create a \typ{REAL} equal to $0$ with
-exponent $\kbd{bit}$.
+\fun{GEN}{real_0_expo}{long e} create a \typ{REAL} equal to $0$ with
+exponent $e$.
 
-\fun{GEN}{real_0}{long prec} is a shorthand for \kbd{real\_0\_bit(-prec)}.
+\fun{GEN}{real_0}{long prec} is a shorthand for \kbd{real\_0\_expo(-prec)}.
+It allows to initialize real constants with \kbd{real\_0}, \kbd{real\_1},
+\dots \kbd{mplog2}, \kbd{mppi} \dots in a uniform way.
 
 \fun{GEN}{int2n}{long n} creates a \typ{INT} equal to \kbd{1<<n} (i.e
 $2^n$ if $n \geq 0$, and $0$ otherwise).
@@ -2541,9 +2559,12 @@ to $1$.
 
 \subsec{Conversions}
 
+\fun{GEN}{itor_lg}{GEN x, long l} converts the \typ{INT}~\kbd{x} to a
+\typ{REAL} of length \kbd{l} and return the latter.
+Assumes that $\kbd{l} > 2$.
+
 \fun{GEN}{itor}{GEN x, long prec} converts the \typ{INT}~\kbd{x} to a
-\typ{REAL} of length \kbd{prec} and return the latter.
-Assumes that $\kbd{prec} > 2$.
+\typ{REAL} of \kbd{prec} and return the latter. Assumes that $\kbd{prec} > 0$.
 
 \fun{long}{itos}{GEN x} converts the \typ{INT}~\kbd{x} to a \kbd{long} if
 possible, otherwise raise an exception. We consider the conversion
@@ -2566,9 +2587,13 @@ and only if $\kbd{lgefint}(x) \leq 3$.
 \fun{GEN}{stoi}{long s} creates the \typ{INT} corresponding to the
 \kbd{long}~\kbd{s}.
 
+\fun{GEN}{stor_lg}{long s, long l} converts the \kbd{long}~\kbd{s} into a
+\typ{REAL} of length \kbd{l} and return the latter. Assumes that
+$\kbd{l} > 2$.
+
 \fun{GEN}{stor}{long s, long prec} converts the \kbd{long}~\kbd{s} into a
-\typ{REAL} of length \kbd{prec} and return the latter. Assumes that
-$\kbd{prec} > 2$.
+\typ{REAL} of precision \kbd{prec} and return the latter. Assumes that
+$\kbd{prec} > 0$.
 
 \fun{GEN}{utoi}{ulong s} converts the \kbd{ulong}~\kbd{s} into a \typ{INT}
 and return the latter.
@@ -2579,17 +2604,28 @@ into a \typ{INT} and return the latter.
 \fun{GEN}{utoineg}{ulong s} converts the \emph{nonzero} \kbd{ulong}~\kbd{s}
 into the \typ{INT} $-s$ and return the latter.
 
+\fun{GEN}{utor_lg}{ulong s, long l} converts the \kbd{ulong}~\kbd{s} into a
+\typ{REAL} of length \kbd{l} and return the latter. Assumes that
+$\kbd{l} > 2$.
+
 \fun{GEN}{utor}{ulong s, long prec} converts the \kbd{ulong}~\kbd{s} into a
-\typ{REAL} of length \kbd{prec} and return the latter. Assumes that
-$\kbd{prec} > 2$.
+\typ{REAL} of precision \kbd{prec} and return the latter. Assumes that
+$\kbd{prec} > 0$.
+
+\fun{GEN}{rtor_lg}{GEN x, long l} converts the \typ{REAL}~\kbd{x} to a
+\typ{REAL} of length \kbd{l} and return the latter. If
+$\kbd{l} < \kbd{lg(x)}$, round properly. If $\kbd{l} > \kbd{lg(x)}$,
+pad with zeroes. Assumes that $\kbd{l} > 2$.
 
 \fun{GEN}{rtor}{GEN x, long prec} converts the \typ{REAL}~\kbd{x} to a
-\typ{REAL} of length \kbd{prec} and return the latter. If
-$\kbd{prec} < \kbd{lg(x)}$, round properly. If $\kbd{prec} > \kbd{lg(x)}$,
-pad with zeroes. Assumes that $\kbd{prec} > 2$.
+\typ{REAL} of precision \kbd{prec} and return the latter. If
+$\kbd{prec} < \kbd{realprec(x)}$, round properly. If $\kbd{prec} >
+\kbd{realprec(x)}$, pad with zeroes. Assumes that $\kbd{prec} > 0$.
 
-\noindent The following function is also available as a special case of
-\tet{mkintn}:
+\noindent The following functions are variants of \tet{mkintn} with
+\kbd{unsigned long} arguments (instead of \kbd{unsigned int} for
+\kbd{mkintn}). As \kbd{mkintn}, they are mostly used to create large
+integer constants in a platform independent way:
 
 \fun{GEN}{uu32toi}{ulong a, ulong b} returns the \kbd{GEN} equal to $2^{32} a +
 b$, \emph{assuming} that $a,b < 2^{32}$. This does not depend on
@@ -2697,7 +2733,7 @@ Called by \tet{gtrunc2n}.
 \fun{GEN}{mantissa2nr}{GEN x, long n} given a \typ{REAL} $x$, returns
 the mantissa of $x 2^n$ (disregards the exponent of $x$). Equivalent to
 \bprog
-  trunc2nr(x, n-expo(x)+bit_prec(x)-1)
+  trunc2nr(x, n-expo(x)+realprec(x)-1)
 @eprog
 
 \fun{GEN}{mantissa_real}{GEN z, long *e} returns the mantissa $m$ of $z$, and
@@ -3258,9 +3294,13 @@ returns 0 (false).
 
 \subsec{Division with integral operands and \typ{REAL} result}
 
+\fun{GEN}{rdivii_lg}{GEN x, GEN y, long l}, assuming $x$ and $y$
+are both of type \typ{INT}, return the quotient $x/y$ as a \typ{REAL} of
+length $\kbd{l} > 2$.
+
 \fun{GEN}{rdivii}{GEN x, GEN y, long prec}, assuming $x$ and $y$
 are both of type \typ{INT}, return the quotient $x/y$ as a \typ{REAL} of
-precision \kbd{prec}.
+precision $\kbd{prec} > 0$.
 
 \fun{GEN}{rdiviiz}{GEN x, GEN y, GEN z}, assuming $x$ and $y$
 are both of type \typ{INT}, and $z$ is a \typ{REAL},
@@ -8285,13 +8325,13 @@ $b$ a \kbd{ZpXQXQ} such that $a\*b \equiv 1 \mod (S, T, p)$.
 Returns an \kbd{ZpXQXQ} $A$ such that $A \equiv a \pmod{p}$ and
 $A\*b \equiv 1 \mod (p^e, T)$.
 
-\fun{GEN}{ZpXQ_inv}{GEN b, GEN S, GEN T, GEN p, long e} let
+\fun{GEN}{ZpXQXQ_inv}{GEN b, GEN S, GEN T, GEN p, long e} let
 $p$ be a prime \typ{INT} and $b$ be a \kbd{ZpXQXQ} (modulo $S, T, p^e$).
-Returns an \kbd{ZpXQXQ} $A$ such that $A\*b \equiv 1 \mod (S, T, p^e)$.
+Returns a \kbd{ZpXQXQ} $A$ such that $A\*b \equiv 1 \mod (S, T, p^e)$.
 
-\fun{GEN}{ZpXQ_div}{GEN a, GEN b, GEN S, GEN T, GEN q, GEN p, long e} let
+\fun{GEN}{ZpXQXQ_div}{GEN a, GEN b, GEN S, GEN T, GEN q, GEN p, long e} let
 $p$ be a prime \typ{INT} and $a$ and $b$ be a \kbd{ZpXQXQ} (modulo $S, T, p^e$).
-Returns an \kbd{ZpXQXQ} $c$ such that $c\*b \equiv a \mod (S, T, p^e)$.
+Returns a \kbd{ZpXQXQ} $c$ such that $c\*b \equiv a \mod (S, T, p^e)$.
 The parameter $q$ must be equal to $p^e$.
 
 \subsec{Other $p$-adic functions}
@@ -8745,6 +8785,9 @@ or may not be the last entry in presence of a prime table.
 
 If $\kbd{lim} = 0$, the effect is the same as setting $\kbd{lim} =
 \kbd{maxprime()} + 1$: use all precomputed primes.
+
+\fun{int}{Z_has_prime_3mod4}{GEN n} return $1$ if and only if the non-zero
+integer $n$ has a prime divisor congruent to $3$ modulo $4$.
 
 \fun{GEN}{absZ_factor_limit}{GEN n, ulong all} returns
 \kbd{Z\_factor\_limit(absi(n))}.
@@ -9557,6 +9600,9 @@ generating the image of $x$.
 
 \fun{GEN}{QM_image_shallow}{GEN A} shallow version of the previous function.
 
+\fun{int}{QM_ishnf}{GEN x} return $1$ if $d x$ is in HNF form for some
+positive integer $x$.
+
 \subsec{\kbd{Qevproj}}
 
 \fun{GEN}{Qevproj_init}{GEN M} let $M$ be a  $n\times d$ \kbd{ZM} of
@@ -9857,13 +9903,22 @@ of $n$ scalars and the \typ{POL} $T = \prod_{i=1}^n (X - r_i)$,
 return $dM^{-1}$, where $M = (r_i^{j-1})_{1\leq i,j\leq n}$ is the van der
 Monde matrix;  $V$ is \kbd{NULL} or a vector containing the $T'(r_i)$, as
 returned by \kbd{vandermodeinverseinit}. The demonimator $d$ may be set to
-\kbd{NULL} (handled as $1$). If $c$ is the $k$-column of the result, it is
-essentially $d$ times  the $k$-th Lagrange interpolation polynomial: we have
-$\sum_j c_j r_i^{j-1} = d \delta_{i=k}$. This is the function underlying
-\kbd{RgV\_polint} when the base field is not $\Z/p\Z$: it uses $O(n^2)$
-scalar operations and is asymptotically slower than variants using
-multi-evaluation such as \kbd{FpV\_polint}; it is also accurate over inexact
-fields.
+\kbd{NULL} (handled as $1$). If $c$ is the $k$-th column of the result, it is
+essentially $d$ times the $k$-th Lagrange interpolation polynomial: we have
+$\sum_j c_j r_i^{j-1} = d \delta_{i=k}$.
+
+This function underlies \kbd{RgV\_polint} when the base field is not
+$\Z/p\Z$: it uses $O(n^2)$ scalar operations and is asymptotically slower
+than variants using multi-evaluation such as \kbd{FpV\_polint}; it is also
+accurate over inexact fields.
+
+A technical variant allows $V$ from \kbd{vandermodeinverseinit\_real}
+(complex roots up to conjugation). Then the output need no longer be
+a square matrix: only the columns corresponding to the given roots
+representative are included. (The others are implied, being their conjugates.)
+This allows to reconstruct an algebraic number in $\Q[X]/(T)$ given
+$r_1 + r_2$ real and (non-conjugate) complex embeddings only, instead
+of $r_1 + 2r_2 = \deg T$.
 
 \fun{GEN}{vandermondeinverseinit}{GEN r} Given a vector $r$ of $n$ scalars, let
 $T$ be the \typ{POL} $T = \prod_{j=1}^n (X - r_j)$. This function returns the
@@ -9872,6 +9927,15 @@ $T'(r_i) = \prod_{j\neq i} (r_i - r_j)$. It is asymptotically slow (uses
 $O(n^2)$ scalar operations, where multi-evaluation achieves quasi-linear
 running time) but allows accurate computation at low accuracies when $T$ has
 large complex coefficients.
+
+\fun{GEN}{vandermondeinverseinit_real}{GEN R, long r1}
+This variant improves on \kbd{vandermondeinverse} in the important
+special case where the roots are complex and $T$ has real coefficients, i.e.,
+the set of roots is stable under complex conjugation. The argument $r$ is
+replaced by a set $R$ of representatives modulo conjugation: the first $r_1$
+elements of $R$ are real and the remaining $r_2$ are representatives of pairs
+of complex conjugates. This returns the $T'(R_i)$, from which the $T'(r_i)$
+can be reconstructed by adding appropriate conjugates.
 
 \subsubsec{Special shapes}
 
@@ -10473,7 +10537,8 @@ for $a$ and $b$, the interval is $[a,b]$.
 
 \fun{long}{ZX_sturm}{GEN P} number of real roots of the nonconstant
 squarefree \kbd{ZX} $P$. For efficiency, it is advised to make $P$ primitive
-first.
+first. If $P$ is already known to be irreducible, use \kbd{ZX\_sturm\_irred}
+for a small speed up.
 
 \fun{long}{ZX_sturmpart}{GEN P, GEN ab} number of real roots of the
 nonconstant squarefree \kbd{ZX} $P$ in the interval specified by \kbd{ab}:
@@ -10481,13 +10546,17 @@ either \kbd{NULL} (no restriction) or a \typ{VEC} $[a,b]$ with two real
 components (of type \typ{INT}, \typ{FRAC} or \typ{INFINITY}). For efficiency,
 it is advised to make $P$ primitive first.
 
-\fun{long}{ZX_sturm_irred}{GEN P} number of real roots of the \kbd{ZX} $P$,
-assumed irreducible over $\Q[X]$. For efficiency, it is advised to make $P$
-primitive first.
+\fun{long}{ZX_sturm_irred}{GEN P} number of real roots of the irreducible
+\kbd{ZX} $P$. For efficiency, it is advised to make $P$ primitive first.
 
-\fun{long}{ZX_realroots_irred}{GEN P, long prec} real roots of the \kbd{ZX}
-$P$, assumed irreducible over $\Q[X]$ to precision prec. For efficiency, it
-is advised to make $P$ primitive first.
+\fun{long}{ZX_realroots}{GEN P, long prec} real roots of the nonconstant
+squarefree \kbd{ZX} $P$, to precision prec. For efficiency, it is advised to
+make $P$ primitive first. If $P$ is known to be irreducible,
+\kbd{ZX\_realroots\_irred} will be faster.
+
+\fun{long}{ZX_realroots_irred}{GEN P, long prec} real roots of the
+irreducible \kbd{ZX} $P$, to precision prec. For efficiency, it is advised to
+make $P$ primitive first.
 
 \subsec{Resultants}
 
@@ -10695,10 +10764,10 @@ caller).
 \fun{GEN}{QX_resultant}{GEN A, GEN B} returns the resultant of the
 \kbd{QX}~\kbd{A} and \kbd{B}.
 
-\fun{GEN}{QX_complex_roots}{GEN p, long l} returns the complex roots of the
-\kbd{QX} $p$ at accuracy $l$, where real roots are returned as \typ{REAL}s.
-More efficient when $p$ is irreducible and primitive. Special case
-of \tet{cleanroots}.
+\fun{GEN}{QX_complex_roots}{GEN T, long prec} returns the complex roots of the
+\kbd{QX} $T$ at accuracy \kbd{prec}, where real roots are returned as
+\typ{REAL}s. More efficient when $T$ is irreducible and primitive. Special
+case of \tet{cleanroots}.
 
 \subsec{\kbd{QXQ}}
 
@@ -11262,7 +11331,7 @@ homogeneous polynomial of homogeneous degree $d-n$ corresponding to the $n$-th
 derivative with respect to the implicit variables of the homogeneous polynomial
 $P$ of degree $d$.
 
-\fun{GEN}{RgX_homogenous_evalpow}{GEN P, GEN a, GEN b, long d}
+\fun{GEN}{RgX_homogenous_eval}{GEN P, GEN a, GEN b, long d}
 Evaluate the homogeneous polynomial of degree $d$ associated to the
 univariate polynomial $P$ on $(a,b)$.
 
@@ -11965,8 +12034,11 @@ of \kbd{x}.
 \fun{long}{gtolong}{GEN x} if \kbd{x} is an integer (not necessarily
 a~\typ{INT}), converts \kbd{x} into a \kbd{long} if possible.
 
-\fun{GEN}{fractor}{GEN x, long l} applied to a \typ{FRAC}~\kbd{x}, converts
-\kbd{x} into a \typ{REAL} of length \kbd{prec}.
+\fun{GEN}{fractor_lg}{GEN x, long l} applied to a \typ{FRAC}~\kbd{x}, converts
+\kbd{x} into a \typ{REAL} of length~\kbd{l}.
+
+\fun{GEN}{fractor}{GEN x, long prec} applied to a \typ{FRAC}~\kbd{x}, converts
+\kbd{x} into a \typ{REAL} of precision~\kbd{prec}.
 
 \fun{GEN}{quadtofp}{GEN x, long l} applied to a \typ{QUAD}~\kbd{x}, converts
 \kbd{x} into a \typ{REAL} or \typ{COMPLEX} depending on the sign of the
@@ -12430,11 +12502,11 @@ containing \kbd{[x, y]}.
 
 \fun{GEN}{mkvecsmalln}{long n, ...} returns the \typ{VECSMALL} whose $n$
 coefficients (\kbd{long}) follow.
-\emph{Warning:} since this is a variadic function, C type promotion is not
-performed on the arguments by the compiler, thus you have to make sure that all
-the arguments are of type \kbd{long}, in particular integer constants need to
-be written with the \kbd{L} suffix: \kbd{mkvecsmalln(2, 1L, 2L)} is correct,
-but \kbd{mkvecsmalln(2, 1, 2)} is not.
+\misctitle{Warning.} Since this is a variadic function, the compiler does
+not perform C type promotion on the arguments. You have to ensure that all
+the arguments following $n$ are of type \kbd{long}, in particular integer
+constants need to be written with the \kbd{L} suffix:
+\kbd{mkvecsmalln(2, 1L, 2L)} is correct, but \kbd{mkvecsmalln(2, 1, 2)} is not.
 
 \subsec{Unclean constructors}\label{se:unclean}
 
@@ -12663,12 +12735,18 @@ to \kbd{Qfb(a,b,c)}, assuming that $D = b^2 - 4ac$.
 \smallskip
 
 \fun{GEN}{mkintn}{long n, ...} returns the nonnegative \typ{INT} whose
-expansion in base $2^{32}$ is given by the following $n$ 32bit-words
-(\kbd{unsigned int}).
+expansion in base $2^{32}$ is given by the following $n$ digits. Digits
+are \kbd{unsigned int} less than $2^{32}$.
 \bprog
-  mkintn(3, a2, a1, a0);
+  mkintn(3, 0x1U, 0x2U, 0x3U);
 @eprog
-\noindent returns $a_2 2^{64} + a_1 2^{32} + a_0$.
+\noindent returns $2^{64} + 2 \cdot 2^{32} + 3$.
+
+\misctitle{Warning.} Since this is a variadic function, the compiler does
+not perform C type promotion on the arguments. You have to ensure that all
+the arguments following $n$ are of type \kbd{unsigned int}, in particular
+integer constants need to be written with the \kbd{U} suffix as above:
+\kbd{mkvecsmalln(3, 1, 2, 3)} would not be correct.
 
 \fun{GEN}{mkpoln}{long n, ...} Returns the \typ{POL} whose $n$
 coefficients (\kbd{GEN}) follow, in order of decreasing degree.
@@ -14383,9 +14461,8 @@ solve $x  \log(x) - a  x = b$; if $b < 0$, assume $a \geq 1 + \log |b|$.
 
 \fun{GEN}{atanhuu}{ulong u, ulong v, long prec} computes \text{atanh}$(u/v)$
 using binary splitting, assuming $0 < u < v$. Not stack-clean but suitable
-for \kbd{gc\_upto}. The complexity is $O(b / \log(v/u))$, where $b$ is
-\kbd{prec2nbits(prec)}, so becomes impractical when $v/u$ is too close to
-$1$.
+for \kbd{gc\_upto}. The complexity is $O(\kbd{prec} / \log(v/u))$
+so becomes impractical when $v/u$ is too close to $1$.
 
 \fun{GEN}{atanhui}{ulong u, GEN v, long prec} computes \text{atanh}$(u/v)$
 using binary splitting, assuming $0 < u < v$. Not stack-clean but suitable
@@ -14715,10 +14792,9 @@ the generators $\var{grp}[1]$.
 
 See \tet{galoisinit} for the technical details.
 
-\fun{GEN}{checkgroup}{GEN gal, GEN *elts} check whether \var{gal} is a
+\fun{GEN}{checkgroup}{GEN gal} check whether \var{gal} is a
 small group or a Galois group. Returns the underlying small
-group and set \var{elts} to the list of elements or to \kbd{NULL} if it is not
-known.
+group.
 
 \fun{GEN}{checkgroupelts}{GEN gal}
 check whether \var{gal} is a small group or a Galois group, or a vector of
@@ -14746,6 +14822,9 @@ trivial.
 
 \fun{GEN}{group_elts}{GEN grp, long n} returns the list of elements of the
 small group \var{grp} of domain \var{n} as permutations.
+
+\fun{GEN}{groupelts_gen}{GEN elts}, where \var{elts} is the list of
+elements of a group, returns a small generating set.
 
 \fun{GEN}{groupelts_to_group}{GEN elts}, where \var{elts} is the list of
 elements of a group, returns the corresponding small group, if it
@@ -14792,6 +14871,9 @@ and 0 otherwise. Shallow function.
 
 \fun{long}{group_order}{GEN grp} returns the order of the small group
 \var{grp} (which is the product of the relative orders).
+
+\fun{long}{group_istrivial}{GEN grp} returns $1$ if the small group
+\var{grp} is of order $1$, else $0$.
 
 \fun{long}{group_isabelian}{GEN grp} returns $1$ if the small group
 \var{grp} is Abelian, else $0$.
@@ -14879,9 +14961,9 @@ group.
 to another format, as a \typ{STR} describing the group for the given syntax,
 see \tet{galoisexport}.
 
-\fun{GEN}{group_export_GAP}{GEN G} export a small group to GAP format.
-
-\fun{GEN}{group_export_MAGMA}{GEN G} export a small group to MAGMA format.
+\fun{GEN}{groupgen_export}{GEN gen, long format} convert a small group
+given by its generators to another format, as a \typ{STR} describing the group
+for the given syntax, see \tet{galoisexport}.
 
 \fun{long}{group_ident}{GEN grp, GEN elts} returns the index of the small group
 \var{grp} in the GAP4 Small Group library, see \tet{galoisidentify}. If
@@ -16370,7 +16452,7 @@ built-in or install'ed function named \kbd{str}.
 \fun{GEN}{strtoclosure}{char *str, long n, ...} returns a closure
 corresponding to the built-in or install'ed function named \kbd{str} with the
 $n$ last parameters set to the $n$ \kbd{GEN}s following $n$. This is
-analogous to \kbd{snm\_closure(isentry(str), mkvecn(...))} but the latter has
+analogous to \kbd{snm\_closure(is\_entry(str), mkvecn(...))} but the latter has
 lower overhead since it does not copy arguments, nor does it validate inputs.
 
 In the example code below, \kbd{agm1} is set to the function

@@ -115,13 +115,13 @@ inline cl_heap_dfloat* allocate_dfloat (uint32 semhi, uint32 mlo)
   #define dfloat_value_semhi  dfloat_value
   #define DF_uexp(x)  (((x) >> DF_mant_len) & (bit(DF_exp_len)-1))
   #define DF_decode(obj, zero_statement, sign_zuweisung,exp_zuweisung,mant_zuweisung)  \
-    { var dfloat _x = TheDfloat(obj)->dfloat_value;			\
-      var uintL uexp = DF_uexp(_x);					\
-      if (uexp==0)							\
-        { zero_statement } /* e=0 -> Zahl 0.0 */			\
-        else								\
-        { exp_zuweisung (sintL)(uexp - DF_exp_mid); /* Exponent */	\
-          cl_unused (sign_zuweisung ((sint64)_x >> 63)); /* Vorzeichen */	\
+    { var dfloat _x = TheDfloat(obj)->dfloat_value;			   \
+      var uintL uexp = DF_uexp(_x);					   \
+      if (uexp==0)							   \
+        { zero_statement } /* e=0 -> Zahl 0.0 */			   \
+        else								   \
+        { exp_zuweisung (sintL)(uexp - DF_exp_mid); /* Exponent */	   \
+          cl_unused (sign_zuweisung ((sint64)_x >> 63)); /* Vorzeichen */  \
           mant_zuweisung (bit(DF_mant_len) | (_x & (bit(DF_mant_len)-1))); \
     }   }
 #else
@@ -135,16 +135,16 @@ inline cl_heap_dfloat* allocate_dfloat (uint32 semhi, uint32 mlo)
   #define dfloat_value_semhi  dfloat_value.semhi
   #define DF_uexp(semhi)  (((semhi) >> (DF_mant_len-32)) & (bit(DF_exp_len)-1))
   #define DF_decode2(obj, zero_statement, sign_zuweisung,exp_zuweisung,manthi_zuweisung,mantlo_zuweisung)  \
-    { var uint32 semhi = TheDfloat(obj)->dfloat_value.semhi;		\
-      var uint32 mlo = TheDfloat(obj)->dfloat_value.mlo;		\
-      var uintL uexp = DF_uexp(semhi);					\
-      if (uexp==0)							\
-        { zero_statement } /* e=0 -> Zahl 0.0 */			\
-        else								\
-        { exp_zuweisung (sintL)(uexp - DF_exp_mid); /* Exponent */	\
+    { var uint32 semhi = TheDfloat(obj)->dfloat_value.semhi;		       \
+      var uint32 mlo = TheDfloat(obj)->dfloat_value.mlo;		       \
+      var uintL uexp = DF_uexp(semhi);					       \
+      if (uexp==0)							       \
+        { zero_statement } /* e=0 -> Zahl 0.0 */			       \
+        else								       \
+        { exp_zuweisung (sintL)(uexp - DF_exp_mid); /* Exponent */	       \
           cl_unused (sign_zuweisung sign_of((sint32)(semhi))); /* Vorzeichen */\
           manthi_zuweisung (bit(DF_mant_len-32) | (semhi & (bit(DF_mant_len-32)-1))); \
-          mantlo_zuweisung mlo;						\
+          mantlo_zuweisung mlo;						       \
     }   }
 #endif
 
@@ -278,7 +278,7 @@ inline double DF_to_double (const cl_DF& obj)
             { throw floating_point_overflow_exception(); } /* Infinity, Overflow */\
         }                                                                 \
       else                                                                \
-        { ergebnis_zuweisung allocate_dfloat(_erg.eksplicit.semhi,_erg.eksplicit.mlo); }  \
+        { ergebnis_zuweisung allocate_dfloat(_erg.eksplicit.semhi,_erg.eksplicit.mlo); } \
     }
 #endif
 #endif

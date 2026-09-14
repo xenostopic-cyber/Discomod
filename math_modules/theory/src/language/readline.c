@@ -125,13 +125,13 @@ init_prefix(const char *text, int *len, int *junk, char **TEXT)
 }
 
 static int
-is_internal(entree *ep) { return *ep->name == '_'; }
+is_internal(entree *ep) { return *ep->name == '_' || EpVALENCE(ep) == EpNEW; }
 
 /* Generator function for command completion.  STATE lets us know whether
  * to start from scratch; without any state (i.e. STATE == 0), then we
  * start at the top of the list. */
 static char *
-hashtable_generator(const char *text, int state, entree **hash)
+hashtable_generator(const char *text, int state, entree **hash, ulong mask)
 {
   static int hashpos, len, junk;
   static entree* ep;
@@ -153,7 +153,7 @@ hashtable_generator(const char *text, int state, entree **hash)
   for(;;)
     if (!ep)
     {
-      if (++hashpos >= functions_tblsz) return NULL; /* no names matched */
+      if (++hashpos > (long)mask) return NULL; /* no names matched */
       ep = hash[hashpos];
     }
     else if (is_internal(ep) || strncmp(ep->name,TEXT,len))
@@ -190,7 +190,7 @@ member_generator(const char *text, int state)
   for(;;)
     if (!ep)
     {
-      if (++hashpos >= functions_tblsz) return NULL; /* no names matched */
+      if (++hashpos > functions_hash_MASK) return NULL; /* no names matched */
       ep = hash[hashpos];
     }
     else if (ep->name[0]=='_' && ep->name[1]=='.'
@@ -203,10 +203,10 @@ member_generator(const char *text, int state)
 }
 static char *
 command_generator(const char *text, int state)
-{ return hashtable_generator(text,state, functions_hash); }
+{ return hashtable_generator(text,state, functions_hash, functions_hash_MASK); }
 static char *
 default_generator(const char *text,int state)
-{ return hashtable_generator(text,state, defaults_hash); }
+{ return hashtable_generator(text,state, defaults_hash, defaults_hash_MASK); }
 
 static char *
 ext_help_generator(const char *text, int state)

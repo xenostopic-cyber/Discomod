@@ -1,0 +1,2 @@
+[console_scripts]
+auto-type-annotate = auto_type_annotate:main

@@ -1,4 +1,4 @@
-.TH GPHELP 1 "1 January 2025"
+.TH GPHELP 1 "24 July 2026"
 .SH NAME
 gphelp \- GP-PARI online help script
 .SH SYNOPSIS
@@ -85,13 +85,13 @@ The pattern
 conducts the search in the corresponding chapter instead of the default
 Chapter 3. If the number is omitted, search the whole manual. For instance
 .RS
-gphelp -k gerepile@4
+gphelp -k gc_GEN@4
 .RE
 will look for
-.B gerepile
+.B gc_GEN
 in Chapter 4 of users manual.
 .RS
-gphelp -k gerepile@
+gphelp -k gc_GEN@
 .RE
 will search the whole manual. All chapters of the manual (usersch[1-5].tex)
 are assumed to be in
@@ -145,6 +145,11 @@ Switch to
 mode. Only write to standard output the list of section headings in manual
 which contain
 .IR keyword .
+The search is case insensitive whenever the keyword contains lowercase
+characters and case sensitive otherwise. For instance, if the keyword is "LLL"
+we obtain all sections mentioning the LLL algorithm. Whereas looking for
+"lll" will also output sections mentioning the elllog or the ellL1 functions
+(case insensitive search).
 
 You can then choose an element in the list and use it as argument for
 .B gphelp

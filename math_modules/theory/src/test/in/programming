@@ -11,7 +11,7 @@ plotinit(1);
 print("plotrecth: ",plotrecth(1,x=0,20,[sin(Pi*cos(2*x)),cos(3*x)],1))
 plotexport("svg",1);
 if(GRAPH,print("psploth: ",psploth(x=0,20,[sin(cos(2*x)),cos(3*x)],1)))
-print("alarm: ",alarm(2^29,factor(91)))
+print("alarm: ",alarm(2^21,factor(91)))
 print1("forqfvec:");forqfvec(v,matid(4),,print1(" ",v));print();
 print("matrix: ",matrix(2,3,i,j,[i,j]));
 print("vector: ",vector(3,i,i+1));

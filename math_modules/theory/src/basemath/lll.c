@@ -125,16 +125,16 @@ potential(GEN R)
   return s;
 }
 
-/* U upper-triangular invertible:
- * Bound on the exponent of the condition number of U.
- * Algo 8.13 in Higham, Accuracy and stability of numercal algorithms. */
+/* Bound on the exponent of the condition number of U (lower or upper)
+ * triangular invertible. Algo 8.13 in Higham, Accuracy and stability of
+ * numerical algorithms */
 static long
 condition_bound(GEN U, int lower)
 {
   long n = lg(U)-1, e, i, j;
-  GEN y;
   pari_sp av = avma;
-  y = cgetg(n+1, t_VECSMALL);
+  GEN y = cgetg(n+1, t_VECSMALL);
+
   e = y[n] = -gexpo(gcoeff(U,n,n));
   for (i=n-1; i>0; i--)
   {
@@ -150,7 +150,7 @@ condition_bound(GEN U, int lower)
 INLINE long
 nbits2prec64(long n)
 {
-  return nbits2prec(((n+63)>>6)<<6);
+  return nbits2prec(((n+63) >> 6) << 6);
 }
 
 static long
@@ -184,15 +184,9 @@ RgM_Cholesky_dynprec(GEN M)
     long mbitprec;
     prec = nbits2prec64(bitprec);
     L = RgM_Cholesky(RgM_gtofp(M, prec), prec); /* upper-triangular */
-    if (!L)
-    {
-      bitprec *= 2;
-      set_avma(ltop);
-      continue;
-    }
+    if (!L) { bitprec *= 2; set_avma(ltop); continue; }
     mbitprec = minprec + GS_extraprec(L, 0);
-    if (bitprec >= mbitprec)
-      break;
+    if (bitprec >= mbitprec) break;
     bitprec = maxss((4*bitprec)/3, mbitprec);
     set_avma(ltop);
   }
@@ -223,8 +217,7 @@ gramschmidt_dynprec(GEN M)
       continue;
     }
     mbitprec = minprec + GS_extraprec(L, 1);
-    if (bitprec >= mbitprec)
-      return gc_GEN(ltop, shallowtrans(L));
+    if (bitprec >= mbitprec) return gc_GEN(ltop, shallowtrans(L));
     bitprec = maxss((4*bitprec)/3, mbitprec);
     set_avma(ltop);
   }
@@ -246,7 +239,7 @@ flat(GEN M, long flag, GEN *pt_T, long *pt_s, long *pt_pot)
   GEN R, R1, R2, R3, T1, T2, T3, T, S;
   long k = lg(M)-1, n = k>>1, n2 = k - n, m = n>>1;
   long keepfirst = flag & LLL_KEEP_FIRST, inplace = flag & LLL_INPLACE;
-  /* for k = 3, we want n = 1; n2  = 2; m = 0 */
+  /* for k = 3, we want n = 1; n2 = 2; m = 0 */
   /* for k = 5,         n = 2; n2 = 3; m = 1 */
   R = gramschmidt_dynprec(M);
   R1 = matslice(R, 1, n, 1, n);
@@ -329,12 +322,8 @@ ZM_flatter(GEN M, long flag)
   }
   if (DEBUGLEVEL>=3 && (cert || timer_get(&ti) > 1000))
     dbg_flatter(&ti, n, -1, i == lti? -1: lti, s, pot);
-  if (!inplace)
-  {
-    if (!T) return gc_NULL(av);
-    return gc_GEN(av, T);
-  }
-  return  gc_GEN(av, M);
+  if (inplace) return gc_GEN(av, M);
+  return T? gc_GEN(av, T): gc_NULL(av);
 }
 
 static GEN
@@ -1168,7 +1157,7 @@ Babai_heuristic(pari_sp av, long kappa, GEN *pB, GEN *pU, GEN mu, GEN r, GEN s,
                 GEN eta, long prec)
 {
   GEN B = *pB, U = *pU;
-  const long n = nbrows(B), d = U ? lg(U)-1: 0, bit = prec2nbits(prec);
+  const long n = nbrows(B), d = U ? lg(U)-1: 0;
   long k, aa = (a > zeros)? a : zeros+1;
   int did_something = 0;
   long emaxmu = EX0, emax2mu = EX0;
@@ -1268,7 +1257,7 @@ Babai_heuristic(pari_sp av, long kappa, GEN *pB, GEN *pU, GEN mu, GEN r, GEN s,
         else
         {
           long e;
-          GEN X = truncexpo(tmp, bit, &e); /* tmp ~ X * 2^e */
+          GEN X = truncexpo(tmp, prec, &e); /* tmp ~ X * 2^e */
           btop = avma;
           for (k=zeros+1; k<j; k++)
           {
@@ -1331,15 +1320,16 @@ fplll_heuristic(GEN *pB, GEN *pU, double DELTA, double ETA, long keepfirst,
   for (j = 1; j <= d; j++)
   {
     GEN M = cgetg(d+1, t_COL), R = cgetg(d+1, t_COL), S = cgetg(d+1, t_COL);
+    long l = nbits2lg(prec), l2 = nbits2lg(prec2);
     gel(mu,j)= M;
     gel(r,j) = R;
     gel(G,j) = S;
-    gel(s,j) = cgetr(prec);
+    gel(s,j) = cgetg(l, t_REAL);
     for (i = 1; i <= d; i++)
     {
-      gel(R,i) = cgetr(prec);
-      gel(M,i) = cgetr(prec);
-      gel(S,i) = cgetr(prec2);
+      gel(R,i) = cgetg(l, t_REAL);
+      gel(M,i) = cgetg(l, t_REAL);
+      gel(S,i) = cgetg(l2, t_REAL);
     }
   }
   Gtmp = cgetg(d+1, t_VEC);
@@ -2019,7 +2009,7 @@ Babai(pari_sp av, long kappa, GEN *pG, GEN *pB, GEN *pU, GEN mu, GEN r, GEN s,
 {
   GEN G = *pG, B = *pB, U = *pU, ztmp;
   long k, aa = a > zeros? a: zeros+1;
-  const long n = B? nbrows(B): 0, d = U ? lg(U)-1: 0, bit = prec2nbits(prec);
+  const long n = B? nbrows(B): 0, d = U ? lg(U)-1: 0;
   long emaxmu = EX0, emax2mu = EX0;
   /* N.B: we set d = 0 (resp. n = 0) to avoid updating U (resp. B) */
 
@@ -2164,7 +2154,7 @@ Babai(pari_sp av, long kappa, GEN *pG, GEN *pB, GEN *pU, GEN mu, GEN r, GEN s,
         else
         {
           long e;
-          GEN X = truncexpo(tmp, bit, &e); /* tmp ~ X * 2^e */
+          GEN X = truncexpo(tmp, prec, &e); /* tmp ~ X * 2^e */
           btop = avma;
           for (k=zeros+1; k<j; k++)
           {
@@ -2230,13 +2220,14 @@ fplll(GEN *pG, GEN *pB, GEN *pU, GEN *pr, double DELTA, double ETA,
   for (j = 1; j <= d; j++)
   {
     GEN M = cgetg(d+1, t_COL), R = cgetg(d+1, t_COL);
+    long l = nbits2lg(prec);
     gel(mu,j)= M;
     gel(r,j) = R;
-    gel(s,j) = cgetr(prec);
+    gel(s,j) = cgetg(l, t_REAL);
     for (i = 1; i <= d; i++)
     {
-      gel(R,i) = cgetr(prec);
-      gel(M,i) = cgetr(prec);
+      gel(R,i) = cgetg(l, t_REAL);
+      gel(M,i) = cgetg(l, t_REAL);
     }
   }
   Gtmp = cgetg(d+1, t_VEC);

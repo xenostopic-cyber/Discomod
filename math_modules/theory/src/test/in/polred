@@ -91,8 +91,10 @@ rnfpolredabs(K,B)
 A=x^4+(4*y^3-10*y^2-40*y+105)*x^2+(-2*y^3+10*y^2+16*y-82)*x+(54*y^3-162*y^2-484*y+1458);
 rnfpolredabs(K,A)
 
-
-\\ ERRORS, keep at end of file
-
 \\#2241
 polredbest(x^6+30*x^5+133*x^4-2340*x^3-12284*x^2+29519*x-3856)
+
+\\#2689
+polredbest(x^3-2*x+1)
+
+\\ ERRORS, keep at end of file

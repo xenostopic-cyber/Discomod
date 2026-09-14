@@ -92,7 +92,7 @@ search(long i, const long T[], long n)
 }
 
 static long
-ellmanintable_i(GEN E)
+ellmanintable_i(GEN E, long fl)
 {
   GEN G = ellglobalred(E), N = gel(G,1);
   GEN u = gmael(G,2,1), C4 = ell_get_c4(E), C6 = ell_get_c6(E);
@@ -103,16 +103,18 @@ ellmanintable_i(GEN E)
   }
   if (cmpiu(N, 500000) > 0)
   {
-    pari_err_DOMAIN("ellmaninconstant(,1)", "cond", ">", utoi(500000), N);
-#if 0
-    GEN M = gel(ellisomat(E,0,1),2);
-    if (lg(M)==2) return 1;            /* Manin conjecture */
-    return ugcdiu(ZV_lcm(gel(M,1)),6); /* Watkins conjecture */
-#endif
+    if (fl)
+    {
+      GEN M = gel(ellisomat(E,0,1),2);
+      if (lg(M)==2) return 1;            /* Manin conjecture */
+      return ugcdiu(ZV_lcm(gel(M,1)),6); /* Watkins conjecture */
+    }
+    else
+      pari_err_DOMAIN("ellmaninconstant(,1)", "cond", ">", utoi(500000), N);
   }
   if (signe(C6)==0)
   {
-     if (equaliu(absi(C4),48)) return 2;
+    if (equaliu(absi(C4),48)) return 2;
   }
   else if (expi(C6)<31)
   {
@@ -149,4 +151,8 @@ ellmanintable_i(GEN E)
 
 long
 ellmanintable(GEN E)
-{ pari_sp av = avma; return gc_long(av, ellmanintable_i(E)); }
+{ pari_sp av = avma; return gc_long(av, ellmanintable_i(E,0)); }
+
+long
+ellmanintable_heuristic(GEN E)
+{ pari_sp av = avma; return gc_long(av, ellmanintable_i(E,1)); }

@@ -62,6 +62,9 @@ list=getenv; . ./look
 list=isatty; . ./look
 list=alarm; . ./look
 list=system; . ./look
+if test "$thread_engine" = "pthread"; then
+  list=pthread_sigmask; . ./look
+fi
 
 # For install(). Do we need libdl.so?
 # on irix and osf1 -ldl not needed

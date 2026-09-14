@@ -12,16 +12,25 @@ Doc: Let $E$ be an elliptic curve over the rationals, assumed to be of
  This uses the Heegner point method, described in Cohen GTM 239; the complexity
  is proportional to the product of the square root of the conductor and the
  height of the point (thus, it is preferable to apply it to strong Weil curves).
+ For curves that are twists of curves with smaller conductor,
+ \kbd{ellheegnertwist} is faster.
+
  \bprog
- ? E = ellinit([-157^2,0]);
- ? u = ellheegner(E); print(u[1], "\n", u[2])
+ ? E = ellinit([-157^2,0]); \\ twist by 157 of y^2=x^3-x
+ ? P = ellheegner(E); print(P[1], "\n", P[2])
  69648970982596494254458225/166136231668185267540804
  538962435089604615078004307258785218335/67716816556077455999228495435742408
+ time = 1,049 ms.
+ ? Q = ellheegnertwist(E); P == Q
+ %3 = 1 \\ same point here (this is not guaranteed in general)
+ time = 118 ms. \\ faster
  ? ellheegner(ellinit([0,1]))         \\ E has rank 0 !
   ***   at top-level: ellheegner(E=ellinit
   ***                 ^--------------------
   *** ellheegner: The curve has even analytic rank.
  @eprog
- Variant: \fun{GEN}{ellheegner_z}{GEN E, long prec} return \kbd{[z, idx]} where $z$
- is the lattice point corresponding to $idx$ time the Heegner point, where $idx$ is
- a positive integer.
+ Variant: Let $P$ be the Heegner point.
+ \fun{GEN}{ellheegner_z}{GEN E, long prec}
+ returns \kbd{[z, n]} where $z$ is the lattice point corresponding to
+ $[n]P$ and $n \geq 2$ is some integer chosen to simplify computations
+ (kill torsion, etc).

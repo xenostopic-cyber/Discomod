@@ -1,4 +1,5 @@
 import cmath
+import inspect
 import math
 import random
 
@@ -15,6 +16,8 @@ from mpmath import (acos, acosh, acot, acoth, acsc, acsch, arange, arg, asec,
                     nthroot, phi, pi, power, powm1, radians, rand, re, root,
                     sec, sech, sign, sin, sinc, sincpi, sinh, sinpi, sqrt, tan,
                     tanh, twinprime, unitroots)
+from mpmath.functions.functions import (SpecialFunctions, ctx_lru_cache, defun,
+                                        defun_wrapped)
 from mpmath.libmp import (MPZ, ComplexResult, from_int, mpf_gt, mpf_lt,
                           mpf_mul, mpf_pow_int, mpf_sqrt, round_ceiling,
                           round_down, round_nearest, round_up)
@@ -26,6 +29,96 @@ def mpc_ae(a, b, eps=eps):
     res = res and a.real.ae(b.real, eps)
     res = res and a.imag.ae(b.imag, eps)
     return res
+
+
+def test_ctx_lru_cache(monkeypatch):
+    monkeypatch.setattr(
+        SpecialFunctions, 'defined_functions',
+        SpecialFunctions.defined_functions.copy())
+    monkeypatch.setattr(
+        SpecialFunctions, 'lru_cache_functions',
+        SpecialFunctions.lru_cache_functions.copy())
+    calls = []
+    wrapped_calls = []
+
+    @defun
+    @ctx_lru_cache(maxsize=2)
+    def _test_lru_cache(ctx, x):
+        calls.append((ctx, x))
+        return ctx.sqrt(x)
+
+    @defun_wrapped
+    @ctx_lru_cache(maxsize=2)
+    def _test_wrapped_lru_cache(ctx, x):
+        wrapped_calls.append((ctx.prec, x))
+        return x
+
+    name = _test_lru_cache.__name__
+    assert SpecialFunctions.lru_cache_functions[name] == 2
+    assert SpecialFunctions.defined_functions[name][1] is False
+    wrapped_name = _test_wrapped_lru_cache.__name__
+    assert SpecialFunctions.lru_cache_functions[wrapped_name] == 2
+    assert SpecialFunctions.defined_functions[wrapped_name][1] is True
+    try:
+        ctx = mp.clone()
+        cached = ctx._test_lru_cache
+        expected_signature = inspect.signature(cached.__wrapped__)
+        assert inspect.signature(cached) == expected_signature
+        assert cached.cache_info().maxsize == 2
+        assert cached.cache_info().currsize == 0
+        wrapped_cached = ctx._test_wrapped_lru_cache
+        prec = ctx.prec
+        assert wrapped_cached(1) == wrapped_cached(1) == 1
+        assert len(wrapped_calls) == 1
+        wrapped_prec, wrapped_arg = wrapped_calls[0]
+        assert wrapped_prec == prec + 10
+        assert ctx._is_real_type(wrapped_arg)
+        assert wrapped_cached.cache_info().hits == 1
+        assert wrapped_cached.cache_info().misses == 1
+
+        assert cached(1) == cached(1) == 1
+        assert cached.cache_info().hits == 1
+        assert cached.cache_info().misses == 1
+        assert cached(2) == sqrt(2)
+        assert cached(1) == 1
+        assert cached(3) == sqrt(3)
+        assert cached(1) == 1
+        assert cached(2) == sqrt(2)
+        assert len(calls) == 4
+
+        ctx.prec -= 10
+        assert cached(2) == cached(2)
+        assert len(calls) == 5
+        ctx.rounding = 'd'
+        assert cached(2) == cached(2)
+        assert len(calls) == 6
+
+        complex_value = cached(-1)
+        assert len(calls) == 7
+        ctx.trap_complex = True
+        with pytest.raises(ctx.ComplexResult):
+            cached(-1)
+        assert len(calls) == 8
+        ctx.trap_complex = False
+        assert cached(-1) == complex_value
+        assert len(calls) == 8
+
+        cached.cache_clear()
+        assert cached.cache_info().hits == 0
+        assert cached.cache_info().misses == 0
+        assert cached.cache_info().currsize == 0
+        assert cached(1) == 1
+
+        fixed_ctx = type(fp)()
+        fixed_cached = fixed_ctx._test_lru_cache
+        assert fixed_cached(4) == fixed_cached(4) == 2.0
+        assert fixed_cached.cache_info().hits == 1
+        assert fixed_cached.cache_info().misses == 1
+    finally:
+        del type(mp)._test_lru_cache
+        del type(mp)._test_wrapped_lru_cache
+        del type(fp)._test_lru_cache
+        del type(fp)._test_wrapped_lru_cache
 
 #----------------------------------------------------------------------------
 # Constants and functions
@@ -171,6 +264,7 @@ def test_exact_cbrt():
         assert cbrt(mpf(A*A*A)) == A
 
 def test_exp():
+    # other special real cases are in test_special.py::test_functions_special()
     assert exp(0) == 1
     assert exp(10000).ae(mpf('8.8068182256629215873e4342'))
     assert exp(-10000).ae(mpf('1.1354838653147360985e-4343'))
@@ -182,6 +276,44 @@ def test_exp():
     mp.prec = 53
     assert exp(ln2 * 10).ae(1024)
     assert exp(2+2j).ae(cmath.exp(2+2j))
+
+    # Complex special cases:
+    # https://en.cppreference.com/c/numeric/complex/cexp
+    assert exp(0j) == 1
+    r = exp(mpc(0, nan))
+    assert isnan(r.real) and isnan(r.imag)
+    r = exp(mpc(1, inf))
+    assert isnan(r.real) and isnan(r.imag)
+    r = exp(mpc(1, -inf))
+    assert isnan(r.real) and isnan(r.imag)
+    r = exp(mpc(1, nan))
+    assert isnan(r.real) and isnan(r.imag)
+    assert exp(mpc(inf, 0)) == mpc(inf, 0)
+    assert exp(mpc(-inf, 0)) == 0
+    assert exp(mpc(-inf, 1)) == 0
+    assert exp(mpc(inf, pi/4)) == mpc(inf, inf)
+    assert exp(mpc(inf, 3*pi/4)) == mpc(-inf, inf)
+    assert exp(mpc(inf, -3*pi/4)) == mpc(-inf, -inf)
+    assert exp(mpc(inf, -pi/4)) == mpc(inf, -inf)
+    assert exp(mpc(-inf, inf)) == 0
+    assert exp(mpc(-inf, -inf)) == 0
+    r = exp(mpc(inf, inf))
+    assert abs(r.real) == inf and isnan(r.imag)
+    r = exp(mpc(inf, -inf))
+    assert abs(r.real) == inf and isnan(r.imag)
+    assert exp(mpc(-inf, nan)) == 0
+    r = exp(mpc(inf, nan))
+    assert abs(r.real) == inf and isnan(r.imag)
+    r = exp(mpc(nan, 0))
+    assert isnan(r.real) and r.imag == 0
+    r = exp(mpc(nan, 1))
+    assert isnan(r.real) and isnan(r.imag)
+    r = exp(mpc(nan, inf))
+    assert isnan(r.real) and isnan(r.imag)
+    r = exp(mpc(nan, -inf))
+    assert isnan(r.real) and isnan(r.imag)
+    r = exp(mpc(nan, nan))
+    assert isnan(r.real) and isnan(r.imag)
 
 def test_issue_73():
     mp.dps = 512
@@ -340,6 +472,22 @@ def test_asin():
     assert asin(mpc(0, 1e-220)).ae(1e-220j)
     mp.prec = 53
 
+    # Special cases:
+    # https://en.cppreference.com/c/numeric/math/asin
+    assert isnan(asin(nan))
+    assert asin(0) == 0
+    # https://en.cppreference.com/c/numeric/complex/casin
+    assert asin(0j) == 0
+    r = asin(mpc(nan, 0))
+    assert isnan(r.real) and isnan(r.imag)
+    assert asin(mpc(1, -inf)) == mpc(0, -inf)
+    r = asin(mpc(0, nan))
+    assert r.real == 0 and isnan(r.imag)
+    r = asin(mpc(1, nan))
+    assert isnan(r.real) and isnan(r.imag)
+    r = asin(mpc(nan, nan))
+    assert isnan(r.real) and isnan(r.imag)
+
 def test_acos():
     pi4 = pi/4
     assert acos(mpc(+inf, +inf)) == mpc(+pi4, -inf)
@@ -370,6 +518,83 @@ def test_acos():
     assert acos(mpc(-2, 0)).ae(mpc(pi, log(2 - sqrt(3))))
     assert acos(mpc(+2, 0)).ae(mpc(0, log(2 + sqrt(3))))
     assert acos(mpc(0.5, 0)).ae(pi/3)
+
+    # Special cases:
+    # https://en.cppreference.com/c/numeric/math/acos
+    assert isnan(acos(nan))
+    assert acos(1) == 0
+    # https://en.cppreference.com/c/numeric/complex/cacos
+    assert acos(0j).ae(mpc(pi2, 0))
+    r = acos(mpc(0, nan))
+    assert r.real.ae(pi2) and isnan(r.imag)
+    r = acos(mpc(1, nan))
+    assert isnan(r.real) and isnan(r.imag)
+    r = acos(mpc(nan, 0))
+    assert isnan(r.real) and isnan(r.imag)
+    r = acos(mpc(nan, nan))
+    assert isnan(r.real) and isnan(r.imag)
+
+def test_asinh():
+    pi2 = pi/2
+    pi4 = pi/4
+
+    # Special cases:
+    # https://en.cppreference.com/c/numeric/math/asinh
+    assert isnan(asinh(nan))
+    assert asinh(0) == 0
+    assert asinh(inf) == inf
+    assert asinh(-inf) == -inf
+    # https://en.cppreference.com/c/numeric/complex/casinh
+    assert asinh(0j) == 0
+    assert asinh(mpc(1, inf)).ae(mpc(inf, pi2))
+    r = asinh(mpc(0, nan))
+    assert isnan(r.real) and isnan(r.imag)
+    r = asinh(mpc(1, nan))
+    assert isnan(r.real) and isnan(r.imag)
+    assert asinh(mpc(inf, 1)) == mpc(inf, 0)
+    assert asinh(mpc(inf, inf)).ae(mpc(inf, pi4))
+    r = asinh(mpc(nan, 0))
+    assert isnan(r.real) and r.imag == 0
+    r = asinh(mpc(nan, 1))
+    assert isnan(r.real) and isnan(r.imag)
+    r = asinh(mpc(nan, inf))
+    assert abs(r.real) == inf and isnan(r.imag)
+    r = asinh(mpc(nan, nan))
+    assert isnan(r.real) and isnan(r.imag)
+
+def test_acosh():
+    pi2 = pi/2
+    pi4 = pi/4
+
+    # Special cases:
+    # https://en.cppreference.com/c/numeric/math/acosh
+    assert isnan(acosh(nan))
+    assert acosh(1) == 0
+    assert acosh(inf) == inf
+    # https://en.cppreference.com/c/numeric/complex/cacosh
+    assert acosh(0j).ae(mpc(0, pi2))
+    assert acosh(mpc(0, inf)).ae(mpc(inf, pi2))
+    assert acosh(mpc(1, inf)).ae(mpc(inf, pi2))
+    r = acosh(mpc(1, nan))
+    assert isnan(r.real) and isnan(r.imag)
+    r = acosh(mpc(0, nan))
+    assert isnan(r.real) and abs(r.imag).ae(pi2)
+    assert acosh(mpc(-inf, 1)).ae(mpc(inf, pi))
+    assert acosh(mpc(inf, 1)) == mpc(inf, 0)
+    assert acosh(mpc(-inf, inf)).ae(mpc(inf, 3*pi4))
+    assert acosh(mpc(inf, inf)).ae(mpc(inf, pi4))
+    r = acosh(mpc(-inf, nan))
+    assert r.real == inf and isnan(r.imag)
+    r = acosh(mpc(inf, nan))
+    assert r.real == inf and isnan(r.imag)
+    r = acosh(mpc(nan, 0))
+    assert isnan(r.real) and isnan(r.imag)
+    r = acosh(mpc(nan, 1))
+    assert isnan(r.real) and isnan(r.imag)
+    r = acosh(mpc(nan, inf))
+    assert r.real == inf and isnan(r.imag)
+    r = acosh(mpc(nan, nan))
+    assert isnan(r.real) and isnan(r.imag)
 
 def test_atan():
     assert atan(-2.3).ae(math.atan(-2.3))
@@ -980,6 +1205,44 @@ def test_expm1():
     assert expm1(inf) == inf
     assert expm1(1e-50).ae(1e-50)
     assert (expm1(1e-10)*1e10).ae(1.00000000005)
+
+    # Other real special cases:
+    # https://en.cppreference.com/c/numeric/math/expm1
+    assert isnan(expm1(nan))
+    assert expm1(-inf) == -1
+
+    # Complex special cases:
+    # https://en.cppreference.com/c/numeric/complex/cexp
+    # The expm1 results are the exp results minus 1.
+    assert expm1(0j) == 0
+    r = expm1(mpc(1, inf))
+    assert isnan(r.real) and isnan(r.imag)
+    r = expm1(mpc(1, -inf))
+    assert isnan(r.real) and isnan(r.imag)
+    r = expm1(mpc(1, nan))
+    assert isnan(r.real) and isnan(r.imag)
+    assert expm1(mpc(inf, 0)) == mpc(inf, 0)
+    assert expm1(mpc(-inf, 0)) == -1
+    assert expm1(mpc(-inf, 1)) == -1
+    assert expm1(mpc(inf, pi/4)) == mpc(inf, inf)
+    assert expm1(mpc(inf, 3*pi/4)) == mpc(-inf, inf)
+    assert expm1(mpc(inf, -3*pi/4)) == mpc(-inf, -inf)
+    assert expm1(mpc(inf, -pi/4)) == mpc(inf, -inf)
+    assert expm1(mpc(-inf, inf)) == -1
+    assert expm1(mpc(-inf, -inf)) == -1
+    r = expm1(mpc(inf, inf))
+    assert abs(r.real) == inf and isnan(r.imag)
+    r = expm1(mpc(inf, -inf))
+    assert abs(r.real) == inf and isnan(r.imag)
+    assert expm1(mpc(-inf, nan)) == -1
+    r = expm1(mpc(inf, nan))
+    assert abs(r.real) == inf and isnan(r.imag)
+    r = expm1(mpc(nan, 0))
+    assert isnan(r.real) and r.imag == 0
+    r = expm1(mpc(nan, 1))
+    assert isnan(r.real) and isnan(r.imag)
+    r = expm1(mpc(nan, nan))
+    assert isnan(r.real) and isnan(r.imag)
 
 def test_log1p():
     assert log1p(0) == 0

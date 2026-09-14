@@ -711,12 +711,13 @@ divri(GEN x, GEN y)
   long  s = signe(y);
 
   if (!s) pari_err_INV("divri",gen_0);
-  if (!signe(x)) return real_0_bit(expo(x) - expi(y));
+  if (!signe(x)) return real_0_expo(expo(x) - expi(y));
   if (!is_bigint(y)) {
     GEN z = divru(x, y[2]);
     if (s < 0) togglesign(z);
     return z;
   }
+  if (Z_ispow2(y)) return shiftr(x, -expi(y)); /* important special case */
   return divri_with_gmp(x,y);
 }
 
@@ -729,7 +730,7 @@ divrr(GEN x, GEN y)
 
   if (!sy) pari_err_INV("divrr",y);
   e = expo(x) - expo(y);
-  if (!sx) return real_0_bit(e);
+  if (!sx) return real_0_expo(e);
   if (sy<0) sx = -sx;
 
   lx=lg(x); ly=lg(y);

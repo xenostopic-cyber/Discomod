@@ -1176,9 +1176,10 @@ START:
       if (DEBUGLEVEL>2) err_printf("...need %ld more relations\n", need);
     }
     if (BQ.PRECREG) {
+      long lz = nbits2lg(BQ.PRECREG);
       for (i = triv+1; i<=need; i++) {
         gel(mat,i) = zero_zv(BQ.KC);
-        gel(extraC,i) = mkcomplex(cgetr(BQ.PRECREG), cgeti(3));
+        gel(extraC,i) = mkcomplex(cgetg(lz, t_REAL), cgeti(3));
       }
       real_relations(&BQ, need - triv, &current, s,LIMC,mat + triv,extraC + triv);
     } else {

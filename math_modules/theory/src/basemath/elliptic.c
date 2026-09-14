@@ -2333,7 +2333,7 @@ myroundr(GEN *px)
 {
   GEN x = *px;
   long e;
-  if (bit_prec(x) - expo(x) < 5) return LOW_PREC;
+  if (realprec(x) - expo(x) < 5) return LOW_PREC;
   *px = grndtoi(x, &e);
   if (e >= -5) return NO;
   return OK;
@@ -2363,7 +2363,7 @@ CM_factor(GEN E, GEN Q)
       return NULL; /*-Wall*/
   }
   /* disc Q = v^2 D, D < 0 fundamental */
-  w = ellR_omega(E, DEFAULTPREC + nbits2extraprec(expi(D)));
+  w = ellR_omega(E, nbits2prec(DEFAULTPREC + expi(D)));
   tau = gdiv(gel(w,2), gel(w,1));
   prec = precision(tau);
   /* disc tau = -4 k^2 (Im tau)^2 for some integral k
@@ -4358,8 +4358,7 @@ nfembedall(GEN nf, GEN x)
   return x;
 }
 static long
-nfembed_extraprec(GEN x)
-{ long e = gexpo(x); return (e < 8)? 0: nbits2extraprec(e); }
+nfembed_extrabit(GEN x) { long e = gexpo(x); return (e < 8)? 0: e; }
 GEN
 ellnfembed(GEN E, long prec)
 {
@@ -4370,7 +4369,7 @@ ellnfembed(GEN E, long prec)
   E0 = RgC_to_nfC(nf, vecslice(E,1,5));
   prec0 = prec + EXTRAPREC64;
   /* need accuracy 3b for bmodel to ensure roots are correct to b bits */
-  prec += 3*prec0 + nfembed_extraprec(E0);
+  prec = nbits2prec(3*prec0 + nfembed_extrabit(E0));
   L =  cgetg(n+1, t_VEC);
   sD = nfeltsign(nf, ell_get_disc(E), identity_perm(r1));
   for(;;)
@@ -4399,7 +4398,7 @@ ellpointnfembed(GEN E, GEN P, long prec)
   GEN nf = ellnf_get_nf(E), Px, Py, L;
   long i, l;
   P = RgC_to_nfC(nf, P);
-  prec += nfembed_extraprec(P);
+  prec = nbits2prec(prec + nfembed_extrabit(P));
   nf = ellnf_get_nf_prec(E, prec);
   Px = nfembedall(nf, gel(P,1));
   Py = nfembedall(nf, gel(P,2));
@@ -4705,23 +4704,42 @@ ellQ_isdivisible_test(forprime_t *S, GEN E, long CM, GEN P, ulong l, long nb)
   for (m = 1; m <= nb; set_avma(av))
   {
     ulong o, a4, a6, p = u_forprime_next(S);
-    if (dvdiu(D, p)) continue;
+    if (p==l || dvdiu(D, p)) continue;
     Fl_ell_to_a4a6(E, p, &a4, &a6);
     o = p+1 - Fl_elltrace_CM(CM, a4, a6, p);
     if (o % l == 0)
     {
-      ulong pi = get_Fl_red(p);
       GEN a4a6 = a4a6_ch_Fl(E,p);
-      GEN Q = Flj_changepointinv_pre(ZV_to_Flv(P, p), a4a6, p, pi);
-      GEN R = Flj_mulu_pre(Q, o/l, a4, p, pi);
-      if (uel(R, 3) != 0) return 0;
+      if (p % l != 1) /* Siksek variant */
+      {
+        ulong pi = get_Fl_red(p);
+        GEN Q = Flj_changepointinv_pre(ZV_to_Flv(P, p), a4a6, p, pi);
+        GEN R = Flj_mulu_pre(Q, o/l, a4, p, pi);
+        if (uel(R, 3) != 0) return 0;
+      }
+      else /* Prickett variant */
+      {
+        GEN G = Fl_ellptors(l, o, a4, a6, p);
+        GEN G1 = gel(G,1), G2 = lg(G)==3 ? gel(G, 2): NULL;
+        GEN Q = Fle_changepointinv(Flj_to_Fle( ZV_to_Flv(P, p), p), a4a6, p);
+        if (!ell_is_inf(Q))
+        {
+          ulong q = (p-1)/l;
+          ulong u = Fl_powu(Fle_tatepairing(G1, Q, l, a4, p), q, p);
+          if (u!=1UL) return 0;
+          if (G2)
+          {
+            ulong u = Fl_powu(Fle_tatepairing(G2, Q, l, a4, p), q, p);
+            if (u!=1UL) return 0;
+          }
+        }
+      }
       m++;
     }
   }
   return 1;
 }
 
-/* Assume l prime to 210 */
 GEN
 ellQ_isdivisible(GEN E, GEN P, ulong l)
 {
@@ -4731,7 +4749,7 @@ ellQ_isdivisible(GEN E, GEN P, ulong l)
   long CM = ellQ_get_CM(E);
   ulong bound;
 
-  u_forprime_init(&U, l+1, ULONG_MAX);
+  u_forprime_init(&U, 5, ULONG_MAX);
   if (!ellQ_isdivisible_test(&U, E, CM, PJ, l, 10)) return gc_NULL(av);
   worker = snm_closure(is_entry("_ellQ_factorback_worker"),
                        mkvec4(E, mkvec(PJ), mkvecs(1), utoi(l)));
@@ -4747,8 +4765,8 @@ ellQ_isdivisible(GEN E, GEN P, ulong l)
     {
       settyp(r,t_VEC);
       if (gequal(ellmul(E,r,utoi(l)), P)) return gc_upto(av, r);
-      if (!ellQ_isdivisible_test(&U, E, CM, PJ, l, 10)) return gc_NULL(av);
     }
+    if (!ellQ_isdivisible_test(&U, E, CM, PJ, l, 10)) return gc_NULL(av);
   }
 }
 
@@ -5689,9 +5707,8 @@ elllseries(GEN e, GEN s, GEN A, long prec)
   cg = divrr(Pi2n(1, prec), gsqrt(N,prec));
   cga = gmul(cg, A);
   cgb = gdiv(cg, A);
-  l = (ulong)((prec2nbits_mul(prec, M_LN2) +
-              fabs(gtodouble(real_i(s))-1.) * log(rtodbl(cga)))
-            / rtodbl(cgb) + 1);
+  l = (ulong)((prec * M_LN2 + fabs(gtodouble(real_i(s))-1.) * log(rtodbl(cga)))
+              / rtodbl(cgb) + 1);
   if ((long)l < 1) l = 1;
   v = ellanQ_zv(e, minss(l,LGBITS-1));
   s2 = K = NULL; /* gcc -Wall */

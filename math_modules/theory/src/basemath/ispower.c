@@ -147,41 +147,28 @@ logint0(GEN B, GEN y, GEN *ptq)
 {
   const char *f = "logint";
   if (typ(y) != t_INT) pari_err_TYPE(f,y);
-  if (cmpis(y, 2) < 0) pari_err_DOMAIN(f, "b", "<=", gen_1, y);
+  if (cmpiu(y, 2) < 0) pari_err_DOMAIN(f, "b", "<=", gen_1, y);
   if (typ(B) != t_INT)
   {
     pari_sp av = avma;
+    GEN b;
     long a;
     if (typ(B) == t_REAL)
     {
-      long e, p;
+      long e = expo(B);
       if (cmprs(B, 1) < 1) pari_err_DOMAIN(f, "x", "<", gen_1, B);
-      e = expo(B); if (e < 0) return 0;
+      if (e < 1) return 0; /* 2^e <= B < 2^(e+1), y >= 2 */
       if (equaliu(y, 2)) return e;
-      if (expu(e) < 50)
-      {
-        a = floor(dbllog2(B) / dbllog2(y));
-        if (ptq) *ptq = powiu(y, a);
-        return a;
-      }
-      /* play safe */
-      p = lg(B);
-      if (nbits2lg(e+1) > p)
-      { /* try to avoid precision loss in truncation */
-        if (p > DEFAULTPREC) { p = DEFAULTPREC; B = rtor(B, p); }
-        a = itos(floorr(divrr(logr_abs(B), logr_abs(itor(y, p)))));
-        set_avma(av); if (ptq) *ptq = powiu(y, a);
-        return a;
-      }
-      a = logintall(truncr(B), y, ptq);
+      /* floor(B) with IEEE 754 semantic; truncr may raise pari_err_PREC */
+      b = mantissa2nr(B, e + 1 - realprec(B)); /* = trunc2nr(x,0) */
     }
     else
     {
-      GEN b = gfloor(B);
+      b = gfloor(B);
       if (typ(b) != t_INT) pari_err_TYPE(f,B);
       if (signe(b) <= 0) pari_err_DOMAIN(f, "x", "<", gen_1, B);
-      a = logintall(b, y, ptq);
     }
+    a = logintall(b, y, ptq);
     if (!ptq) return gc_long(av, a);
     *ptq = gc_INT(av, *ptq); return a;
   }

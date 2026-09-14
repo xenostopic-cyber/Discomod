@@ -162,8 +162,8 @@ RgX_homogenous_evalpow(GEN P, GEN A, GEN B, long d)
   pari_sp av = avma, btop;
   long i, o, dP = degpol(P);
   GEN s;
-  if (signe(P)==0) return gen_0;
-  s = dP >=d ? gel(P, d+2): gen_0;
+  if (signe(P)==0) return gmul(gel(B,1), gen_0);
+  s = dP >=d ? gel(P, d+2): gmul(gel(B,1), gen_0);
   if (d == 0) return gcopy(s);
   o = RgX_deflate_order(P); if (d % o) o = 1;
   if (o > 1) A = gpowgs(A, o);

@@ -158,6 +158,7 @@ GEN  ramanujantau_worker(GEN gt, GEN p2_7, GEN p_9, GEN p);
 GEN  taugen_n_worker(GEN t, GEN pol, GEN p4);
 GEN  serh_worker(GEN gk, GEN V, GEN a, GEN ns, GEN gprec);
 GEN  nfroots_worker(GEN r, GEN C, GEN lt, GEN T, long v);
+GEN  heegnersum_worker(GEN l, GEN an, long r, long prec);
 
 /* Relative number fields */
 enum { rnf_NFABS = 1, rnf_MAPS };
@@ -278,7 +279,7 @@ void  free_graph(void);
 void  initout(int initerr);
 void  resetout(int initerr);
 void  init_linewrap(long w);
-void  print_functions_hash(const char *s);
+void  print_ep_hash(const char *s, entree **hash, ulong mask);
 GEN   readbin(const char *name, FILE *f, int *vector);
 int   term_height(void);
 int   term_width(void);
@@ -342,7 +343,8 @@ enum { EpNEW = 100, EpALIAS, EpVAR, EpINSTALL };
 #define initial_value(ep) ((ep)+1)
 
 /* functions lists */
-extern const long functions_tblsz;  /* hashcodes table size */
+extern const long functions_hash_MASK; /* functions hashcodes table size - 1 */
+extern const long defaults_hash_MASK; /* defaults hashcodes table size - 1 */
 extern entree **functions_hash;   /* functions hashtable */
 extern entree **defaults_hash;    /* defaults hashtable */
 
@@ -494,7 +496,7 @@ GEN chk_factors_get(GEN lt, GEN famod, GEN c, GEN T, GEN N);
 long cmbf_maxK(long nb);
 GEN ZX_DDF(GEN x);
 GEN ZX_DDF_max(GEN x, long dmax);
-GEN initgaloisborne(GEN T, GEN dn, long prec, GEN *pL, GEN *pprep, GEN *pdis);
+GEN initgaloisborne(GEN T, GEN dn, long prec, long *pr1, GEN *pL, GEN *pprep, GEN *pdis);
 
 /* number fields */
 GEN nflist_C3_worker(GEN gv, GEN T);
@@ -696,6 +698,7 @@ void    ellprint(GEN e);
 /* ellmanin.c */
 
 long    ellmanintable(GEN E);
+long    ellmanintable_heuristic(GEN E);
 
 /* ellrank.c */
 
@@ -707,6 +710,7 @@ void    killallfiles(void);
 pariFILE* newfile(FILE *f, const char *name, int type);
 int     popinfile(void);
 pariFILE* try_pipe(const char *cmd, int flag);
+void    print_ep_single(entree *ep, ulong mask);
 
 /* F2m.c */
 
@@ -777,6 +781,7 @@ void    init_modular_small(forprime_t *S);
 GEN     galoiscosets(GEN O, GEN perm);
 GEN     galoisinitfromaut(GEN T, GEN aut, ulong l);
 GEN     matrixnorm(GEN M, long prec);
+GEN     matrixnorm_real(GEN M, long r1, long prec);
 
 /* gen1.c */
 

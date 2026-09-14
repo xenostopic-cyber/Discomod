@@ -429,12 +429,16 @@ mt_queue_start_lim(struct pari_mt *pt, GEN worker, long lim)
     if (DEBUGLEVEL) pari_warn(warner,"starting %ld threads", lim);
     BLOCK_SIGINT_START
     {
+#ifdef HAS_PTHREAD_SIGMASK
       sigset_t set, oldset;
       sigfillset(&set);
       pthread_sigmask(SIG_SETMASK, &set, &oldset);
+#endif
       for (i = 0; i < lim; i++)
         pthread_create(&mt->th[i], NULL, &mt_queue_run, (void*)&mt->pth[i]);
+#ifdef HAS_PTHREAD_SIGMASK
       pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+#endif
       pari_mt = mt;
     }
     BLOCK_SIGINT_END

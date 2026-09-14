@@ -215,7 +215,7 @@ commandAmbiguityError(kind,x,u) ==
 abbreviations l ==
   ioHook("startSysCmd", "abbrev")
   abbreviationsSpad2Cmd l
-  ioHook("endSysCmd", "abbrev")
+  ioHook("endOfSysCmd", "abbrev")
 
 abbreviationsSpad2Cmd l ==
   null l => helpSpad2Cmd '(abbreviations)
@@ -523,7 +523,7 @@ compileAsharpCmd args ==
     terminateSystemCommand()
     spadPrompt()
 
-file_must_exit(path) ==
+file_must_exist(path) ==
     if not(PROBE_-FILE(path)) then throw_msg("S2IL0003",
         '"The file %1b is needed but does not exist.", [path])
 
@@ -537,7 +537,7 @@ compileAsharpCmd1 args ==
         throw_msg("S2IZ0083", CONCAT(
             '"The Aldor compiler can only compile files with file extensions",
             '" _".as_" or _".ao_"."), [])
-    file_must_exit(path)
+    file_must_exist(path)
 
     $edit_file := path
 
@@ -687,7 +687,7 @@ compileAsharpLispCmd args ==
     -- and is a file with file extension .lsp
 
     path := first(args)
-    file_must_exit(path)
+    file_must_exist(path)
 
     optList :=  '( _
       quiet _
@@ -724,7 +724,7 @@ compileSpadLispCmd args ==
     libname := first args
     basename := file_basename(libname)
     path := make_fname(libname, basename, '"lsp")
-    file_must_exit(path)
+    file_must_exist(path)
 
     optList :=  '( _
       quiet _
@@ -776,7 +776,7 @@ credits() == print_text_file STRCONC($spadroot, '"/lib/credits")
 
 display l ==
   ioHook("startSysCmd", "display")
-  UNWIND_-PROTECT(displaySpad2Cmd l, ioHook("endSysCmd", "display"))
+  UNWIND_-PROTECT(displaySpad2Cmd l, ioHook("endOfSysCmd", "display"))
 
 displaySpad2Cmd l ==
   $e: local := $EmptyEnvironment
@@ -1454,7 +1454,7 @@ historySpad2Cmd() ==
         say_msg("S2IH0008", '"The history facility is now on.", NIL)
       x := query_user_msg("S2IH0009", CONCAT(
          '"Turning on the history facility will clear the contents of",
-         '"the workspace.  Please enter %b y %d or %b yes %d if you really",
+         '" the workspace.  Please enter %b y %d or %b yes %d if you really",
          '" want to do this:"), [])
       x =>
         histFileErase histFileName()
@@ -2090,7 +2090,7 @@ read_or_compile(quiet, i_name) ==
 show l ==
   ioHook("startSysCmd", "show")
   showSpad2Cmd l
-  ioHook("endSysCmd", "show")
+  ioHook("endOfSysCmd", "show")
 
 show_record_msg() == say_msg("S2IZ0044R", CONCAT(
     '"Record(a:A,...,b:B) %l",
@@ -2102,10 +2102,10 @@ show_record_msg() == say_msg("S2IZ0044R", CONCAT(
     '" B, a domain of category SetCategory %u %l",
     '" This constructor is a primitive in FriCAS.",
     '" The selectors a,...,b of a Record type must be distinct. %l %l",
-    '" In order for more information to be displayed about %1b ,",
-    '" you must give it specific arguments. For example: %2b %l",
+    '" In order for more information to be displayed about Record,",
+    '" you must give it specific arguments. For example: %1b %l",
     '" You can also use the HyperDoc Browser."),
-    ['Record, '")show Record(a: Integer, b: String)"])
+    ['")show Record(a: Integer, b: String)"])
 
 show_mapping_msg() == say_msg("S2IZ0044M", CONCAT(
     '"Mapping(T, S, ...) %l",
@@ -2132,10 +2132,10 @@ show_union_msg1() == say_msg("S2IZ0045T", CONCAT(
     '" B, a domain of category SetCategory %u %l",
     '" This constructor is a primitive in FriCAS.",
     '" In tagged Union, tags a, ..., b must be distinct. %l %l",
-    '" In order for more information to be displayed about %1b ,",
-    '" you must give it specific arguments. For example: %2b %l",
+    '" In order for more information to be displayed about Union,",
+    '" you must give it specific arguments. For example: %1b %l",
     '" You can also use the HyperDoc Browser."),
-    [Union, '")show Union(a: Integer, b: String)"])
+    ['")show Union(a: Integer, b: String)"])
 
 show_union_msg2() == say_msg("S2IZ0045U", CONCAT(
     '"Untagged union: Union(A, ..., B) %l",
@@ -2143,10 +2143,10 @@ show_union_msg2() == say_msg("S2IZ0045U", CONCAT(
     '" A, a domain of category SetCategory %l ... %l",
     '" B, a domain of category SetCategory %u %l",
     '" In untagged form of Union, domains A, ..., B must be distinct.",
-    '" In order for more information to be displayed about %1b ,",
-    '" you must give it specific arguments. For example: %2b %l",
+    '" In order for more information to be displayed about Union,",
+    '" you must give it specific arguments. For example: %1b %l",
     '" You can also use the HyperDoc Browser."),
-    [Union, '")show Union(a: Integer, b: String)"])
+    ['")show Union(Integer, String)"])
 
 showSpad2Cmd l ==
   l = [NIL] => helpSpad2Cmd '(show)
@@ -2295,8 +2295,7 @@ reportOpsFromUnitDirectly unitForm ==
       if isRecordOrUnion then
           constructorFunction := get_oplist_maker(top) or
             systemErrorHere '"reportOpsFromUnitDirectly"
-          [funlist, .] := FUNCALL(constructorFunction, "%", unitForm,
-                                  $CategoryFrame)
+          funlist := FUNCALL(constructorFunction, "%", unitForm)
           sigList := [[[a, b], true] for [a, b, c] in funlist]
       else
           sigList := get_op_alist(unitForm)
@@ -2590,7 +2589,7 @@ removeUndoLines u == --called by writeInputLines
 what l ==
   ioHook("startSysCmd", "what")
   whatSpad2Cmd l
-  ioHook("endSysCmd", "what")
+  ioHook("endOfSysCmd", "what")
 
 whatSpad2Cmd l ==
   $e:local := $EmptyEnvironment
@@ -3018,4 +3017,3 @@ ncParseFromString0(s, macros) ==
     ncParseFromString1(s)
 
 ncParseFromString(s) == ncParseFromString0(s, $pfMacros)
-

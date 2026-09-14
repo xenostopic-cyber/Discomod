@@ -263,14 +263,12 @@ GEN
 randomr(long prec)
 {
   pari_sp av;
-  long b;
   GEN x, y;
-  if (prec <= 2) return real_0_bit(0);
+  if (prec <= 2) return real_0_expo(0);
   x = cgetr(prec); av = avma;
-  b = prec2nbits(prec);
-  y = randomi(int2n(b));
-  if (!signe(y)) return real_0_bit(b);
-  affir(y, x); shiftr_inplace(x, - b);
+  y = randomi(int2n(prec));
+  if (!signe(y)) return real_0_expo(prec);
+  affir(y, x); shiftr_inplace(x, - prec);
   set_avma(av); return x;
 }
 

@@ -2528,21 +2528,21 @@ inline uintD divucopy_loop_down (uintD digit, const uintD* sourceptr, uintD* des
 // Dabei ist  ptr - MSDptr = count  und  0 < count <= len .
 // Eventuell wird MSDptr erniedrigt und len erhöht.
   #define DS_1_plus(ptr,count)  \
-    {var uintD* ptr_from_DS_1_plus = (ptr);				\
-     var uintC count_from_DS_1_plus = (count);				\
-     loop { if (--count_from_DS_1_plus==0) /* Zähler erniedrigen      */\
-              { /* Beim Most Significant Digit angelangt              */\
-                lsprefnext(ptr_from_DS_1_plus) += 1;			\
-                /* jetzt ist ptr_from_DS_1_plus = MSDptr              */\
+    {var uintD* ptr_from_DS_1_plus = (ptr);				    \
+     var uintC count_from_DS_1_plus = (count);				    \
+     loop { if (--count_from_DS_1_plus==0) /* Zähler erniedrigen          */\
+              { /* Beim Most Significant Digit angelangt                  */\
+                lsprefnext(ptr_from_DS_1_plus) += 1;			    \
+                /* jetzt ist ptr_from_DS_1_plus = MSDptr                  */\
                 if (mspref(ptr_from_DS_1_plus,0) == (uintD)bit(intDsize-1)) \
-                  { /* 7FFF + 1 muß zu 00008000 werden:               */\
-                    lsprefnext(MSDptr) = 0;				\
-                    len++;						\
-                  }							\
-                break;							\
-              }								\
+                  { /* 7FFF + 1 muß zu 00008000 werden:                   */\
+                    lsprefnext(MSDptr) = 0;				    \
+                    len++;						    \
+                  }							    \
+                break;							    \
+              }								    \
             if (!((lsprefnext(ptr_from_DS_1_plus) += 1) == 0)) /* weiterincrementieren */\
-              break; /* kein weiterer Übertrag -> Schleife abbrechen  */\
+              break; /* kein weiterer Übertrag -> Schleife abbrechen      */\
     }     }
 
 // Macro: In der DS MSDptr/len/LSDptr wird eine 1 unterhalb des Pointers ptr
@@ -2591,7 +2591,7 @@ extern void cl_UDS_mul_square (const uintD* sourceptr, uintC len,
   #define UDS_UDS_mul_UDS(len1,LSDptr1,len2,LSDptr2, MSDptr_zuweisung,len_zuweisung,LSDptr_zuweisung)  \
     var uintC CONCAT(len_from_UDSmul_,__LINE__) = (uintC)(len1) + (uintC)(len2); \
     var uintD* CONCAT(LSDptr_from_UDSmul_,__LINE__);				\
-    cl_unused (len_zuweisung CONCAT(len_from_UDSmul_,__LINE__));			\
+    cl_unused (len_zuweisung CONCAT(len_from_UDSmul_,__LINE__));		\
     num_stack_alloc(CONCAT(len_from_UDSmul_,__LINE__),MSDptr_zuweisung,LSDptr_zuweisung CONCAT(LSDptr_from_UDSmul_,__LINE__) =); \
     cl_UDS_mul((LSDptr1),(len1),(LSDptr2),(len2),CONCAT(LSDptr_from_UDSmul_,__LINE__));
 
@@ -2613,23 +2613,23 @@ extern void cl_UDS_mul_square (const uintD* sourceptr, uintC len,
   // n<0, m<0: p = (n+b^k)*(m+b^l),
   //           n*m = p - b^k * (m+b^l) - b^l * (n+b^k) (mod b^(k+l)).
   #define DS_DS_mul_DS(MSDptr1,len1,LSDptr1,MSDptr2,len2,LSDptr2, MSDptr_zuweisung,len_zuweisung,LSDptr_zuweisung)  \
-    var uintD* MSDptr0;							\
-    var uintD* LSDptr0;							\
-    var uintC len_from_DSmal = (uintC)(len1) + (uintC)(len2);		\
-    cl_unused (len_zuweisung len_from_DSmal);				\
+    var uintD* MSDptr0;							     \
+    var uintD* LSDptr0;							     \
+    var uintC len_from_DSmal = (uintC)(len1) + (uintC)(len2);		     \
+    cl_unused (len_zuweisung len_from_DSmal);				     \
     num_stack_alloc(len_from_DSmal,MSDptr_zuweisung MSDptr0 =,LSDptr_zuweisung LSDptr0 =); \
-    var uintD MSD1_from_DSmal = mspref(MSDptr1,0);			\
-    var uintD MSD2_from_DSmal = mspref(MSDptr2,0);			\
-    var uintC len1_from_DSmal = (len1);					\
-    var uintC len2_from_DSmal = (len2);					\
-    if (MSD1_from_DSmal==0) { msprefnext(MSDptr0) = 0; len1_from_DSmal--; } \
-    if (MSD2_from_DSmal==0) { msprefnext(MSDptr0) = 0; len2_from_DSmal--; } \
+    var uintD MSD1_from_DSmal = mspref(MSDptr1,0);			     \
+    var uintD MSD2_from_DSmal = mspref(MSDptr2,0);			     \
+    var uintC len1_from_DSmal = (len1);					     \
+    var uintC len2_from_DSmal = (len2);					     \
+    if (MSD1_from_DSmal==0) { msprefnext(MSDptr0) = 0; len1_from_DSmal--; }  \
+    if (MSD2_from_DSmal==0) { msprefnext(MSDptr0) = 0; len2_from_DSmal--; }  \
     cl_UDS_mul((LSDptr1),len1_from_DSmal,(LSDptr2),len2_from_DSmal,LSDptr0); \
-    if ((sintD)MSD1_from_DSmal < 0) /* n<0 ?                          */\
-      /* muß m bzw. m+b^l subtrahieren, um k Digits verschoben:       */\
-      { subfrom_loop_lsp(LSDptr2,LSDptr0 lspop len1,len2); }		\
-    if ((sintD)MSD2_from_DSmal < 0) /* m<0 ?                          */\
-      /* muß n bzw. n+b^k subtrahieren, um l Digits verschoben:       */\
+    if ((sintD)MSD1_from_DSmal < 0) /* n<0 ?                               */\
+      /* muß m bzw. m+b^l subtrahieren, um k Digits verschoben:            */\
+      { subfrom_loop_lsp(LSDptr2,LSDptr0 lspop len1,len2); }		     \
+    if ((sintD)MSD2_from_DSmal < 0) /* m<0 ?                               */\
+      /* muß n bzw. n+b^k subtrahieren, um l Digits verschoben:            */\
       { subfrom_loop_lsp(LSDptr1,LSDptr0 lspop len2,len1); }
 
 

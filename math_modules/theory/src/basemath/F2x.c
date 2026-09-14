@@ -780,7 +780,7 @@ F2xn_div(GEN g, GEN f, long e)
   if (lg(f)<=2) pari_err_INV("Flxn_inv",f);
   if (e <= BITS_IN_LONG) return F2xn_div1(g, f, e);
   W = F2xn_inv1(f, BITS_IN_LONG);
-  mask = quadratic_prec_mask(divsBIL(e+BITS_IN_LONG-1));
+  mask = quadratic_prec_mask(nbits2nlong(e));
   n = BITS_IN_LONG;
   av2 = avma;
   for (;mask>1;)
