@@ -105,10 +105,10 @@ fi
 echo ""
 echo "=== Installing upgrade command ==="
 echo "You may be prompted for your sudo password..."
-# Make update_env.zsh executable
-chmod +x update_env.zsh
+# Make update_env.sh executable
+chmod +x update_env.sh
 # Copy to /usr/local/bin as 'upgrade'
-sudo cp update_env.zsh /usr/local/bin/upgrade
+sudo cp update_env.sh /usr/local/bin/upgrade
 echo "Upgrade command installed! You can now run 'upgrade' from anywhere."
 echo ""
 

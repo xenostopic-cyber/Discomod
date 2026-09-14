@@ -152,10 +152,47 @@ python -m pip freeze > "$LOCKFILE"
 
 success "Saved $(wc -l < "$LOCKFILE" | tr -d ' ') packages"
 
-# ── 5. Pre-flight ─────────────────────────────────────────────────────────────
+# ── 5. Pre-flight dependency check ───────────────────────────────────────────
 info "Checking dependencies..."
 
-python -m pip check > /dev/null 2>&1 || warn "Pre-existing conflicts detected"
+PRECHECK_OUTPUT="$(python -m pip check 2>&1)" || PRECHECK_STATUS=$?
+PRECHECK_STATUS="${PRECHECK_STATUS:-0}"
+
+if [[ "$PRECHECK_STATUS" -eq 0 ]]; then
+    success "No pre-existing dependency conflicts found."
+else
+    warn "Pre-existing dependency conflicts detected:"
+    printf '%s\n' "$PRECHECK_OUTPUT"
+
+    printf '\n'
+    info "Attempting automatic dependency repair..."
+
+    # Known strict compatibility set for this environment.
+    python -m pip install -q \
+        "pydantic==2.13.5" \
+        "pydantic-core==2.46.5" \
+        "pyee>=13,<14" \
+        "mpmath>=1.1.0,<1.4" || {
+            warn "Automatic repair command failed."
+        }
+
+    printf '\n'
+    info "Dependency check after automatic repair..."
+
+    POSTREPAIR_OUTPUT="$(python -m pip check 2>&1)" || POSTREPAIR_STATUS=$?
+    POSTREPAIR_STATUS="${POSTREPAIR_STATUS:-0}"
+
+    if [[ "$POSTREPAIR_STATUS" -eq 0 ]]; then
+        success "All previously detected dependency conflicts were repaired."
+    else
+        warn "Conflicts still remain after automatic repair:"
+        printf '%s\n' "$POSTREPAIR_OUTPUT"
+
+        warn "The environment will be rolled back rather than continuing with a broken dependency tree."
+        _rollback
+        exit 1
+    fi
+fi
 
 # ── 6. Upgrade pip + packaging ────────────────────────────────────────────────
 info "Upgrading pip + packaging..."
@@ -171,7 +208,6 @@ info "Upgrading Python packages (dependency-safe)..."
 # the bulk upgrade. They are restored explicitly below.
 OUTDATED=$(python -c "
 import json
-import sys
 
 excluded = {
     'mpmath',
@@ -180,7 +216,7 @@ excluded = {
     'pydantic-core',
 }
 
-packages = json.load(sys.stdin)
+packages = json.load(open('/dev/stdin'))
 
 print('\n'.join(
     p['name']
@@ -214,13 +250,40 @@ success "Compatible dependency versions restored"
 # ── 8. Verify environment ─────────────────────────────────────────────────────
 info "Verifying environment..."
 
-if ! python -m pip check; then
-    warn "Conflicts detected — rolling back"
-    _rollback
-    exit 1
-fi
+FINAL_CHECK="$(python -m pip check 2>&1)" || FINAL_STATUS=$?
+FINAL_STATUS="${FINAL_STATUS:-0}"
 
-success "Dependency verification passed"
+if [[ "$FINAL_STATUS" -ne 0 ]]; then
+    warn "Dependency conflicts detected after package upgrades:"
+    printf '%s\n' "$FINAL_CHECK"
+
+    printf '\n'
+    info "Attempting final automatic repair..."
+
+    python -m pip install -q \
+        "pydantic==2.13.5" \
+        "pydantic-core==2.46.5" \
+        "pyee>=13,<14" \
+        "mpmath>=1.1.0,<1.4" || true
+
+    printf '\n'
+    info "Running final dependency check..."
+
+    FINAL_RECHECK="$(python -m pip check 2>&1)" || FINAL_RECHECK_STATUS=$?
+    FINAL_RECHECK_STATUS="${FINAL_RECHECK_STATUS:-0}"
+
+    if [[ "$FINAL_RECHECK_STATUS" -ne 0 ]]; then
+        warn "Conflicts still remain:"
+        printf '%s\n' "$FINAL_RECHECK"
+
+        _rollback
+        exit 1
+    fi
+
+    success "Final dependency repair succeeded."
+else
+    success "Dependency verification passed — no broken requirements found."
+fi
 
 # ── 9. Vendor independent latest mpmath ───────────────────────────────────────
 VENDOR_DIR="$REPO_ROOT/_vendor_mpmath"
@@ -435,7 +498,23 @@ if failed:
     sys.exit(1)
 PYEOF
 
-# ── 13. Finish ────────────────────────────────────────────────────────────────
+# ── 13. Final dependency report ───────────────────────────────────────────────
+info "Final dependency report..."
+
+FINAL_REPORT="$(python -m pip check 2>&1)" || FINAL_REPORT_STATUS=$?
+FINAL_REPORT_STATUS="${FINAL_REPORT_STATUS:-0}"
+
+if [[ "$FINAL_REPORT_STATUS" -eq 0 ]]; then
+    success "pip check: No broken requirements found."
+else
+    warn "pip check found remaining problems:"
+    printf '%s\n' "$FINAL_REPORT"
+
+    _rollback
+    exit 1
+fi
+
+# ── 14. Finish ────────────────────────────────────────────────────────────────
 rm -f "$LOCKFILE"
 
 SUCCESS=1
