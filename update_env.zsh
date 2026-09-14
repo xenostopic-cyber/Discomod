@@ -1,323 +1,604 @@
 #!/usr/bin/env zsh
-# update_env — upgrade project Python env + math sources + AI SDK/API sources
+# update_env.zsh — upgrade project Python env + math sources + AI SDK/API sources
+#
+# AI providers covered:
+#   OpenAI, Anthropic/Claude, Google Gemini, Groq, Mistral, xAI/Grok,
+#   DeepSeek, roastedbyai and Wolfram.
+#
+# Source sync is opt-in.
+# System package upgrades are opt-in with RUN_SYSTEM_UPGRADE=1.
+#
+# Zsh version.
+#
+# IMPORTANT:
+# The script may be installed in /usr/local/bin.
+# Therefore the script's own directory is NOT assumed to be the repository root.
 
 set -e
 set -o pipefail
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 0. Resolve repository root
+# ─────────────────────────────────────────────────────────────────────────────
+
 SCRIPT_DIR="${0:A:h}"
-REPO_ROOT="${SCRIPT_DIR}"
+
+if [[ -n "${REPO_ROOT:-}" ]]; then
+    REPO_ROOT="${REPO_ROOT:A}"
+elif REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
+    :
+else
+    REPO_ROOT="${PWD:A}"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Output helpers
+# ─────────────────────────────────────────────────────────────────────────────
 
 info() {
-    printf '\n🔹 %s\n' "$1"
+    print -P "\n%F{cyan}🔹 %f$1"
 }
 
 success() {
-    printf '   ✅ %s\n' "$1"
+    print -P "%F{green}   ✅ %f$1"
 }
 
 warn() {
-    printf '   ⚠️  %s\n' "$1"
+    print -P "%F{yellow}   ⚠️  %f$1"
 }
 
 fail() {
-    printf '   ❌ %s\n' "$1"
+    print -P "%F{red}   ❌ %f$1"
     exit 1
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Temporary files / rollback
+# ─────────────────────────────────────────────────────────────────────────────
+
 LOCKFILE="/tmp/advik_pip_lock_$$.txt"
-ROLLED_BACK=0
+CONSTRAINTS_FILE="/tmp/advik_pip_constraints_$$.txt"
+OUTDATED_FILE="/tmp/advik_outdated_$$.txt"
+PRECHECK_FILE="/tmp/advik_pip_precheck_$$.txt"
+POSTCHECK_FILE="/tmp/advik_pip_postcheck_$$.txt"
+
 SUCCESS=0
+ROLLING_BACK=0
 
-# ── Rollback ──────────────────────────────────────────────────────────────────
-_rollback() {
-    if [[ $SUCCESS -eq 0 && $ROLLED_BACK -eq 0 && -f "$LOCKFILE" ]]; then
-        ROLLED_BACK=1
+cleanup() {
+    rm -f \
+        "$LOCKFILE" \
+        "$CONSTRAINTS_FILE" \
+        "$OUTDATED_FILE" \
+        "$PRECHECK_FILE" \
+        "$POSTCHECK_FILE" \
+        "/tmp/qalc_api_error_$$" \
+        2>/dev/null || true
+}
 
-        printf '\n💥 Failure detected — rolling back...\n'
+rollback_if_needed() {
+    local STATUS=$?
 
-        if python -m pip install -q -r "$LOCKFILE" --force-reinstall 2>/dev/null; then
-            printf '   Rollback complete.\n'
+    if [[ $STATUS -ne 0 &&
+          $SUCCESS -eq 0 &&
+          $ROLLING_BACK -eq 0 &&
+          -f "$LOCKFILE" ]]; then
+
+        ROLLING_BACK=1
+
+        print -P "\n%F{red}%B💥 Failure detected — rolling back environment...%b%f"
+
+        set +e
+
+        python -m pip install \
+            -q \
+            -r "$LOCKFILE" \
+            --force-reinstall \
+            2>/dev/null
+
+        local ROLLBACK_STATUS=$?
+
+        if [[ $ROLLBACK_STATUS -eq 0 ]]; then
+            print -P "%F{green}   ✅ Rollback complete.%f"
         else
-            printf '   Rollback may be incomplete — check %s\n' "$LOCKFILE"
+            print -P "%F{yellow}   ⚠️  Rollback may be incomplete — check $LOCKFILE%f"
         fi
+
+        set -e
+    fi
+
+    cleanup
+
+    if [[ $STATUS -ne 0 ]]; then
+        exit "$STATUS"
     fi
 }
 
-trap '_rollback' ERR
+trap '_rollback_status=$?; rollback_if_needed' EXIT
+trap 'exit 130' INT TERM
 
-# ── 0. Optional system upgrade ────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Check basic tools
+# ─────────────────────────────────────────────────────────────────────────────
+
+info "Checking required tools..."
+
+command -v python >/dev/null 2>&1 ||
+    fail "python was not found."
+
+if ! command -v git >/dev/null 2>&1; then
+    warn "git was not found. Repository syncing will be unavailable."
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+    warn "curl was not found. Qalculate! release detection will be unavailable."
+fi
+
+success "Required runtime detected"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Optional system upgrade
+# ─────────────────────────────────────────────────────────────────────────────
+
 if [[ "${RUN_SYSTEM_UPGRADE:-0}" == "1" ]]; then
+
     info "Checking system package manager for upgrades..."
 
-    if command -v apt-get &>/dev/null; then
+    if command -v apt-get >/dev/null 2>&1; then
+
         export DEBIAN_FRONTEND=noninteractive
 
-        APT_OPTS='-o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"'
+        APT_OPTS=(
+            '-o'
+            'Dpkg::Options::=--force-confdef'
+            '-o'
+            'Dpkg::Options::=--force-confold'
+        )
 
-        sudo -E apt-get update -qq > /dev/null
-        sudo -E apt-get upgrade -y -qq $APT_OPTS > /dev/null
+        sudo -E apt-get update -qq >/dev/null
+        sudo -E apt-get upgrade -y -qq $APT_OPTS >/dev/null
 
         success "System packages upgraded."
+
     else
         warn "apt package manager not found. Skipping system-level upgrade."
     fi
+
 else
     info "Skipping system-level package upgrade (set RUN_SYSTEM_UPGRADE=1 to enable)."
 fi
 
-# ── 1. Resolve module directories ─────────────────────────────────────────────
-MATH_MODULES_DIR="${REPO_ROOT}/math_modules"
-AI_MODULES_DIR="${REPO_ROOT}/ai_modules/core"
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Resolve directories
+# ─────────────────────────────────────────────────────────────────────────────
+
+MATH_MODULES_DIR="$REPO_ROOT/math_modules"
+AI_MODULES_DIR="$REPO_ROOT/ai_modules/core"
 
 mkdir -p "$MATH_MODULES_DIR" "$AI_MODULES_DIR"
 
-# ── 2. Optional latest Qalculate! vendor ──────────────────────────────────────
-info "Detecting latest Qalculate! release from GitHub (best-effort)..."
+print "   Repository root: $REPO_ROOT"
+print "   Math modules:    $MATH_MODULES_DIR"
+print "   AI modules:      $AI_MODULES_DIR"
 
-(
-    cd /tmp
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Locate virtual environment
+#
+# Do NOT source activate.
+# We directly invoke the exact Python executable.
+# This avoids OSTYPE / shell compatibility problems.
+# ─────────────────────────────────────────────────────────────────────────────
 
-    API_JSON=$(wget -qO- \
-        "https://api.github.com/repos/Qalculate/libqalculate/releases/latest" \
-        2>/dev/null) || true
+VENV_PATH=""
 
-    if [[ -z "$API_JSON" ]]; then
-        warn "Couldn't reach the GitHub API — skipping Qalculate! update."
-        exit 0
-    fi
+if [[ -n "${1:-}" && -x "$1/bin/python" ]]; then
+    VENV_PATH="${1:A}"
+elif [[ -x "$REPO_ROOT/.venv/bin/python" ]]; then
+    VENV_PATH="$REPO_ROOT/.venv"
+elif [[ -x "$HOME/venvs/advikmathlib_env/bin/python" ]]; then
+    VENV_PATH="$HOME/venvs/advikmathlib_env"
+elif [[ -x "$PWD/.venv/bin/python" ]]; then
+    VENV_PATH="$PWD/.venv"
+fi
 
-    QALC_TAG=$(printf '%s\n' "$API_JSON" |
-        grep -m1 '"tag_name"' |
-        sed -E 's/.*"tag_name": *"([^"]+)".*/\1/') || true
+if [[ -z "$VENV_PATH" ]]; then
+    fail "No usable virtual environment found."
+fi
 
-    if [[ -z "$QALC_TAG" ]]; then
-        warn "Qalculate! release tag was not found — skipping."
-        exit 0
-    fi
+PYTHON="$VENV_PATH/bin/python"
 
-    QALC_VERSION="${QALC_TAG#v}"
-    QALC_ARCHIVE="qalculate-${QALC_VERSION}-x86_64.tar.xz"
-    QALC_URL="https://github.com/Qalculate/libqalculate/releases/download/${QALC_TAG}/${QALC_ARCHIVE}"
+print
+print "   Virtual environment: $VENV_PATH"
+print "   Python executable:    $PYTHON"
+printf "   Python version:      "
+"$PYTHON" --version
 
-    if wget -q --show-progress "$QALC_URL"; then
-        tar -xf "$QALC_ARCHIVE"
-
-        if [[ -x "./qalculate-${QALC_VERSION}/qalculate" ]]; then
-            cp "./qalculate-${QALC_VERSION}/qalculate" "$MATH_MODULES_DIR/qalc"
-            chmod +x "$MATH_MODULES_DIR/qalc"
-
-            success "Qalculate! ${QALC_TAG} deployed → $MATH_MODULES_DIR/qalc"
-        else
-            warn "Downloaded Qalculate archive but expected binary was missing."
-        fi
-
-        rm -rf "qalculate-${QALC_VERSION}" "$QALC_ARCHIVE"
-    else
-        rm -f "$QALC_ARCHIVE"
-        warn "Qalculate! download failed for ${QALC_TAG}."
-    fi
-) || warn "Continuing without a Qalculate! update this run."
-
-# ── 3. Activate venv ──────────────────────────────────────────────────────────
-VENV_ACTIVATED=0
-
-_try_activate() {
-    local venv_path="$1"
-    local label="$2"
-
-    if [[ -f "$venv_path/bin/activate" ]]; then
-        info "Activating $label..."
-
-        source "$venv_path/bin/activate"
-
-        VENV_ACTIVATED=1
-        return 0
-    fi
-
-    return 1
+pip_cmd() {
+    "$PYTHON" -m pip "$@"
 }
 
-[[ -n "${1:-}" ]] && _try_activate "$1" "venv from arg" || true
-[[ $VENV_ACTIVATED -eq 0 ]] && _try_activate "$HOME/venvs/advikmathlib_env" "advikmathlib_env" || true
-[[ $VENV_ACTIVATED -eq 0 ]] && _try_activate "$REPO_ROOT/.venv" ".venv (project)" || true
-[[ $VENV_ACTIVATED -eq 0 ]] && _try_activate ".venv" ".venv (cwd)" || true
-[[ $VENV_ACTIVATED -eq 0 ]] && fail "No venv found"
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Save rollback snapshot
+# ─────────────────────────────────────────────────────────────────────────────
 
-printf '   Using: %s  (%s)\n' "$(which python)" "$(python --version)"
-
-# ── 4. Save rollback snapshot ─────────────────────────────────────────────────
 info "Saving rollback snapshot..."
 
-python -m pip freeze > "$LOCKFILE"
+pip_cmd freeze > "$LOCKFILE"
 
-success "Saved $(wc -l < "$LOCKFILE" | tr -d ' ') packages"
+PACKAGE_COUNT=$(wc -l < "$LOCKFILE" | tr -d ' ')
 
-# ── 5. Pre-flight dependency check ───────────────────────────────────────────
+success "Saved $PACKAGE_COUNT packages"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Build dependency compatibility constraints
+# ─────────────────────────────────────────────────────────────────────────────
+
+info "Building dependency compatibility constraints..."
+
+"$PYTHON" > "$CONSTRAINTS_FILE" <<'PYEOF'
+import importlib.metadata
+
+
+def installed_version(name):
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def dependencies(name):
+    try:
+        return importlib.metadata.requires(name) or []
+    except importlib.metadata.PackageNotFoundError:
+        return []
+
+
+# Preserve currently installed Pydantic.
+pydantic_version = installed_version("pydantic")
+
+if pydantic_version:
+    print(f"pydantic=={pydantic_version}")
+
+
+# Preserve the exact pydantic-core requirement declared by Pydantic.
+for requirement in dependencies("pydantic"):
+    if requirement.lower().startswith("pydantic-core"):
+        requirement = requirement.split(";", 1)[0].strip()
+        print(requirement)
+
+
+# Preserve Playwright's pyee requirement.
+for requirement in dependencies("playwright"):
+    if requirement.lower().startswith("pyee"):
+        requirement = requirement.split(";", 1)[0].strip()
+        print(requirement)
+
+
+# Preserve SymPy's mpmath requirement.
+for requirement in dependencies("sympy"):
+    if requirement.lower().startswith("mpmath"):
+        requirement = requirement.split(";", 1)[0].strip()
+        print(requirement)
+
+
+# Safe fallbacks for this environment.
+print("pyee>=13,<14")
+print("mpmath>=1.1.0,<1.4")
+PYEOF
+
+awk 'NF && !seen[$0]++' "$CONSTRAINTS_FILE" > "${CONSTRAINTS_FILE}.tmp"
+mv "${CONSTRAINTS_FILE}.tmp" "$CONSTRAINTS_FILE"
+
+print "   Active compatibility constraints:"
+
+while IFS= read -r constraint; do
+    print "      • $constraint"
+done < "$CONSTRAINTS_FILE"
+
+success "Dependency constraints prepared"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Pre-flight dependency check
+# ─────────────────────────────────────────────────────────────────────────────
+
 info "Checking dependencies..."
 
-PRECHECK_OUTPUT="$(python -m pip check 2>&1)" || PRECHECK_STATUS=$?
-PRECHECK_STATUS="${PRECHECK_STATUS:-0}"
+set +e
+pip_cmd check > "$PRECHECK_FILE" 2>&1
+PRECHECK_STATUS=$?
+set -e
 
-if [[ "$PRECHECK_STATUS" -eq 0 ]]; then
+if [[ $PRECHECK_STATUS -eq 0 ]]; then
+
     success "No pre-existing dependency conflicts found."
-else
-    warn "Pre-existing dependency conflicts detected:"
-    printf '%s\n' "$PRECHECK_OUTPUT"
 
-    printf '\n'
+else
+
+    warn "Pre-existing dependency conflicts detected:"
+
+    print "────────────────────────────────────────────────────────"
+    cat "$PRECHECK_FILE"
+    print "────────────────────────────────────────────────────────"
+
+    print
     info "Attempting automatic dependency repair..."
 
-    # Known strict compatibility set for this environment.
-    python -m pip install -q \
-        "pydantic==2.13.5" \
-        "pydantic-core==2.46.5" \
+    set +e
+
+    pip_cmd install \
+        "pydantic" \
+        "pydantic-core" \
         "pyee>=13,<14" \
-        "mpmath>=1.1.0,<1.4" || {
-            warn "Automatic repair command failed."
-        }
+        "mpmath>=1.1.0,<1.4"
 
-    printf '\n'
-    info "Dependency check after automatic repair..."
+    REPAIR_STATUS=$?
 
-    POSTREPAIR_OUTPUT="$(python -m pip check 2>&1)" || POSTREPAIR_STATUS=$?
-    POSTREPAIR_STATUS="${POSTREPAIR_STATUS:-0}"
+    set -e
 
-    if [[ "$POSTREPAIR_STATUS" -eq 0 ]]; then
-        success "All previously detected dependency conflicts were repaired."
-    else
-        warn "Conflicts still remain after automatic repair:"
-        printf '%s\n' "$POSTREPAIR_OUTPUT"
+    if [[ $REPAIR_STATUS -ne 0 ]]; then
+        warn "Automatic dependency repair returned an error."
+    fi
 
-        warn "The environment will be rolled back rather than continuing with a broken dependency tree."
-        _rollback
+    print
+    info "Checking dependencies after repair..."
+
+    set +e
+    pip_cmd check
+    POSTREPAIR_STATUS=$?
+    set -e
+
+    if [[ $POSTREPAIR_STATUS -ne 0 ]]; then
+        warn "Dependency conflicts still remain after repair."
         exit 1
+    fi
+
+    success "Pre-existing dependency conflicts repaired."
+fi
+
+rm -f "$PRECHECK_FILE"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Upgrade pip + packaging
+# ─────────────────────────────────────────────────────────────────────────────
+
+info "Upgrading pip + packaging..."
+
+pip_cmd install \
+    --upgrade \
+    pip \
+    packaging \
+    -q
+
+PIP_VERSION=$(pip_cmd --version | awk '{print $2}')
+
+success "pip $PIP_VERSION ready"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Find outdated packages
+# ─────────────────────────────────────────────────────────────────────────────
+
+info "Checking for outdated Python packages..."
+
+pip_cmd list --outdated --format=json |
+"$PYTHON" -c '
+import json
+import sys
+
+excluded = {
+    "mpmath",
+    "pyee",
+    "pydantic",
+    "pydantic-core",
+}
+
+packages = json.load(sys.stdin)
+
+for package in packages:
+    name = package["name"]
+
+    if name.lower() not in excluded:
+        print(name)
+' > "$OUTDATED_FILE"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. Upgrade packages with constraints
+# ─────────────────────────────────────────────────────────────────────────────
+
+if [[ ! -s "$OUTDATED_FILE" ]]; then
+
+    success "Nothing to upgrade in bulk"
+
+else
+
+    info "Upgrading Python packages with dependency constraints..."
+
+    print "   Packages selected for bulk upgrade:"
+
+    while IFS= read -r PACKAGE_NAME; do
+        [[ -z "$PACKAGE_NAME" ]] && continue
+        print "      • $PACKAGE_NAME"
+    done < "$OUTDATED_FILE"
+
+    print
+
+    BULK_SKIPPED=0
+
+    while IFS= read -r PACKAGE_NAME; do
+        [[ -z "$PACKAGE_NAME" ]] && continue
+
+        print "   Updating $PACKAGE_NAME..."
+
+        if pip_cmd install \
+            --upgrade \
+            --upgrade-strategy only-if-needed \
+            --constraint "$CONSTRAINTS_FILE" \
+            "$PACKAGE_NAME"
+        then
+
+            success "$PACKAGE_NAME updated"
+
+        else
+
+            warn "$PACKAGE_NAME could not be upgraded safely — keeping its current version."
+
+            BULK_SKIPPED=$((BULK_SKIPPED + 1))
+        fi
+
+    done < "$OUTDATED_FILE"
+
+    if [[ $BULK_SKIPPED -eq 0 ]]; then
+        success "Bulk upgrade complete"
+    else
+        warn "$BULK_SKIPPED package(s) were skipped because of dependency constraints."
     fi
 fi
 
-# ── 6. Upgrade pip + packaging ────────────────────────────────────────────────
-info "Upgrading pip + packaging..."
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. Re-assert protected dependencies
+# ─────────────────────────────────────────────────────────────────────────────
 
-python -m pip install --upgrade pip packaging -q
+info "Ensuring protected dependency versions..."
 
-success "pip $(python -m pip --version | cut -d' ' -f2) ready"
+PYDANTIC_CORE_CONSTRAINT=$(
+    sed -n '/^pydantic-core[<>=!~]/p' "$CONSTRAINTS_FILE" |
+    head -n 1
+)
 
-# ── 7. Upgrade packages while preserving constraints ─────────────────────────
-info "Upgrading Python packages (dependency-safe)..."
-
-# Packages with strict compatibility requirements are excluded from
-# the bulk upgrade. They are restored explicitly below.
-OUTDATED=$(python -c "
-import json
-
-excluded = {
-    'mpmath',
-    'pyee',
-    'pydantic',
-    'pydantic-core',
-}
-
-packages = json.load(open('/dev/stdin'))
-
-print('\n'.join(
-    p['name']
-    for p in packages
-    if p['name'].lower() not in excluded
-))
-" 2>/dev/null <<< "$(python -m pip list --outdated --format=json)")
-
-if [[ -z "$OUTDATED" ]]; then
-    success "Nothing to upgrade in bulk"
-else
-    print -l $OUTDATED |
-        xargs python -m pip install -U --upgrade-strategy only-if-needed
-
-    success "Bulk upgrade complete"
+if [[ -z "$PYDANTIC_CORE_CONSTRAINT" ]]; then
+    PYDANTIC_CORE_CONSTRAINT="pydantic-core==2.46.5"
 fi
 
-# ── 7b. Restore compatible dependency versions ───────────────────────────────
-info "Restoring compatible dependency versions..."
+PYDANTIC_VERSION=$(
+    "$PYTHON" -c '
+import importlib.metadata
 
-python -m pip install -q \
-    "pydantic==2.13.5" \
-    "pydantic-core==2.46.5" \
-    "pyee>=13,<14"
+try:
+    print(importlib.metadata.version("pydantic"))
+except importlib.metadata.PackageNotFoundError:
+    pass
+'
+)
 
-python -m pip install -q \
+if [[ -n "$PYDANTIC_VERSION" ]]; then
+    PYDANTIC_SPEC="pydantic==$PYDANTIC_VERSION"
+else
+    PYDANTIC_SPEC="pydantic>=2.0"
+fi
+
+pip_cmd install \
+    -q \
+    "$PYDANTIC_SPEC" \
+    "$PYDANTIC_CORE_CONSTRAINT" \
+    "pyee>=13,<14" \
     "mpmath>=1.1.0,<1.4"
 
-success "Compatible dependency versions restored"
+success "Protected dependency versions confirmed"
 
-# ── 8. Verify environment ─────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. Verify environment after upgrades
+# ─────────────────────────────────────────────────────────────────────────────
+
 info "Verifying environment..."
 
-FINAL_CHECK="$(python -m pip check 2>&1)" || FINAL_STATUS=$?
-FINAL_STATUS="${FINAL_STATUS:-0}"
+set +e
+pip_cmd check > "$POSTCHECK_FILE" 2>&1
+FINAL_STATUS=$?
+set -e
 
-if [[ "$FINAL_STATUS" -ne 0 ]]; then
-    warn "Dependency conflicts detected after package upgrades:"
-    printf '%s\n' "$FINAL_CHECK"
+if [[ $FINAL_STATUS -ne 0 ]]; then
 
-    printf '\n'
-    info "Attempting final automatic repair..."
+    warn "Dependency conflicts detected after upgrades:"
 
-    python -m pip install -q \
-        "pydantic==2.13.5" \
-        "pydantic-core==2.46.5" \
+    print "────────────────────────────────────────────────────────"
+    cat "$POSTCHECK_FILE"
+    print "────────────────────────────────────────────────────────"
+
+    print
+    info "Attempting final dependency repair..."
+
+    pip_cmd install \
+        -q \
+        "$PYDANTIC_SPEC" \
+        "$PYDANTIC_CORE_CONSTRAINT" \
         "pyee>=13,<14" \
-        "mpmath>=1.1.0,<1.4" || true
+        "mpmath>=1.1.0,<1.4"
 
-    printf '\n'
-    info "Running final dependency check..."
+    print
+    info "Running dependency check again..."
 
-    FINAL_RECHECK="$(python -m pip check 2>&1)" || FINAL_RECHECK_STATUS=$?
-    FINAL_RECHECK_STATUS="${FINAL_RECHECK_STATUS:-0}"
+    set +e
+    pip_cmd check
+    FINAL_RECHECK_STATUS=$?
+    set -e
 
-    if [[ "$FINAL_RECHECK_STATUS" -ne 0 ]]; then
-        warn "Conflicts still remain:"
-        printf '%s\n' "$FINAL_RECHECK"
-
-        _rollback
+    if [[ $FINAL_RECHECK_STATUS -ne 0 ]]; then
+        warn "Dependencies are still broken."
         exit 1
     fi
 
     success "Final dependency repair succeeded."
+
 else
+
     success "Dependency verification passed — no broken requirements found."
+
 fi
 
-# ── 9. Vendor independent latest mpmath ───────────────────────────────────────
+rm -f "$POSTCHECK_FILE"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 13. Vendor independent latest mpmath
+# ─────────────────────────────────────────────────────────────────────────────
+
 VENDOR_DIR="$REPO_ROOT/_vendor_mpmath"
 
 info "Vendoring latest mpmath → $VENDOR_DIR..."
 
 rm -rf "$VENDOR_DIR"
 
-python -m pip install mpmath \
+pip_cmd install \
+    mpmath \
     --target="$VENDOR_DIR" \
     --no-deps \
     -q
 
 if [[ -d "$VENDOR_DIR/mpmath" ]]; then
-    mv "$VENDOR_DIR/mpmath" "$VENDOR_DIR/mpmath14"
+
+    rm -rf "$VENDOR_DIR/mpmath14"
+
+    mv \
+        "$VENDOR_DIR/mpmath" \
+        "$VENDOR_DIR/mpmath14"
+
     success "Vendored mpmath copy created"
+
 else
+
     warn "Could not create vendored mpmath copy"
+
 fi
 
-# ── 10. Optional math source repositories ─────────────────────────────────────
-printf '\n📦  Download/update math library source repos?\n'
-printf '   This mirrors the original update_env behavior: shallow clone, then remove VCS/readme files.\n'
-printf '\n   Clone math repos now? [y/N] → '
+# ─────────────────────────────────────────────────────────────────────────────
+# 14. Optional math source repositories
+# ─────────────────────────────────────────────────────────────────────────────
 
-read -r _DLREPOS </dev/tty
+print -P "\n%F{cyan}%B📦  Download/update math library source repos?%b%f"
+print "   Shallow clones are used and .git/readme files are removed afterwards."
+print -n "\n   Clone math repos now? [y/N] → "
 
-if [[ "${_DLREPOS:l}" == "y" ]]; then
-    if ! command -v git &>/dev/null; then
+read -r DLREPOS </dev/tty || DLREPOS=""
+
+if [[ "${DLREPOS:l}" == "y" ]]; then
+
+    if ! command -v git >/dev/null 2>&1; then
+
         warn "git not found — skipping math source sync"
-    else
-        typeset -A _REPOS
 
-        _REPOS=(
+    else
+
+        typeset -A MATH_REPOS
+
+        MATH_REPOS=(
             precision   "https://github.com/fredrik-johansson/arb"
             algebra     "https://codeberg.org/ginac/cln"
             symbolic    "https://github.com/fricas/fricas"
@@ -333,70 +614,88 @@ if [[ "${_DLREPOS:l}" == "y" ]]; then
             gaypy       "https://github.com/sympy/sympy"
         )
 
-        for _name _url in "${(@kv)_REPOS[@]}"; do
-            _dest="$MATH_MODULES_DIR/$_name"
+        for NAME URL in ${(kv)MATH_REPOS}; do
 
-            rm -rf "$_dest"
+            DEST="$MATH_MODULES_DIR/$NAME"
 
-            printf '   ↓  %s  %s\n' "$_name" "$_url"
+            rm -rf "$DEST"
+
+            print "   ↓  $NAME  $URL"
 
             if git clone \
                 --depth=1 \
                 --single-branch \
                 -q \
-                "$_url" \
-                "$_dest" 2>/dev/null
+                "$URL" \
+                "$DEST" 2>/dev/null
             then
-                rm -rf "$_dest/.git"
 
-                find "$_dest" \
+                rm -rf "$DEST/.git"
+
+                find "$DEST" \
                     -type f \
                     -name ".gitignore" \
                     -delete \
                     2>/dev/null || true
 
-                find "$_dest" \
+                find "$DEST" \
                     -type f \
                     -iname "readme*" \
                     -delete \
                     2>/dev/null || true
 
-                success "$_name synced"
+                success "$NAME synced"
+
             else
-                rm -rf "$_dest" 2>/dev/null || true
-                warn "Failed: $_name"
+
+                rm -rf "$DEST" 2>/dev/null || true
+
+                warn "Failed: $NAME"
+
             fi
+
         done
+
     fi
+
 else
-    printf 'Skipped math source sync.\n'
+
+    print "Skipped math source sync."
+
 fi
 
-# ── 11. AI API/SDK source repositories ────────────────────────────────────────
-printf '\n🤖  Download/update AI API/SDK source repos?\n'
-printf '   Provider map:\n'
-printf '     openai      → OpenAI Python SDK\n'
-printf '     anthropic   → Anthropic Claude Python SDK\n'
-printf '     gemini      → Google Gen AI Python SDK\n'
-printf '     groq        → Groq Python SDK\n'
-printf '     mistral     → Mistral AI Python SDK\n'
-printf '     xai         → xAI Python SDK (Grok)\n'
-printf '     deepseek    → DeepSeek official harness/SDK source\n'
-printf '     roastedbyai → roastedbyai source used by roast features\n'
-printf '     wolfram     → Wolfram Python client source\n'
-printf '\n   Clone/update AI repos now? [y/N] → '
+# ─────────────────────────────────────────────────────────────────────────────
+# 15. AI API / SDK source repositories
+# ─────────────────────────────────────────────────────────────────────────────
 
-read -r _DLAI </dev/tty
+print -P "\n%F{cyan}%B🤖  Download/update AI API/SDK source repos?%b%f"
 
-AI_SYNC_STATUS="$AI_MODULES_DIR/.sync-status.json"
+print "   Provider map:"
+print "     openai      → OpenAI Python SDK"
+print "     anthropic   → Anthropic Claude Python SDK"
+print "     gemini      → Google Gen AI Python SDK"
+print "     groq        → Groq Python SDK"
+print "     mistral     → Mistral AI Python SDK"
+print "     xai         → xAI Python SDK (Grok)"
+print "     deepseek    → DeepSeek official harness/SDK source"
+print "     roastedbyai → roastedbyai source used by roast features"
+print "     wolfram     → Wolfram Python client source"
 
-if [[ "${_DLAI:l}" == "y" ]]; then
-    if ! command -v git &>/dev/null; then
+print -n "\n   Clone/update AI repos now? [y/N] → "
+
+read -r DLAI </dev/tty || DLAI=""
+
+if [[ "${DLAI:l}" == "y" ]]; then
+
+    if ! command -v git >/dev/null 2>&1; then
+
         warn "git not found — skipping AI source sync"
-    else
-        typeset -A _AI_REPOS
 
-        _AI_REPOS=(
+    else
+
+        typeset -A AI_REPOS
+
+        AI_REPOS=(
             openai       "https://github.com/openai/openai-python"
             anthropic    "https://github.com/anthropics/anthropic-sdk-python"
             gemini       "https://github.com/googleapis/python-genai"
@@ -408,49 +707,50 @@ if [[ "${_DLAI:l}" == "y" ]]; then
             wolfram      "https://github.com/WolframResearch/WolframClientForPython"
         )
 
-        typeset -A _AI_RESULTS
+        for NAME URL in ${(kv)AI_REPOS}; do
 
-        for _name _url in "${(@kv)_AI_REPOS[@]}"; do
-            _dest="$AI_MODULES_DIR/$_name"
+            DEST="$AI_MODULES_DIR/$NAME"
 
-            rm -rf "$_dest"
+            rm -rf "$DEST"
 
-            printf '   ↓  %s  %s\n' "$_name" "$_url"
+            print "   ↓  $NAME  $URL"
 
             if git clone \
                 --depth=1 \
                 --single-branch \
                 -q \
-                "$_url" \
-                "$_dest" 2>/dev/null
+                "$URL" \
+                "$DEST" 2>/dev/null
             then
-                rm -rf "$_dest/.git"
 
-                find "$_dest" \
+                rm -rf "$DEST/.git"
+
+                find "$DEST" \
                     -type f \
                     -name ".gitignore" \
                     -delete \
                     2>/dev/null || true
 
-                find "$_dest" \
+                find "$DEST" \
                     -type f \
                     -iname "readme*" \
                     -delete \
                     2>/dev/null || true
 
-                _AI_RESULTS[$_name]="ok"
+                success "$NAME synced"
 
-                success "$_name synced"
             else
-                rm -rf "$_dest" 2>/dev/null || true
 
-                _AI_RESULTS[$_name]="failed"
+                rm -rf "$DEST" 2>/dev/null || true
 
-                warn "Failed: $_name  ($_url)"
+                warn "Failed: $NAME  ($URL)"
+
             fi
-        done
 
-        cat > "$AI_MODULES_DIR/provider-manifest.json" <<'JSON'
+        done
+    fi
+
+    cat > "$AI_MODULES_DIR/provider-manifest.json" <<'JSON'
 {
   "providers": {
     "openai":   { "source": "openai", "api_style": "native" },
@@ -464,16 +764,21 @@ if [[ "${_DLAI:l}" == "y" ]]; then
 }
 JSON
 
-        success "AI provider manifest written → $AI_MODULES_DIR/provider-manifest.json"
-    fi
+    success "AI provider manifest written → $AI_MODULES_DIR/provider-manifest.json"
+
 else
-    printf 'Skipped AI source sync.\n'
+
+    print "Skipped AI source sync."
+
 fi
 
-# ── 12. Sanity check ──────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 16. Sanity check
+# ─────────────────────────────────────────────────────────────────────────────
+
 info "Sanity check..."
 
-python - <<'PYEOF'
+"$PYTHON" - <<'PYEOF'
 import sys
 
 mods = [
@@ -485,38 +790,55 @@ failed = False
 
 for label, mod in mods:
     try:
-        m = __import__(mod)
-        print(
-            f"    {label:8} "
-            f"{getattr(m, '__version__', '?')} ✅"
-        )
-    except Exception as e:
-        print(f"    {label:8} ❌ {e}")
+        module = __import__(mod)
+        version = getattr(module, "__version__", "?")
+        print(f"    {label:8} {version} ✅")
+
+    except Exception as exc:
+        print(f"    {label:8} ❌ {exc}")
         failed = True
 
 if failed:
     sys.exit(1)
 PYEOF
 
-# ── 13. Final dependency report ───────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 17. Final dependency report
+# ─────────────────────────────────────────────────────────────────────────────
+
 info "Final dependency report..."
 
-FINAL_REPORT="$(python -m pip check 2>&1)" || FINAL_REPORT_STATUS=$?
-FINAL_REPORT_STATUS="${FINAL_REPORT_STATUS:-0}"
+set +e
+FINAL_REPORT=$(pip_cmd check 2>&1)
+FINAL_REPORT_STATUS=$?
+set -e
 
-if [[ "$FINAL_REPORT_STATUS" -eq 0 ]]; then
+if [[ $FINAL_REPORT_STATUS -eq 0 ]]; then
+
     success "pip check: No broken requirements found."
-else
-    warn "pip check found remaining problems:"
-    printf '%s\n' "$FINAL_REPORT"
 
-    _rollback
+else
+
+    warn "pip check found remaining problems:"
+
+    print "────────────────────────────────────────────────────────"
+    print -r -- "$FINAL_REPORT"
+    print "────────────────────────────────────────────────────────"
+
     exit 1
 fi
 
-# ── 14. Finish ────────────────────────────────────────────────────────────────
-rm -f "$LOCKFILE"
+# ─────────────────────────────────────────────────────────────────────────────
+# 18. Finish
+# ─────────────────────────────────────────────────────────────────────────────
 
 SUCCESS=1
 
-printf '\n✅ update_env finished — environment + optional source sync complete.\n'
+rm -f \
+    "$LOCKFILE" \
+    "$CONSTRAINTS_FILE" \
+    "$OUTDATED_FILE"
+
+print -P "\n%F{green}%B✅ update_env finished — environment + optional source sync complete.%b%f"
+print "   Repository: $REPO_ROOT"
+print "   Python:     $PYTHON"
