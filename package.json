@@ -1,0 +1,30 @@
+{
+  "name": "discomod",
+  "version": "1.0.0",
+  "description": "Discord moderation and utility bot with spam protection and AI detection",
+  "main": "DISCOMOD.js",
+  "scripts": {
+    "start": "node DISCOMOD.js",
+    "test:features": "node tests/applications.test.js && node tests/translation.test.js && node tests/smart_split.test.js && node tests/feature_modules.test.js && node tests/finish17.test.js && node tests/response_audit.test.js && node tests/security_regressions.test.js && node tests/math_commands.test.js && node tests/update_env.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "*",
+    "@napi-rs/canvas": "*",
+    "better-sqlite3": "*",
+    "discord.js": "*",
+    "dotenv": "*",
+    "express": "*",
+    "form-data": "*",
+    "groq-sdk": "*",
+    "js-yaml": "*",
+    "lodash": "*",
+    "node-fetch": "*",
+    "openai": "*"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "",
+  "license": "MIT",
+  "keywords": []
+}

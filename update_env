@@ -1,0 +1,295 @@
+#!/bin/zsh
+# update_env — upgrade project Python env + math sources + AI SDK/API sources
+#
+# AI providers covered:
+#   OpenAI, Anthropic/Claude, Google Gemini, Groq, Mistral, xAI/Grok,
+#   DeepSeek (official harness source; API itself is OpenAI-compatible),
+#   roastedbyai and Wolfram (used by DISCOMOD's AI/math features).
+#
+# Source sync is opt-in. System package upgrades are opt-in with
+# RUN_SYSTEM_UPGRADE=1 so running this script cannot unexpectedly sudo apt-upgrade.
+
+set -e
+set -o pipefail
+
+SCRIPT_DIR="${0:A:h}"
+REPO_ROOT="${SCRIPT_DIR}"
+
+info()    { print -P "\n%F{cyan}🔹 $1%f"; }
+success() { print -P "%F{green}   ✅ $1%f"; }
+warn()    { print -P "%F{yellow}   ⚠️  $1%f"; }
+fail()    { print -P "%F{red}   ❌ $1%f"; exit 1; }
+
+LOCKFILE="/tmp/advik_pip_lock_$$.txt"
+ROLLED_BACK=0
+SUCCESS=0
+
+_rollback() {
+    if [[ $SUCCESS -eq 0 && $ROLLED_BACK -eq 0 && -f "$LOCKFILE" ]]; then
+        ROLLED_BACK=1
+        print -P "\n%F{red}%B💥 Failure detected — rolling back...%b%f"
+        pip install -q -r "$LOCKFILE" --force-reinstall 2>/dev/null && \
+            print -P "%F{green}   Rollback complete.%f" || \
+            print -P "%F{yellow}   Rollback may be incomplete — check $LOCKFILE%f"
+    fi
+}
+trap '_rollback' ERR
+
+# ── 0. Optional system upgrade ────────────────────────────────────────────────
+if [[ "${RUN_SYSTEM_UPGRADE:-0}" == "1" ]]; then
+    info "Checking system package manager for upgrades..."
+    if command -v apt-get &>/dev/null; then
+        export DEBIAN_FRONTEND=noninteractive
+        APT_OPTS='-o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"'
+        sudo -E apt-get update -qq > /dev/null
+        sudo -E apt-get upgrade -y -qq $APT_OPTS > /dev/null
+        success "System packages upgraded."
+    else
+        warn "apt package manager not found. Skipping system-level upgrade."
+    fi
+else
+    info "Skipping system-level package upgrade (set RUN_SYSTEM_UPGRADE=1 to enable)."
+fi
+
+# ── 1. Resolve math/AI module directories ─────────────────────────────────────
+MATH_MODULES_DIR="${REPO_ROOT}/math_modules"
+AI_MODULES_DIR="${REPO_ROOT}/ai_modules/core"
+mkdir -p "$MATH_MODULES_DIR" "$AI_MODULES_DIR"
+
+# ── 2. Optional latest Qalculate! vendor ──────────────────────────────────────
+info "Detecting latest Qalculate! release from GitHub (best-effort)..."
+(
+    cd /tmp
+    API_JSON=$(wget -qO- "https://api.github.com/repos/Qalculate/libqalculate/releases/latest" 2>/dev/null) || true
+    if [[ -z "$API_JSON" ]]; then
+        warn "Couldn't reach the GitHub API — skipping Qalculate! update."
+        exit 0
+    fi
+    QALC_TAG=$(print -r -- "$API_JSON" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/') || true
+    if [[ -z "$QALC_TAG" ]]; then
+        warn "Qalculate! release tag was not found — skipping."
+        exit 0
+    fi
+    QALC_VERSION="${QALC_TAG#v}"
+    QALC_ARCHIVE="qalculate-${QALC_VERSION}-x86_64.tar.xz"
+    QALC_URL="https://github.com/Qalculate/libqalculate/releases/download/${QALC_TAG}/${QALC_ARCHIVE}"
+    if wget -q --show-progress "$QALC_URL"; then
+        tar -xf "$QALC_ARCHIVE"
+        if [[ -x "./qalculate-${QALC_VERSION}/qalculate" ]]; then
+            cp "./qalculate-${QALC_VERSION}/qalculate" "$MATH_MODULES_DIR/qalc"
+            chmod +x "$MATH_MODULES_DIR/qalc"
+            success "Qalculate! ${QALC_TAG} deployed → $MATH_MODULES_DIR/qalc"
+        else
+            warn "Downloaded Qalculate archive but expected binary was missing."
+        fi
+        rm -rf "qalculate-${QALC_VERSION}" "$QALC_ARCHIVE"
+    else
+        rm -f "$QALC_ARCHIVE"
+        warn "Qalculate! download failed for ${QALC_TAG}."
+    fi
+) || warn "Continuing without a Qalculate! update this run."
+
+# ── 3. Activate venv ──────────────────────────────────────────────────────────
+VENV_ACTIVATED=0
+_try_activate() {
+    local venv_path="$1"
+    local label="$2"
+    if [[ -f "$venv_path/bin/activate" ]]; then
+        info "Activating $label..."
+        source "$venv_path/bin/activate"
+        VENV_ACTIVATED=1
+        return 0
+    fi
+    return 1
+}
+
+[[ -n "${1:-}" ]] && _try_activate "$1" "venv from arg" || true
+[[ $VENV_ACTIVATED -eq 0 ]] && _try_activate "$HOME/venvs/advikmathlib_env" "advikmathlib_env" || true
+[[ $VENV_ACTIVATED -eq 0 ]] && _try_activate "$REPO_ROOT/.venv" ".venv (project)" || true
+[[ $VENV_ACTIVATED -eq 0 ]] && _try_activate ".venv" ".venv (cwd)" || true
+[[ $VENV_ACTIVATED -eq 0 ]] && fail "No venv found"
+
+print -P "   %F{green}Using:%f $(which python)  ($(python --version))"
+
+# ── 4. Save rollback snapshot ────────────────────────────────────────────────
+info "Saving rollback snapshot..."
+pip freeze > "$LOCKFILE"
+success "Saved $(wc -l < "$LOCKFILE" | tr -d ' ') packages"
+
+# ── 5. Pre-flight ─────────────────────────────────────────────────────────────
+info "Checking dependencies..."
+pip check > /dev/null 2>&1 || warn "Pre-existing conflicts detected"
+
+# ── 6. Upgrade pip + packaging ────────────────────────────────────────────────
+info "Upgrading pip + packaging..."
+pip install --upgrade pip packaging -q
+success "pip $(pip --version | cut -d' ' -f2) ready"
+
+# ── 7. Upgrade all packages except mpmath (keeps SymPy-compatible main copy) ──
+info "Upgrading Python packages (dependency-safe)..."
+OUTDATED=$(python -c "import json,sys; print('\\n'.join([p['name'] for p in json.load(sys.stdin) if p['name'].lower() != 'mpmath']))" 2>/dev/null <<< "$(pip list --outdated --format=json)")
+if [[ -z "$OUTDATED" ]]; then
+    success "Nothing to upgrade in bulk"
+else
+    print -l $OUTDATED | xargs pip install -U --upgrade-strategy only-if-needed
+    success "Bulk upgrade complete"
+fi
+
+pip install -q "pydantic>=2.0" "pydantic-core<3"
+pip install -q "mpmath>=1.1.0,<1.4"
+success "Main mpmath pinned to latest <1.4 release for SymPy compatibility"
+
+# ── 8. Verify + vendor independent latest mpmath ───────────────────────────────
+pip check > /dev/null 2>&1 || { warn "Conflicts detected — rolling back"; _rollback; exit 1; }
+
+VENDOR_DIR="$REPO_ROOT/_vendor_mpmath"
+info "Vendoring latest mpmath → $VENDOR_DIR..."
+rm -rf "$VENDOR_DIR"
+pip install mpmath --target="$VENDOR_DIR" --no-deps -q
+if [[ -d "$VENDOR_DIR/mpmath" ]]; then
+    mv "$VENDOR_DIR/mpmath" "$VENDOR_DIR/mpmath14"
+    success "Vendored mpmath copy created"
+else
+    warn "Could not create vendored mpmath copy"
+fi
+
+# ── 9. Optional math source repositories ──────────────────────────────────────
+print -P "\n%F{cyan}%B📦  Download/update math library source repos?%b%f"
+print -P "   This mirrors the original update_env behavior: shallow clone, then remove VCS/readme files."
+print -n "\n   Clone math repos now? [y/N] → "
+read -r _DLREPOS </dev/tty
+if [[ "${_DLREPOS:l}" == "y" ]]; then
+    if ! command -v git &>/dev/null; then
+        warn "git not found — skipping math source sync"
+    else
+        typeset -A _REPOS
+        _REPOS=(
+            precision   "https://github.com/fredrik-johansson/arb"
+            algebra     "https://codeberg.org/ginac/cln"
+            symbolic    "https://github.com/fricas/fricas"
+            geometry    "https://codeberg.org/ginac/ginac"
+            integers    "https://github.com/asheplyakov/gmp"
+            matrices    "https://github.com/linbox-team/linbox"
+            floats      "https://gitlab.inria.fr/mpfr/mpfr.git"
+            analysis    "https://github.com/mpmath/mpmath"
+            arrays      "https://github.com/numpy/numpy"
+            theory      "https://pari.math.u-bordeaux.fr/git/pari.git"
+            advanced    "https://github.com/sagemath/sage"
+            scientific  "https://github.com/scipy/scipy"
+            gaypy       "https://github.com/sympy/sympy"
+        )
+        for _name _url in "${(@kv)_REPOS}"; do
+            _dest="$MATH_MODULES_DIR/$_name"
+            rm -rf "$_dest"
+            print -P "   %F{white}↓  %B$_name%b  %F{cyan}$_url%f"
+            if git clone --depth=1 --single-branch -q "$_url" "$_dest" 2>/dev/null; then
+                rm -rf "$_dest/.git"
+                find "$_dest" -type f -name ".gitignore" -delete 2>/dev/null || true
+                find "$_dest" -type f -iname "readme*" -delete 2>/dev/null || true
+                success "$_name synced"
+            else
+                rm -rf "$_dest" 2>/dev/null || true
+                warn "Failed: $_name"
+            fi
+        done
+    fi
+else
+    print -P "   %F{yellow}Skipped math source sync.%f"
+fi
+
+# ── 10. AI API/SDK source repositories ───────────────────────────────────────
+# Each DISCOMOD provider gets a source directory. DeepSeek intentionally uses
+# its official current harness repository because the normal DeepSeek API is
+# OpenAI-compatible and DISCOMOD already routes it through the OpenAI-style base URL.
+print -P "\n%F{cyan}%B🤖  Download/update AI API/SDK source repos?%b%f"
+print -P "   Provider map:"
+print -P "   %F{white}  openai      → OpenAI Python SDK%f"
+print -P "   %F{white}  anthropic   → Anthropic Claude Python SDK%f"
+print -P "   %F{white}  gemini      → Google Gen AI Python SDK%f"
+print -P "   %F{white}  groq        → Groq Python SDK%f"
+print -P "   %F{white}  mistral     → Mistral AI Python SDK%f"
+print -P "   %F{white}  xai         → xAI Python SDK (Grok)%f"
+print -P "   %F{white}  deepseek    → DeepSeek official harness/SDK source%f"
+print -P "   %F{white}  roastedbyai → roastedbyai source used by roast features%f"
+print -P "   %F{white}  wolfram     → Wolfram Python client source%f"
+print -n "\n   Clone/update AI repos now? [y/N] → "
+read -r _DLAI </dev/tty
+
+AI_SYNC_STATUS="$AI_MODULES_DIR/.sync-status.json"
+if [[ "${_DLAI:l}" == "y" ]]; then
+    if ! command -v git &>/dev/null; then
+        warn "git not found — skipping AI source sync"
+    else
+        typeset -A _AI_REPOS
+        _AI_REPOS=(
+            openai       "https://github.com/openai/openai-python"
+            anthropic    "https://github.com/anthropics/anthropic-sdk-python"
+            gemini       "https://github.com/googleapis/python-genai"
+            groq         "https://github.com/groq/groq-python"
+            mistral      "https://github.com/mistralai/client-python"
+            xai          "https://github.com/xai-org/xai-sdk-python"
+            deepseek     "https://github.com/deepseek-ai/deepseek-harness"
+            roastedbyai  "https://github.com/jvherck/roastedbyai"
+            wolfram      "https://github.com/WolframResearch/WolframClientForPython"
+        )
+
+        typeset -A _AI_RESULTS
+        for _name _url in "${(@kv)_AI_REPOS}"; do
+            _dest="$AI_MODULES_DIR/$_name"
+            rm -rf "$_dest"
+            print -P "   %F{white}↓  %B$_name%b  %F{cyan}$_url%f"
+            if git clone --depth=1 --single-branch -q "$_url" "$_dest" 2>/dev/null; then
+                rm -rf "$_dest/.git"
+                find "$_dest" -type f -name ".gitignore" -delete 2>/dev/null || true
+                find "$_dest" -type f -iname "readme*" -delete 2>/dev/null || true
+                _AI_RESULTS[$_name]="ok"
+                success "$_name synced"
+            else
+                rm -rf "$_dest" 2>/dev/null || true
+                _AI_RESULTS[$_name]="failed"
+                warn "Failed: $_name  ($_url)"
+            fi
+        done
+
+        # DeepSeek API itself is OpenAI-compatible; leave a machine-readable
+        # alias so tooling can discover that it intentionally reuses OpenAI's API shape.
+        cat > "$AI_MODULES_DIR/provider-manifest.json" <<'JSON'
+{
+  "providers": {
+    "openai":   { "source": "openai", "api_style": "native" },
+    "claude":   { "source": "anthropic", "api_style": "native" },
+    "gemini":   { "source": "gemini", "api_style": "native" },
+    "groq":     { "source": "groq", "api_style": "native" },
+    "mistral":  { "source": "mistral", "api_style": "native" },
+    "grok":     { "source": "xai", "api_style": "native" },
+    "deepseek": { "source": "deepseek", "api_style": "openai-compatible" }
+  }
+}
+JSON
+        success "AI provider manifest written → $AI_MODULES_DIR/provider-manifest.json"
+    fi
+else
+    print -P "   %F{yellow}Skipped AI source sync.%f"
+fi
+
+# ── 11. Sanity check ──────────────────────────────────────────────────────────
+info "Sanity check..."
+python - <<'PYEOF'
+import os, sys
+mods = [
+    ('sympy', 'sympy'),
+    ('mpmath', 'mpmath'),
+]
+for label, mod in mods:
+    try:
+        m = __import__(mod)
+        print(f"    {label:8} {getattr(m, '__version__', '?')} ✅")
+    except Exception as e:
+        print(f"    {label:8} ❌ {e}")
+
+root = os.environ.get('AI_MODULES_DIR')
+PYEOF
+
+rm -f "$LOCKFILE"
+SUCCESS=1
+print -P "\n%F{green}%B✅ update_env finished — environment + optional source sync complete.%b%f"

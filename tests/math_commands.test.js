@@ -1,0 +1,23 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const root = path.join(__dirname, '..');
+const s = fs.readFileSync(path.join(root, 'math_commands.js'), 'utf8');
+const d = fs.readFileSync(path.join(root, 'dashboard.js'), 'utf8');
+function assert(c, m) { if (!c) throw new Error(`ASSERTION FAILED: ${m}`); }
+const metaStart = s.indexOf('const BACKENDS_META = [');
+const metaEnd = s.indexOf('];', metaStart) + 2;
+const meta = s.slice(metaStart, metaEnd);
+const names = [...meta.matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
+assert(names.length === 12, `expected 12 math backends, found ${names.length}`);
+assert(s.includes('const BACKEND_ALIAS = {'), 'backend aliases must exist');
+assert((s.match(/const actual = BACKEND_ALIAS\[name\] \|\| name;/g) || []).length >= 3, 'status/all paths must resolve aliases');
+assert(s.includes("this.proc.on('error'"), 'worker must handle child-process errors');
+assert(s.includes("const err = new Error(reason);"), 'worker restart must reject pending requests');
+assert(s.includes('MATH_MAX_CODE_LEN'), 'math code must have a hard size limit');
+assert(s.includes('function getMathConfig()'), 'dashboard config export must exist');
+assert(s.includes('function setMathConfig('), 'dashboard runtime setter must exist');
+assert(s.includes('async function getMathStatus()'), 'dashboard status export must exist');
+assert(d.includes("app.get('/api/math/status'"), 'dashboard status route missing');
+assert(d.includes("app.post('/api/math/restart'"), 'dashboard restart route missing');
+console.log('math_commands.test.js: all assertions passed');

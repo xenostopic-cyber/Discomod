@@ -1,0 +1,157 @@
+)set break resume
+)expose UnittestCount UnittestAux Unittest
+
+testsuite "bugs2026"
+
+testcase "missing categories"
+
+dMp := DistributedMultivariatePolynomial([x, y, z], INT)
+testTrue("dMp has FreeModuleCategory(INT, DirectProduct(3, NNI))")
+
+testcase "mergeDifference"
+
+testEquals("mergeDifference([1], [1, 5])$MergeThing(INT)", "[]$List(INT)")
+testEquals("mergeDifference([1, 2], [1, 5])$MergeThing(INT)", "[2]")
+testEquals("mergeDifference([1, 2, 3], [0, 1, 2])$MergeThing(INT)", "[3]")
+
+
+testcase "creation of array from list of lists"
+
+a := array2([[1, 2], [3, 4], [5, 6]])
+testEquals("nrows(a)", "3")
+testEquals("ncols(a)", "2")
+
+testcase "sqrt in Complex"
+
+rC := RealClosure(Fraction(Integer))
+s1 := sqrt(complex(0, 1)$Complex(rC))
+testEquals("typeOf(s1)::OutputForm",
+           "Complex(RealClosure(Fraction(Integer)))::OutputForm")
+testEquals("s1^2", "complex(0, 1)$Complex(rC)")
+
+v2 := sqrt(2)$rC
+s2:= sqrt((-v2)::Complex(rC))
+testEquals("s2^2", "(-v2)$Complex(rC)")
+
+dF := DoubleFloat
+z1 := complex(-1$dF, 1.0e-18::dF)
+s1 := sqrt(z1)
+testTrue("real(abs(s1)) >= 1")
+testTrue("real(abs(z1 - s1^2)) < 1.0e-15")
+r1 := real(s1)
+testTrue("4.9e-19::dF < r1 and r1 < 5.1e-19::dF")
+
+testcase "Algebra(Fraction(Integer))"
+
+testTrue("not(PF(3001) has Algebra(Fraction(Integer)))")
+
+testcase "qualified constants"
+
+testLibraryError("0$List(?)")
+testLibraryError("0$SUP(?)")
+testLibraryError("1$Boolean")
+testLibraryError("1$_"failed_"")
+testLibraryError("_"failed_"$_"failed_"")
+
+testcase "singleton types"
+
+U := Union(INT, "failed")
+u := "failed"::U
+f(x : U) : INT == (x case INT => 0; 1)
+testEquals("f(u)", "1")
+testEquals("_"failed_" has Ring", "false")
+
+testcase "diagonalMatrix"
+
+m1 := diagonalMatrix [matrix [[1,2]], matrix [[3],[4]]]
+m2 := matrix [[1,2,0],[0,0,3],[0,0,4]]
+testEquals("m1", "m2")
+
+testcase "0 dim DirectProduct"
+
+DP := DirectProduct(0, ZMOD 3)
+element := 0$DP
+testEquals("element", "index(1)$DP")
+testEquals("lookup(element)", "1")
+
+testcase "positiveRemainder in SingleInteger"
+
+testEquals("positiveRemainder(-7, -3)$SINT", "2")
+
+testcase "iroot in POLYROOT"
+
+testEquals("rootSimp((64*x^12)^(1/12))", "x*sqrt(2)")
+
+testcase "acsch and asech in EFUPXS"
+
+R ==> Expression(Integer)
+PULS ==> UnivariateLaurentSeries(R, x, 1)
+PUPS ==> UnivariatePuiseuxSeries(R, x, 1)
+PUTS ==> UnivariateTaylorSeries(R, x, 1)
+P := EFUPXS(R, PULS, PUPS, EFULS(R, PUTS, PULS))
+
+y := puiseux('x, x=1)
+
+testEquals("0", "approximate(acsch(y) - acsch(y)$P, 5)")
+testEquals("0", "approximate(asech(y) - asech(y)$P, 5)")
+
+testcase "order in DihedralGroup"
+
+testEquals("1", "order(1$DihedralGroup(5, 'a, 'b))")
+
+testcase "parsing unmatched quote at the end of line"
+
+s := "1 _""
+testEquals("#destruct(parse(s)$InputForm)", "2")
+
+testcase "^ in Interval"
+
+x := interval(-2.0, -1.0)$Interval Float
+y := x^(2/1)
+testTrue("0.9 < inf y and sup y < 4.1")
+
+testcase "prime? in UFD"
+
+x := 0$SUP INT
+y := (1 + monomial(1,1)$SUP INT)^2
+testEquals("prime?(x)", "false")
+testEquals("prime?(y)", "false")
+
+testcase "principalIdeal in EuclideanDomain"
+
+x := first(principalIdeal([2/3]).coef)
+testEquals("x", "3/2")
+
+testcase "powmod in Integer"
+
+testEquals("1", "powmod(0, 0, 3)")
+
+testcase "algreduc in Expression"
+
+e1 := sqrt(x)/sqrt(y)
+e2 := sqrt(x)
+flag := setSimplifyDenomsFlag(true)
+testEquals("e1*e2", "x*sqrt(y)/y")
+setSimplifyDenomsFlag(flag)
+
+testcase "zero divisors in reduc$EXPR"
+
+e1 := (y-sqrt(y^2))/(x-sqrt(x^2))
+e2 := (x+sqrt(x^2))/(y+sqrt(y^2))
+testTrue("(e1 = e2)@Boolean")
+testEquals("e1 - e2", "0")
+
+testcase "coercion to CONTFRAC"
+
+testEquals("coerce(2/3)$ContinuedFraction(Integer)",
+           "2/(3::ContinuedFraction(Integer))")
+testTrue("ContinuedFraction(INT) has CharacteristicZero")
+
+testcase "polynomial coercion in interpreter"
+
+p1 : UP(a1, Fraction(Polynomial(Integer))) := -a1+b1/b2
+p2 : Fraction(Polynomial(Integer)) := (-a1*b2+b1)/b2
+p3 := p1::Fraction(Polynomial(Integer))
+testEquals("p2 - p3", "0")
+
+statistics()

@@ -1,0 +1,660 @@
+-- Copyright (c) 1991-2002, The Numerical ALgorithms Group Ltd.
+-- All rights reserved.
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions are
+-- met:
+--
+--     - Redistributions of source code must retain the above copyright
+--       notice, this list of conditions and the following disclaimer.
+--
+--     - Redistributions in binary form must reproduce the above copyright
+--       notice, this list of conditions and the following disclaimer in
+--       the documentation and/or other materials provided with the
+--       distribution.
+--
+--     - Neither the name of The Numerical ALgorithms Group Ltd. nor the
+--       names of its contributors may be used to endorse or promote products
+--       derived from this software without specific prior written permission.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+-- IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+-- TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+-- PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+-- OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+-- EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+-- PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+-- PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+-- LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+-- NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+-- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+)package "BOOT"
+
+$tick := char '_`            --field separator for database files
+
+getConstructorForm(name) ==
+    name = 'Union   => '(Union  (_: a A) (_: b B))
+    name = 'UntaggedUnion => '(Union A B)
+    name = 'Record  => '(Record (_: a A) (_: b B))
+    name = 'Mapping => '(Mapping T S)
+    name = 'Enumeration => '(Enumeration a b)
+    get_database(name, 'CONSTRUCTORFORM)
+
+dbInfovec(name) ==
+    'category = get_database(name, 'CONSTRUCTORKIND) => nil
+    get_database(name, 'ASHARP?) => nil
+    loadLibIfNotLoaded(name)
+    u := GET(name, 'infovec) => u
+
+extractHasArgs(pred) ==
+    x := find(pred) or return nil where find(x) ==
+        x is [op, :argl] =>
+            op = 'hasArgs => x
+            MEMQ(op, '(AND OR NOT)) => or/[find(y) for y in argl]
+            nil
+        nil
+    [rest(x), :simpBool(substitute('T, x, pred))]
+
+augmentHasArgs(alist,conform) ==
+    conname := opOf(conform)
+    args := IFCDR(conform) or return alist
+    n := #args
+    [[name, :pred] for [name, :p] in alist] where pred ==
+         extractHasArgs(p) is [a,:b] => p
+         quickAnd(p, ['hasArgs,
+                      :TAKE(n, IFCDR(getConstructorForm(opOf(name))))])
+
+evalDomainOpPred(dom, pred, preds) ==
+    u := convert_pred(dom, pred)
+    eval_pred(dom, u, preds)
+
+convert_pred(dom, pred) ==
+    pred = 'T => true
+    pred is [op, :argl] =>
+        op = 'AND or op = 'OR => [op, :[convert_pred(dom, x) for x in argl]]
+        op = 'NOT => ['NOT, convert_pred(dom, first(argl))]
+        op = 'has =>
+            [arg, p] := argl
+            ['HasCategory, arg, convert_cat_arg(p)]
+        systemError '"unknown predicate form"
+    systemError([])
+
+convert_cat_arg(p) ==
+    SYMBOLP(p) and member(p, $FormalMapVariableList) => ["devaluate", p]
+    ATOM(p) or #p = 1 => MKQ(p)
+    ['LIST, MKQ(first(p)), :[convert_cat_arg(x) for x in rest p]]
+
+eval_pred(dom, pred, preds) ==
+    pred = 'T => true
+    k := POSN1(pred, preds) => testBitVector(dom.3, k + 1)
+    eval_pred1(dom, pred, preds)
+
+eval_pred1(dom, pred, preds) ==
+    pred is [op,:argl] =>
+        op = 'AND => "and"/[eval_pred(dom, x, preds) for x in argl]
+        op = 'OR  => "or"/[eval_pred(dom, x, preds) for x in argl]
+        op = 'NOT => not eval_pred(dom, first(argl), preds)
+        nil
+    systemError '"unknown atomic predicate form"
+
+kFormatSlotDomain1(x, infovec) ==
+              fn(formatSlotDomain1(x, infovec)) where fn(x) ==
+    ATOM(x) => x
+    (op := first(x)) = '_% => '_%
+    op = 'local => CADR(x)
+    op = ":" => [":", CADR(x), fn(CADDR(x))]
+    MEMQ(op, $Primitives) or constructor?(op) =>
+        [fn(y) for y in x]
+    INTEGERP(op) => op
+    op = 'QUOTE and ATOM(CADR(x)) => CADR(x)
+    x
+
+dbSearchOrder(conform, domname, domain) == --domain = nil or set to live domain
+    conform := domname or conform
+    name := opOf(conform)
+    infovec := dbInfovec(name) or return nil  --exit for categories
+    u := infovec.3
+    predvec :=
+        domain => domain.3
+        get_database(name, 'PREDICATES)
+    catpredvec := first(u)
+    catinfo := CADR(u)
+    catvec := CADDR(u)
+    catforms := [[pakform, :pred] for i in 0..MAXINDEX(catvec) | test ] where
+        test ==
+            p := SUBLISLIS(rest(conform), $FormalMapVariableList,
+                           kTestPred(catpredvec.i, domain, predvec))
+            if domain then p := EVAL(p)
+            pred := simpCatPredicate(p)
+            if domname and CONTAINED('%, pred) then
+                pred := SUBST(domname, '%, pred)
+            (pak := catinfo.i) and pred   --only those with default packages
+        pakform ==
+            -- in case it has been instantiated
+            pak and not(IDENTP(pak)) => devaluate(pak)
+            catform := kFormatSlotDomain1(catvec.i, infovec)
+            res := dbSubConform(rest(conform), [pak, "%", :rest(catform)])
+            domname => SUBST(domname, '%, res)
+            res
+    [:dbAddChain(conform), :catforms]
+
+kisValidType(typeForm) ==
+    $ProcessInteractiveValue: fluid := true
+    $noEvalTypeMsg: fluid := true
+    $printTimeIfTrue : local := false
+    $printStorageIfTrue : local := false
+    $BreakMode : local := 'throw_reader
+    CATCH('SPAD_READER, CATCH('top_level, processInteractive(typeForm, nil)))
+        is [[h, :.], :t] and member(h, '(Type Category)) => t
+    false
+
+parseNoMacroFromString(s) ==
+    s := next(function ncloopParse,
+              next(function lineoftoks, incString(s)))
+    StreamNull(s) => nil
+    pf2Sex(first(rest(first(s))))
+
+mkConform(kind, name, argString) ==
+    kind ~= '"default package" =>
+        form := STRCONC(name, argString)
+        parse := parseNoMacroFromString(form)
+        null(parse) =>
+            sayBrightlyNT '"Won't parse: "
+            pp(form)
+            systemError('"Keywords in argument list?")
+        ATOM(parse) => [parse]
+        parse
+    -- & case
+    [INTERN(name), :rest(ncParseFromString(STRCONC(char('d), argString)))]
+
+kTestPred(n, dom, preds) ==
+    n = 0 => true
+    dom => testBitVector(preds, n)
+    simpHasPred(preds.(n - 1))
+
+dbAddChainDomain(conform) ==
+    [name, :args] := conform
+    infovec := dbInfovec(name) or return nil  --exit for categories
+    template := infovec.0
+    null(form := template.5) => nil
+    dbSubConform(args, kFormatSlotDomain1(devaluate(form), infovec))
+
+dbSubConform(args, u) ==
+    ATOM(u) =>
+        (n := position(u,$FormalMapVariableList)) >= 0 => args.n
+        u
+    u is ['local, y] => dbSubConform(args, y)
+    [dbSubConform(args,x) for x in u]
+
+dbAddChain(conform) ==
+    u := dbAddChainDomain(conform) =>
+        ATOM(u) => nil
+        [[u, :true], :dbAddChain(u)]
+    nil
+
+--============================================================================
+--                  Build Glossary
+--============================================================================
+buildGloss() ==  --called by buildDatabase (database.boot)
+--starting with gloss.text, build glosskey.text and glossdef.text
+  $constructorName : local := nil
+  $exposeFlag : local := true
+  $x : local := nil
+  $attribute? : local := true     --do not surround first word
+  pathname := '"gloss.text"
+  instream := MAKE_INSTREAM(pathname)
+  keypath  := '"glosskey.text"
+  maybe_delete_file(keypath)
+  outstream := MAKE_OUTSTREAM(keypath)
+  htpath   := '"gloss.ht"
+  maybe_delete_file(htpath)
+  htstream := MAKE_OUTSTREAM(htpath)
+  defpath  := '"glossdef.text"
+  defstream := MAKE_OUTSTREAM(defpath)
+  pairs := getGlossLines instream
+  PRINTEXP('"\begin{page}{GlossaryPage}{G l o s s a r y}\beginscroll\beginmenu",htstream)
+  for [name,:line] in pairs repeat
+    outP  := FILE_-POSITION outstream
+    defP  := FILE_-POSITION defstream
+    n_line := transformAndRecheckComments(name,[line])
+    PRINTEXP(name, outstream)
+    PRINTEXP($tick,outstream)
+    PRINTEXP(defP, outstream)
+    TERPRI(outstream)
+    PRINTEXP('"\item\newline{\em \menuitemstyle{}}{\em ",htstream)
+    PRINTEXP(name,        htstream)
+    PRINTEXP('"}\space{}",htstream)
+    TERPRI(htstream)
+    PRINTEXP(outP, defstream)
+    PRINTEXP($tick,defstream)
+    PRINTEXP(n_line, defstream)
+    TERPRI defstream
+    PRINTEXP(n_line, htstream)
+    TERPRI htstream
+  PRINTEXP('"\endmenu\endscroll",htstream)
+  PRINTEXP('"\lispdownlink{Search}{(|htGloss| _"\stringvalue{pattern}_")} for glossary entry matching \inputstring{pattern}{24}{*}",htstream)
+  PRINTEXP('"\end{page}",htstream)
+  CLOSE(instream)
+  CLOSE(outstream)
+  CLOSE(defstream)
+  CLOSE(htstream)
+
+getGlossLines instream ==
+--instream has text of the form:
+----- key1`this is the first line
+----- and this is the second
+----- key2'and this is the third
+--result is
+----- key1'this is the first line and this is the second
+----- key2'and this is the third
+  keys := nil
+  text := nil
+  lastLineHadTick := false
+  while (line := read_line(instream)) repeat
+    #line = 0 => 'skip
+    n := charPosition($tick,line,0)
+    last := IFCAR text
+    n > MAXINDEX line =>  --this line is continuation of previous line; concat it
+      fill :=
+        #last = 0 =>
+          lastLineHadTick => '""
+          '"\blankline "
+        #last > 0 and last.(MAXINDEX last) ~= $charBlank => $charBlank
+        '""
+      lastLineHadTick := false
+      text := [STRCONC(last,fill,line),:rest text]
+    lastLineHadTick := true
+    keys := [SUBSTRING(line,0,n),:keys]
+    text := [SUBSTRING(line,n + 1,nil),:text]
+  ASSOCRIGHT listSort(function GLESSEQP,[[DOWNCASE key,key,:def] for key in keys for def in text])
+  --this complication sorts them after lower casing the keys
+
+--============================================================================
+--                  Build Users HashTable
+-- This database is written out as USERS.DATABASE (database.boot) and read using
+-- function getUsersOfConstructor. See functions whoUses and kcuPage in browser.
+--============================================================================
+mkUsersHashTable() ==  --called by make-databases (daase.lisp)
+  usersTb := MAKE_HASHTABLE('EQUAL)
+  for x in allConstructors() repeat
+    for conform in getImports x repeat
+      name := opOf conform
+      if not MEMQ(name,'(QUOTE)) then
+                HPUT(usersTb, name, insert(x, HGET(usersTb, name)))
+  for k in HKEYS(usersTb) repeat
+        HPUT(usersTb, k, listSort(function GLESSEQP, HGET(usersTb, k)))
+  for x in allConstructors() | isDefaultPackageName x repeat
+        HPUT(usersTb, x, getDefaultPackageClients(x))
+  usersTb
+
+getDefaultPackageClients con ==  --called by mkUsersHashTable
+  catname := INTERN SUBSTRING(s := PNAME con,0,MAXINDEX s)
+  for [catAncestor,:.] in childrenOf([catname]) repeat
+    pakname := INTERN STRCONC(PNAME catAncestor,'"&")
+    if get_database(pakname, 'ABBREVIATION) then acc := [pakname,:acc]
+    acc := union([CAAR x for x in domainsOf([catAncestor],nil)],acc)
+  listSort(function GLESSEQP,acc)
+
+--============================================================================
+--               Build Dependents Hashtable
+-- This hashtable is written out by database.boot as DEPENDENTS.DATABASE
+-- and read back in by getDependentsOfConstructor (see database.boot)
+-- This information is used by function kcdePage when a user asks for the
+-- dependents of a constructor.
+--============================================================================
+mkDependentsHashTable() == --called by make-databases (database.boot)
+    depTb := MAKE_HASHTABLE('EQUAL)
+    for nam in allConstructors() repeat
+        for con in getArgumentConstructors nam repeat
+            HPUT(depTb, con, [nam, :HGET(depTb, con)])
+    for k in HKEYS(depTb) repeat
+        HPUT(depTb, k, listSort(function GLESSEQP, HGET(depTb, k)))
+    depTb
+
+getArgumentConstructors con == --called by mkDependentsHashTable
+  argtypes := IFCDR IFCAR getConstructorModemap con or return nil
+  fn argtypes where
+    fn(u) == "union"/[gn x for x in u]
+    gn(x) ==
+      atom x => nil
+      x is ['Join,:r] => fn(r)
+      x is ['CATEGORY,:.] => nil
+      constructor? first x => [first x,:fn rest x]
+      fn rest x
+
+getImports conname == --called by mkUsersHashTable
+  conform := get_database(conname, 'CONSTRUCTORFORM)
+  infovec := dbInfovec conname or return nil
+  template := infovec.0
+  u := [import(i,template)
+          for i in 5..(MAXINDEX template) | test]  where
+    test == template.i is [op,:.] and IDENTP op
+              and not MEMQ(op,'(Mapping Union Record Enumeration CONS QUOTE local))
+    import(x,template) ==
+      x is [op,:args] =>
+        op = 'QUOTE or op = 'NRTEVAL => first args
+        op = 'local => first args
+        op = 'Record =>
+          ['Record,:[[":",CADR y,import(CADDR y,template)] for y in args]]
+
+--TTT next three lines: handles some tagged/untagged Union case.
+        op = 'Union=>
+          args is [['_:,:x1],:x2] =>
+               -- tagged!
+               ['Union,:[[":",CADR y,import(CADDR y,template)] for y in args]]
+          [op,:[import(y,template) for y in args]]
+
+        [op,:[import(y,template) for y in args]]
+      INTEGERP x => import(template.x,template)
+      x = '% => '%
+      x = "$$" => "$$"
+      STRINGP x => x
+      systemError '"bad argument in template"
+  listSort(function GLESSEQP,SUBLISLIS(rest conform,$FormalMapVariableList,u))
+
+
+--============================================================================
+--                 Get Hierarchical Information
+--============================================================================
+getParentsFor(cname,formalParams,constructorCategory) ==
+--called by compDefineFunctor1
+  acc := nil
+  formals := TAKE(#formalParams,$TriangleVariableList)
+  constructorForm := get_database(cname, 'CONSTRUCTORFORM)
+  for x in folks constructorCategory repeat
+    x := SUBLISLIS(formalParams,formals,x)
+    x := SUBLISLIS(IFCDR constructorForm,formalParams,x)
+    acc := [:explodeIfs x,:acc]
+  NREVERSE acc
+
+parentsOf con == --called by kcpPage, ancestorsRecur
+  if null BOUNDP '$parentsCache then SETQ($parentsCache, MAKE_HASHTABLE('EQ))
+  HGET($parentsCache,con) or
+    parents := getParentsForDomain con
+    HPUT($parentsCache,con,parents)
+    parents
+
+parentsOfForm [op,:argl] ==
+  parents := parentsOf op
+  null argl or argl = (newArgl := rest get_database(op, 'CONSTRUCTORFORM)) =>
+    parents
+  SUBLISLIS(argl, newArgl, parents)
+
+getParentsForDomain domname  == --called by parentsOf
+  acc := nil
+  for x in folks(get_database(domname, 'CONSTRUCTORCATEGORY)) repeat
+    x :=
+      get_database(domname,'CONSTRUCTORKIND) = 'category =>
+        sublisFormal(IFCDR getConstructorForm domname,x,$TriangleVariableList)
+      sublisFormal(IFCDR getConstructorForm domname,x)
+    acc := [:explodeIfs x,:acc]
+  NREVERSE acc
+
+explodeIfs x == main where  --called by getParents, getParentsForDomain
+  main ==
+    x is ['IF,p,a,b] => fn(p,a,b)
+    [[x,:true]]
+  fn(p,a,b) ==
+    [:"append"/[gn(p,y) for y in a],:"append"/[gn(['NOT,p],y) for y in b]]
+  gn(p,a) ==
+    a is ['IF,q,b,:.] => fn(MKPF([p,q],'AND),b,nil)
+    [[a,:p]]
+
+folks u == --called by getParents and getParentsForDomain
+  atom u => nil
+  u is [op,:v] and MEMQ(op,'(Join PROGN))
+    or u is ['CATEGORY,a,:v] => "append"/[folks x for x in v]
+  u is ['SIGNATURE,:.] => nil
+  u is ['ATTRIBUTE,a] =>
+    PAIRP a and constructor? opOf a => folks a
+    nil
+  u is ['IF,p,q,r] =>
+    q1 := folks q
+    r1 := folks r
+    q1 or r1 => [['IF,p,q1,r1]]
+    nil
+  [u]
+
+descendantsOf(conform,domform) ==  --called by kcdPage
+  'category = get_database((conname := opOf conform), 'CONSTRUCTORKIND) =>
+    cats := catsOf(conform,domform)
+    [op,:argl] := conform
+    null argl or argl = (newArgl := rest(get_database(op, 'CONSTRUCTORFORM)))
+        => cats
+    SUBLISLIS(argl, newArgl, cats)
+  'notAvailable
+
+childrenOf conform ==
+  [pair for pair in descendantsOf(conform,nil) |
+    childAssoc(conform,parentsOfForm first pair)]
+
+childAssoc(form,alist) ==
+  null (argl := rest form) => assoc(form, alist)
+  u := assocCar(opOf form, alist) => childArgCheck(argl, rest first u) and u
+  nil
+
+assocCar(x, al) == or/[pair for pair in al | x = CAAR pair]
+
+childArgCheck(argl, nargl) ==
+  and/[fn for x in argl for y in nargl for i in 0..] where
+    fn ==
+      x = y or constructor? opOf y => true
+      isSharpVar y => i = POSN1(y, $FormalMapVariableList)
+      false
+
+ancestors_of_cat(conform, domform) ==
+       conname := opOf(conform)
+       alist := get_database(conname, 'ANCESTORS)
+       argl := IFCDR domform or IFCDR conform
+       [pair for [a,:b] in alist | pair] where pair ==
+         left :=  sublisFormal(argl,a)
+         right := sublisFormal(argl,b)
+         if domform then right := simpHasPred right
+         null right => false
+         [left,:right]
+
+ancestorsOf(conform,domform) ==  --called by kcaPage, originsInOrder,...
+  'category = get_database((conname := opOf(conform)), 'CONSTRUCTORKIND) =>
+       ancestors_of_cat(conform, domform)
+  computeAncestorsOf(conform,domform)
+
+computeAncestorsOf(conform,domform) ==
+  $done : local := MAKE_HASHTABLE('EQUAL)
+  $if :   local := MAKE_HASHTABLE('EQ)
+  ancestorsRecur(conform, domform, true, true)
+  acc := nil
+  for op in listSort(function GLESSEQP,HKEYS $if) repeat
+    for pair in HGET($if,op) repeat acc := [pair,:acc]
+  NREVERSE acc
+
+ancestorsRecur(conform, domform, pred, firstTime?) ==
+  op      := opOf conform
+  pred = HGET($done, conform) => nil   --skip if already processed
+  parents :=
+    firstTime? and ($insideCategoryIfTrue or $insideFunctorIfTrue) =>
+        getParentsFor($op, $FormalMapVariableList, $lisplibCategory)
+    parentsOf op
+  originalConform :=
+    firstTime? and ($insideCategoryIfTrue or $insideFunctorIfTrue) =>
+        $functorForm
+    getConstructorForm op
+  if conform ~= originalConform then
+    parents := SUBLISLIS(IFCDR conform,IFCDR originalConform,parents)
+  for [newform,:p] in parents repeat
+    p is ['has, '%, newform] => "iterate"
+    if domform and rest domform then
+      newdomform := SUBLISLIS(rest domform,rest conform,newform)
+      p          := SUBLISLIS(rest domform,rest conform,p)
+    newPred := quickAnd(pred,p)
+    ancestorsAdd(simpHasPred newPred,newdomform or newform)
+    ancestorsRecur(newform,newdomform,newPred,false)
+  HPUT($done, conform, pred)                  --mark as already processed
+
+ancestorsAdd(pred,form) == --called by ancestorsRecur
+  null pred => nil
+  op := IFCAR form or form
+  alist := HGET($if,op)
+  existingNode := assoc(form,alist) =>
+    RPLACD(existingNode, quickOr(rest existingNode, pred))
+  HPUT($if,op,[[form,:pred],:alist])
+
+domainsOf(conform, domname) ==
+  conname := opOf conform
+  u := [key for key in HKEYS $has_category_hash
+    | key is [anc,: =conname]]
+  --u is list of pairs (a . b) where b = conname
+  --we sort u then replace each b by the predicate for which this is true
+  s := listSort(function GLESSEQP,COPY u)
+  s := [[first pair, :get_database(pair, 'HASCATEGORY)] for pair in s]
+  transKCatAlist(conform,domname,listSort(function GLESSEQP,s))
+
+catsOf(conform, domname) ==
+  conname := opOf conform
+  alist := nil
+  for key in allConstructors() repeat
+    for item in get_database(key, 'ANCESTORS) | conname = CAAR item repeat
+      [[op,:args],:pred] := item
+      newItem :=
+        args => [[args,:pred],:LASSOC(key,alist)]
+        pred
+      alist := insertShortAlist(key,newItem,alist)
+  transKCatAlist(conform,domname,listSort(function GLESSEQP,alist))
+
+transKCatAlist(conform, domname, s) ==
+    domname => --accept only exact matches after substitution
+      domargs := rest domname
+      acc := nil
+      rest conform =>
+        for pair in s repeat --pair has form [con,[conargs,:pred],...]]
+          leftForm := getConstructorForm first pair
+          for (ap := [args, :pred]) in rest pair repeat
+            match? :=
+              domargs = args => true
+              HAS_SHARP_VAR args => domargs = sublisFormal(IFCDR domname, args)
+              nil
+            null match? => 'skip
+            npred := sublisFormal(IFCDR leftForm, pred)
+            acc := [[leftForm,:npred],:acc]
+        NREVERSE acc
+      --conform has no arguments so each pair has form [con,:pred]
+      for pair in s repeat
+        leftForm := getConstructorForm first pair or systemError nil
+        RPLACA(pair,leftForm)
+        RPLACD(pair, sublisFormal(IFCDR leftForm, rest pair))
+      s
+    --no domname, so look for special argument combinations
+    acc := nil
+    IFCDR conform =>
+      farglist := TAKE(#rest conform,$FormalMapVariableList)
+      for pair in s repeat --pair has form [con,[conargs,:pred],...]]
+        leftForm := getConstructorForm first pair
+        for (ap := [args, :pred]) in rest pair repeat
+          hasArgsForm? := args ~= farglist
+          npred := sublisFormal(IFCDR leftForm, pred)
+          if hasArgsForm? then
+            subargs := sublisFormal(IFCDR leftForm, args)
+            hpred :=
+              ['hasArgs,:subargs]
+            npred := quickAnd(hpred,npred)
+          acc := [[leftForm,:npred],:acc]
+      NREVERSE acc
+    for pair in s repeat --pair has form [con,:pred]
+      leftForm := getConstructorForm first pair
+      RPLACA(pair,leftForm)
+      RPLACD(pair, sublisFormal(IFCDR leftForm, rest pair))
+    s
+
+sublisFormal(args,exp,:options) == main where
+  main ==  --use only on LIST structures; see also sublisFormalAlist
+    $formals: local := IFCAR options or $FormalMapVariableList
+    null args => exp
+    sublisFormal1(args,exp,#args - 1)
+  sublisFormal1(args,x,n) ==    --[sublisFormal1(args,y) for y in x]
+    x is [.,:.] =>
+      acc := nil
+      y := x
+      while null atom y repeat
+        acc := [sublisFormal1(args,QCAR y,n),:acc]
+        y := QCDR y
+      r := NREVERSE acc
+      if y then
+        nd := LASTNODE r
+        RPLACD(nd,sublisFormal1(args,y,n))
+      r
+    IDENTP x =>
+      j := or/[i for f in $formals for i in 0..n | EQ(f,x)] =>
+          args.j
+      x
+    x
+
+ --------------- Data for Union, Mapping, and Record -----------------
+
+MAKEPROP('Record, 'documentation, '(
+  (_=  (((Boolean) _% _%)
+   "\spad{r = s} tests for equality of two records \spad{r} and \spad{s}"))
+  (coerce (((OutputForm) _%)
+   "\spad{coerce(r)} returns a representation of \spad{r} as an output form")
+         ((_% (List (Any)))
+   "\spad{coerce(u)}, where \spad{u} is the list \spad{[x,y]} for \spad{x} of type \spad{A} and \spad{y} of type \spad{B}, returns the record \spad{[a:x,b:y]}"))
+  (construct ((_% A B)
+   "\spad{construct(x, y)} returns the record \spad{[a:x,b:y]}"))
+  (elt ((A % "a")
+   "\spad{r . a} returns the value stored in record \spad{r} under selector \spad{a}.")
+      ((B % "b")
+   "\spad{r . b} returns the value stored in record \spad{r} under selector \spad{b}."))
+  (setelt_! ((A % "a" A)
+   "\spad{r . a := x} destructively replaces the value stored in record \spad{r} under selector \spad{a} by the value of \spad{x}. Error: if \spad{r} has not been previously assigned a value.")
+         ((B % "b" B)
+   "\spad{r . b := y} destructively replaces the value stored in record \spad{r} under selector \spad{b} by the value of \spad{y}. Error: if \spad{r} has not been previously assigned a value."))
+   ))
+
+MAKEPROP('UntaggedUnion, 'documentation, '(
+  (_=  (((Boolean) % %)
+    "\spad{u = v} tests if two objects of the union are equal, that is, u and v are hold objects of same branch which are equal."))
+  (case (((Boolean) % A)
+    "\spad{u case A} tests if \spad{u} is of the type \spad{A} branch of the union.")
+        (((Boolean) % B)
+    "\spad{u case B} tests if \spad{u} is of the \spad{B} branch of the union."))
+  (coerce ((A %)
+    "\spad{coerce(u)} returns \spad{x} of type \spad{A} if \spad{x} is of the \spad{A} branch of the union. Error: if \spad{u} is of the \spad{B} branch of the union.")
+          ((B %)
+    "\spad{coerce(u)} returns \spad{x} of type \spad{B} if \spad{x} is of the \spad{B} branch of the union. Error: if \spad{u} is of the \spad{A} branch of the union.")
+          ((% A)
+    "\spad{coerce(x)}, where \spad{x} has type \spad{A}, returns \spad{x} as a union type.")
+          ((% B)
+    "\spad{coerce(y)}, where \spad{y} has type \spad{B}, returns \spad{y} as a union type."))
+  ))
+
+MAKEPROP('Union, 'documentation, '(
+  (_=  (((Boolean) % %)
+    "\spad{u = v} tests if two objects of the union are equal, that is, \spad{u} and \spad{v} are objects of same branch which are equal."))
+  (case (((Boolean) % "a")
+    "\spad{u case a} tests if \spad{u} is of branch \spad{a} of the union.")
+        (((Boolean) % "b")
+    "\spad{u case b} tests if \spad{u} is of branch \spad{b} of the union."))
+  (coerce ((A %)
+    "\spad{coerce(u)} returns \spad{x} of type \spad{A} if \spad{x} is of the branch \spad{a} of the union. Error: if \spad{u} is of the branch \spad{b} of the union.")
+          ((B %)
+    "\spad{coerce(u)} returns \spad{x} of type \spad{B} if \spad{x} is of the branch \spad{b} of the union. Error: if \spad{u} is of the branch \spad{a} of the union.")
+          ((% A)
+    "\spad{coerce(x)}, where \spad{x} has type \spad{A}, returns \spad{x} as a union type.")
+          ((% B)
+    "\spad{coerce(y)}, where \spad{y} has type \spad{B}, returns \spad{y} as a union type."))
+  ))
+
+MAKEPROP('Mapping, 'documentation, '(
+  (_=  (((Boolean) % %)
+    "\spad{u = v} tests if mapping objects are equal."))
+   ))
+
+MAKEPROP('Enumeration, 'documentation, '(
+  (_= (((Boolean) _% _%)
+    "\spad{e = f} tests for equality of two enumerations \spad{e} and \spad{f}"))
+  (_^_= (((Boolean) _% _%)
+    "\spad{e ~= f} tests that two enumerations \spad{e} and \spad{f} are not equal"))
+  (coerce (((OutputForm) _%)
+     "\spad{coerce(e)} returns a representation of enumeration \spad{r} as an output form")
+          ((_% (Symbol))
+     "\spad{coerce(s)} converts a symbol \spad{s} into an enumeration which has \spad{s} as a member symbol"))
+  ))
